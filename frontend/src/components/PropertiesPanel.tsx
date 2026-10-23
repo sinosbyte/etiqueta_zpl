@@ -176,7 +176,14 @@ export function PropertiesPanel() {
               <label style={labelStyle}>Font size</label>
               <input className="chrome-input" type="number"
                 value={el.fontSize ?? 30}
-                onChange={e => updateElement(el.id, { fontSize: Number(e.target.value) })}
+                onChange={e => {
+                  const fontSize = Number(e.target.value);
+                  // Keep a custom ^A width in proportion to the new height
+                  const fontWidth = el.fontWidth && el.fontSize
+                    ? Math.max(1, Math.round(el.fontWidth * fontSize / el.fontSize))
+                    : undefined;
+                  updateElement(el.id, { fontSize, fontWidth });
+                }}
               />
             </div>
             <div>
