@@ -62,10 +62,10 @@ test('round-trips a rect element', () => {
   expect(result.elements[0].height).toBe(150);
 });
 
-test('collects unknown commands without crashing', () => {
+test('collects unknown commands without crashing and keeps them as raw ZPL', () => {
   const result = parseZpl('^XA\n^PW800\n^LL1200\n^ZZ99^FS\n^XZ');
   expect(result.unknownCommands.length).toBeGreaterThan(0);
-  expect(result.elements).toHaveLength(0);
+  expect(result.elements).toEqual([expect.objectContaining({ type: 'raw', value: '^ZZ99' })]);
 });
 
 // ── New parser capabilities ───────────────────────────────────────────────────
@@ -91,10 +91,12 @@ test('field ^A font overrides ^CF default', () => {
 test('parses ^BC barcode with no parameters (uses ^BY height)', () => {
   const zpl = '^XA\n^BY5,2,270\n^FO100,550^BC^FD12345678^FS\n^XZ';
   const result = parseZpl(zpl);
-  expect(result.elements).toHaveLength(1);
-  expect(result.elements[0].type).toBe('barcode128');
-  expect(result.elements[0].value).toBe('12345678');
-  expect(result.elements[0].height).toBe(270);
+  // The standalone ^BY is also kept verbatim (raw barcodes may depend on it)
+  expect(result.elements).toHaveLength(2);
+  expect(result.elements[0]).toMatchObject({ type: 'raw', value: '^BY5,2,270' });
+  expect(result.elements[1].type).toBe('barcode128');
+  expect(result.elements[1].value).toBe('12345678');
+  expect(result.elements[1].height).toBe(270);
 });
 
 test('parses ^GB as line when one dimension equals thickness', () => {
@@ -263,4 +265,113 @@ test('round-trips a dynamic text element', () => {
   const el = parseZpl(generateZpl(req)).elements[0];
   expect(el.dynamic).toBe(true);
   expect(el.variableName).toBe('company');
+});
+
+// ── Preserving ZPL the canvas cannot represent ────────────────────────────────
+
+// Real client label (Atlas "Contém"): ^FT, ^FB, Interleaved 2 of 5 (^B2),
+// ^MMT/^LS/^CI, font widths and rounded boxes.
+const ATLAS_LABEL = `^XA
+^CI28
+^MMT
+^PW812
+^LL0551
+^LS0
+^FX MARCA
+^FT180,70^A0N,65,55^FD{{MARCA}}^FS
+^FT220,145^A0N,34,30^FB120,1,0,R,0^FDREF.:^FS
+^FT330,145^A0N,75,50^FB470,1,0,C,0^FD{{REFERENCIA}}^FS
+^FO160,165^GB300,145,2,B,2^FS
+^FO170,185^A0N,34,24^FDCONTÉM: {{QTD}} PEÇAS^FS
+^FO160,320^GB300,50,2,B,4^FS
+^FO170,333^A0N,31,26^FDVALIDADE {{VALIDADE}}^FS
+^FO480,265^GB315,3,2^FS
+^FT180,410^A0N,24,17^FDATLAS S/A AV. INDEPENDENCIA 8885^FS
+^BY3,3,130
+^FO20,50^B2B,100,Y,N,N^FD{{EAN}}^FS
+^XZ`;
+
+test('keeps unsupported fields and commands verbatim when regenerating (Atlas label)', () => {
+  const parsed = parseZpl(ATLAS_LABEL);
+  const zpl = generateZpl({ labelWidth: parsed.labelWidth, labelHeight: parsed.labelHeight, elements: parsed.elements });
+
+  for (const fragment of [
+    '^CI28',
+    '^MMT',
+    '^LS0',
+    '^FT180,70^A0N,65,55^FD{{MARCA}}^FS',
+    '^FT220,145^A0N,34,30^FB120,1,0,R,0^FDREF.:^FS',
+    '^FT330,145^A0N,75,50^FB470,1,0,C,0^FD{{REFERENCIA}}^FS',
+    '^FT180,410^A0N,24,17^FDATLAS S/A AV. INDEPENDENCIA 8885^FS',
+    '^BY3,3,130',
+    '^FO20,50^B2B,100,Y,N,N^FD{{EAN}}^FS',
+  ]) {
+    expect(zpl).toContain(fragment);
+  }
+  expect(parsed.labelWidth).toBe(812);
+  expect(parsed.labelHeight).toBe(551);
+});
+
+test('keeps supported fields editable, with font width and box rounding (Atlas label)', () => {
+  const parsed = parseZpl(ATLAS_LABEL);
+  const text = parsed.elements.find(e => e.type === 'text' && e.value === 'CONTÉM: {{QTD}} PEÇAS');
+  expect(text).toMatchObject({ x: 170, y: 185, fontSize: 34, fontWidth: 24 });
+
+  const box = parsed.elements.find(e => e.type === 'rect' && e.x === 160 && e.y === 165);
+  expect(box).toMatchObject({ width: 300, height: 145, thickness: 2, rounding: 2 });
+
+  const zpl = generateZpl({ labelWidth: 812, labelHeight: 551, elements: parsed.elements });
+  expect(zpl).toContain('^FO170,185^A0N,34,24^FDCONTÉM: {{QTD}} PEÇAS^FS');
+  expect(zpl).toContain('^FO160,165^GB300,145,2,B,2^FS');
+  expect(zpl).toContain('^FO160,320^GB300,50,2,B,4^FS');
+  expect(zpl).toContain('^FO480,265^GB315,3,2^FS');
+});
+
+test('regenerating twice gives the same ZPL (stable round-trip)', () => {
+  const first = parseZpl(ATLAS_LABEL);
+  const zpl1 = generateZpl({ labelWidth: first.labelWidth, labelHeight: first.labelHeight, elements: first.elements });
+  const second = parseZpl(zpl1);
+  const zpl2 = generateZpl({ labelWidth: second.labelWidth, labelHeight: second.labelHeight, elements: second.elements });
+  expect(zpl2).toBe(zpl1);
+});
+
+test('keeps ~ commands and ^FH fields verbatim (HU label style)', () => {
+  const zpl = String.raw`^XA
+~TA000
+~SD15
+^PW799
+^FT29,86^A0N,76,86^FH\^CI28^FDABC-123^FS^CI27
+^PQ1,0,1,Y
+^XZ`;
+  const parsed = parseZpl(zpl);
+  const out = generateZpl({ labelWidth: parsed.labelWidth, labelHeight: parsed.labelHeight, elements: parsed.elements });
+  for (const fragment of ['~TA000', '~SD15', String.raw`^FT29,86^A0N,76,86^FH\^CI28^FDABC-123^FS`, '^CI27', '^PQ1,0,1,Y']) {
+    expect(out).toContain(fragment);
+  }
+});
+
+test('keeps a rotated text field as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FO10,10^A0R,30,30^FDRotated^FS\n^XZ');
+  expect(parsed.elements).toEqual([expect.objectContaining({ type: 'raw', value: '^FO10,10^A0R,30,30^FDRotated^FS' })]);
+});
+
+test('keeps a Code 128 with non-default options as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FO10,10^BCN,100,N,N,N^FD123^FS\n^XZ');
+  expect(parsed.elements[0]).toMatchObject({ type: 'raw', value: '^FO10,10^BCN,100,N,N,N^FD123^FS' });
+});
+
+test('keeps a QR code with manual input mode as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FO10,10^BQN,2,4^FDMM,Ahttps://example.com^FS\n^XZ');
+  expect(parsed.elements[0]).toMatchObject({ type: 'raw', value: '^FO10,10^BQN,2,4^FDMM,Ahttps://example.com^FS' });
+});
+
+test('parses QR error correction level and keeps it on regenerate', () => {
+  const parsed = parseZpl('^XA\n^FO10,10^BQN,2,4^FDQA,https://example.com^FS\n^XZ');
+  expect(parsed.elements[0]).toMatchObject({ type: 'qrcode', value: 'https://example.com', qrErrorCorrection: 'Q' });
+  expect(generateZpl({ labelWidth: 800, labelHeight: 400, elements: parsed.elements })).toContain('^FDQA,https://example.com^FS');
+});
+
+test('keeps a field without ^FS as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FO10,10^A0N,30,30^FDOpen field\n^XZ');
+  expect(parsed.elements[0]).toMatchObject({ type: 'raw', value: '^FO10,10^A0N,30,30^FDOpen field' });
 });

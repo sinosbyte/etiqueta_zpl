@@ -8,6 +8,8 @@ export function TextElement({ element, scale }: Props) {
   const fontSize = (element.fontSize ?? 30) * scale;
   const reversed = element.reversed ?? false;
   const font = getZplFont(element.fontName);
+  // ^A width narrower/wider than the height: stretch the glyphs horizontally
+  const widthRatio = element.fontWidth && element.fontSize ? element.fontWidth / element.fontSize : 1;
   return (
     <div
       style={{
@@ -26,7 +28,9 @@ export function TextElement({ element, scale }: Props) {
         color: reversed ? 'white' : 'black',
       }}
     >
-      {displayValue(element) || 'Text'}
+      <span style={{ display: 'inline-block', transform: `scaleX(${widthRatio})`, transformOrigin: 'left center' }}>
+        {displayValue(element) || 'Text'}
+      </span>
     </div>
   );
 }

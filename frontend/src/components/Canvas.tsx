@@ -20,6 +20,7 @@ function ElementRenderer({ element, scale }: { element: DesignElement; scale: nu
     case 'rect': return <RectElement element={element} scale={scale} />;
     case 'line': return <LineElement element={element} scale={scale} />;
     case 'comment': return null;
+    case 'raw': return null;
   }
 }
 
@@ -131,6 +132,9 @@ export function Canvas() {
   const canvasWidth = labelWidth * zoom;
   const canvasHeight = labelHeight * zoom;
 
+  // Fields/commands kept verbatim because the canvas cannot draw them
+  const rawCount = elements.filter(el => el.type === 'raw').length;
+
   // Live pixel offset while a multi-selection drag is in progress, so the
   // non-active members follow the pointer too.
   const [groupOffset, setGroupOffset] = useState<{ x: number; y: number } | null>(null);
@@ -180,6 +184,25 @@ export function Canvas() {
         onMouseDown={handleMouseDown}
         onContextMenu={e => e.preventDefault()}
       >
+        {rawCount > 0 && (
+          <div
+            style={{
+              width: canvasWidth,
+              margin: '0 auto 8px',
+              padding: '6px 10px',
+              fontSize: 12,
+              lineHeight: 1.4,
+              borderRadius: 6,
+              border: '1px solid var(--chrome-border)',
+              background: 'var(--chrome-surface)',
+              color: 'var(--chrome-text-muted)',
+              boxSizing: 'border-box',
+            }}
+          >
+            {rawCount} ZPL {rawCount === 1 ? 'command is' : 'commands are'} kept as written but not drawn on the canvas
+            (e.g. ^FT, ^FB, Interleaved 2 of 5). Edit them in the Code tab and use Preview to see the real label.
+          </div>
+        )}
         <div
           ref={setNodeRef}
           onClick={() => clearSelection()}
@@ -195,7 +218,7 @@ export function Canvas() {
         >
           {/* Elements layer — no isolation so ^FR difference blend can see the white canvas bg */}
           <div style={{ position: 'absolute', inset: 0 }}>
-            {elements.filter(el => el.type !== 'comment').map(el => (
+            {elements.filter(el => el.type !== 'comment' && el.type !== 'raw').map(el => (
               <DraggableElement key={el.id} element={el} scale={zoom} groupOffset={groupOffset} />
             ))}
           </div>

@@ -5,6 +5,11 @@ import { Element, GenerateRequest } from './types';
 const fieldData = (el: Element): string =>
   el.dynamic && el.variableName ? `{{${el.variableName}}}` : (el.value ?? '');
 
+// Optional ^GB color/rounding parameters, emitted only when they differ from
+// the ZPL defaults (black, no rounding).
+const gbExtras = (el: Element): string =>
+  el.color === 'W' || (el.rounding ?? 0) > 0 ? `,${el.color ?? 'B'},${el.rounding ?? 0}` : '';
+
 export function generateZpl(req: GenerateRequest): string {
   const lines: string[] = [
     '^XA',
@@ -14,6 +19,7 @@ export function generateZpl(req: GenerateRequest): string {
 
   let cfFontName: string | null = null;
   let cfFontSize: number | null = null;
+  let cfFontWidth: number | null = null;
 
   for (const el of req.elements) {
     const fo = `^FO${el.x},${el.y}`;
@@ -26,15 +32,17 @@ export function generateZpl(req: GenerateRequest): string {
 
         if (el.fontSource === 'cf') {
           // Emit or reuse a ^CF context line
-          if (cfFontName !== fontName || cfFontSize !== fontSize) {
-            lines.push(`^CF${fontName},${fontSize}`);
+          const fontWidth = el.fontWidth ?? null;
+          if (cfFontName !== fontName || cfFontSize !== fontSize || cfFontWidth !== fontWidth) {
+            lines.push(`^CF${fontName},${fontSize}${fontWidth !== null ? `,${fontWidth}` : ''}`);
             cfFontName = fontName;
             cfFontSize = fontSize;
+            cfFontWidth = fontWidth;
           }
           lines.push(`${fo}^FD${data}^FS`);
         } else {
-          // Explicit ^A inline font — emit as before
-          lines.push(`${fo}^A${fontName}N,${fontSize},${fontSize}^FD${data}^FS`);
+          // Explicit ^A inline font; width defaults to the height
+          lines.push(`${fo}^A${fontName}N,${fontSize},${el.fontWidth ?? fontSize}^FD${data}^FS`);
         }
         break;
       }
@@ -49,13 +57,13 @@ export function generateZpl(req: GenerateRequest): string {
       }
       case 'qrcode': {
         const mag = Math.max(1, Math.min(10, Math.floor(el.width / 33)));
-        lines.push(`${fo}^BQN,2,${mag}^FDMA,${fieldData(el)}^FS`);
+        lines.push(`${fo}^BQN,2,${mag}^FD${el.qrErrorCorrection ?? 'M'}A,${fieldData(el)}^FS`);
         break;
       }
       case 'rect': {
         const thickness = el.filled ? Math.min(el.width, el.height) : (el.thickness ?? 8);
         const fr = el.reversed ? '^FR' : '';
-        lines.push(`${fo}${fr}^GB${el.width},${el.height},${thickness}^FS`);
+        lines.push(`${fo}${fr}^GB${el.width},${el.height},${thickness}${gbExtras(el)}^FS`);
         break;
       }
       case 'line': {
@@ -65,11 +73,16 @@ export function generateZpl(req: GenerateRequest): string {
         // dragging the perpendicular edge thickens the line instead of turning
         // it into a hollow box (e.g. ^GB200,163,3).
         const t = Math.min(el.width, el.height);
-        lines.push(`${fo}^GB${el.width},${el.height},${t}^FS`);
+        lines.push(`${fo}^GB${el.width},${el.height},${t}${gbExtras(el)}^FS`);
         break;
       }
       case 'comment': {
         lines.push(`^FX ${el.value ?? ''}`);
+        break;
+      }
+      case 'raw': {
+        // ZPL the editor cannot represent — emitted exactly as it was read
+        lines.push(el.value ?? '');
         break;
       }
       default: {

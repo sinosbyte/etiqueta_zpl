@@ -122,3 +122,51 @@ test('dynamic qrcode emits {{variableName}} placeholder', () => {
   });
   expect(zpl).toContain('^FDMA,{{url}}^FS');
 });
+
+test('emits raw elements verbatim', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [{ id: 'r', type: 'raw', x: 0, y: 0, width: 0, height: 0, value: '^FT10,20^A0N,30,20^FB200,1,0,C,0^FDHi^FS' }],
+  });
+  expect(zpl).toContain('\n^FT10,20^A0N,30,20^FB200,1,0,C,0^FDHi^FS\n');
+});
+
+test('emits font width when it differs from the height', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [{ id: 't', type: 'text', x: 10, y: 10, width: 200, height: 40, value: 'Narrow', fontSize: 34, fontWidth: 24, fontName: '0', fontSource: 'a' }],
+  });
+  expect(zpl).toContain('^FO10,10^A0N,34,24^FDNarrow^FS');
+});
+
+test('emits font width in ^CF for default-font text', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [{ id: 't', type: 'text', x: 10, y: 10, width: 200, height: 40, value: 'Narrow', fontSize: 30, fontWidth: 20, fontName: '0', fontSource: 'cf' }],
+  });
+  expect(zpl).toContain('^CF0,30,20');
+});
+
+test('emits box color and rounding only when set', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [
+      { id: 'a', type: 'rect', x: 10, y: 10, width: 300, height: 100, thickness: 2, rounding: 3 },
+      { id: 'b', type: 'rect', x: 10, y: 200, width: 300, height: 100, thickness: 2 },
+    ],
+  });
+  expect(zpl).toContain('^FO10,10^GB300,100,2,B,3^FS');
+  expect(zpl).toContain('^FO10,200^GB300,100,2^FS');
+});
+
+test('emits QR error correction level, defaulting to M', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [
+      { id: 'q', type: 'qrcode', x: 10, y: 10, width: 132, height: 132, value: 'A', qrErrorCorrection: 'H' },
+      { id: 'm', type: 'qrcode', x: 200, y: 10, width: 132, height: 132, value: 'B' },
+    ],
+  });
+  expect(zpl).toContain('^FDHA,A^FS');
+  expect(zpl).toContain('^FDMA,B^FS');
+});
