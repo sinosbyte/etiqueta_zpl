@@ -1,4 +1,5 @@
 import { Element, GenerateRequest } from './types';
+import { i2of5DigitCount, i2of5Modules } from './i2of5';
 
 // Field data emitted into ^FD. Dynamic elements emit a {{variableName}}
 // placeholder for the API caller to substitute; others emit their value.
@@ -9,6 +10,8 @@ const fieldData = (el: Element): string =>
 // the ZPL defaults (black, no rounding).
 const gbExtras = (el: Element): string =>
   el.color === 'W' || (el.rounding ?? 0) > 0 ? `,${el.color ?? 'B'},${el.rounding ?? 0}` : '';
+
+const yn = (flag: boolean): string => (flag ? 'Y' : 'N');
 
 export function generateZpl(req: GenerateRequest): string {
   const lines: string[] = [
@@ -29,6 +32,12 @@ export function generateZpl(req: GenerateRequest): string {
         const fontName = el.fontName ?? '0';
         const fontSize = el.fontSize ?? 30;
         const data = fieldData(el);
+        // ^FT positions the baseline: the canvas top-left plus the font height
+        const origin = el.origin === 'FT' ? `^FT${el.x},${el.y + fontSize}` : fo;
+        // ^FB block width follows the element width, so resizing on the canvas resizes the block
+        const fb = el.block
+          ? `^FB${Math.round(el.width)},${el.block.maxLines},${el.block.lineSpacing},${el.block.justify},${el.block.hangingIndent}`
+          : '';
 
         if (el.fontSource === 'cf') {
           // Emit or reuse a ^CF context line
@@ -39,11 +48,28 @@ export function generateZpl(req: GenerateRequest): string {
             cfFontSize = fontSize;
             cfFontWidth = fontWidth;
           }
-          lines.push(`${fo}^FD${data}^FS`);
+          lines.push(`${origin}${fb}^FD${data}^FS`);
         } else {
           // Explicit ^A inline font; width defaults to the height
-          lines.push(`${fo}^A${fontName}N,${fontSize},${el.fontWidth ?? fontSize}^FD${data}^FS`);
+          lines.push(`${origin}^A${fontName}N,${fontSize},${el.fontWidth ?? fontSize}${fb}^FD${data}^FS`);
         }
+        break;
+      }
+      case 'barcodeI2of5': {
+        const value = fieldData(el);
+        const orientation = el.orientation ?? 'N';
+        const rotated = orientation === 'R' || orientation === 'B';
+        // The canvas box is bars length x bar height, swapped when rotated
+        const length = rotated ? el.height : el.width;
+        const barHeight = Math.round(rotated ? el.width : el.height);
+        const ratio = el.ratio ?? 3;
+        const checkDigit = el.checkDigit ?? false;
+        const modules = i2of5Modules(i2of5DigitCount(value), ratio, checkDigit);
+        const moduleWidth = Math.max(1, Math.round(length / modules));
+        lines.push(
+          `${fo}^BY${moduleWidth},${ratio}^B2${orientation},${barHeight},` +
+          `${yn(el.printLine ?? true)},${yn(el.lineAbove ?? false)},${yn(checkDigit)}^FD${value}^FS`,
+        );
         break;
       }
       case 'barcode128': {

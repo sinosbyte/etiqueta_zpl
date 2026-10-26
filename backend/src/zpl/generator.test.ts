@@ -170,3 +170,23 @@ test('emits QR error correction level, defaulting to M', () => {
   expect(zpl).toContain('^FDHA,A^FS');
   expect(zpl).toContain('^FDMA,B^FS');
 });
+
+test('emits a new Interleaved 2 of 5 from the palette, module width derived from its length', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [{ id: 'i', type: 'barcodeI2of5', x: 50, y: 50, width: 270, height: 100, value: '17896380197511', ratio: 3 }],
+  });
+  // 14 digits x 9 + 9 = 135 modules; 270 / 135 = 2 dots
+  expect(zpl).toContain('^FO50,50^BY2,3^B2N,100,Y,N,N^FD17896380197511^FS');
+});
+
+test('emits ^FT with the baseline (top + font height) and the ^FB block', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [{
+      id: 't', type: 'text', x: 220, y: 111, width: 120, height: 34, value: 'REF.:', fontSize: 34, fontWidth: 30,
+      fontName: '0', fontSource: 'a', origin: 'FT', block: { maxLines: 1, lineSpacing: 0, justify: 'R', hangingIndent: 0 },
+    }],
+  });
+  expect(zpl).toContain('^FT220,145^A0N,34,30^FB120,1,0,R,0^FDREF.:^FS');
+});

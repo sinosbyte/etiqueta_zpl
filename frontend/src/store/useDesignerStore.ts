@@ -9,6 +9,8 @@ const nextId = () => `el-${Date.now()}-${++idCounter}`;
 const DEFAULT_SIZES: Record<ElementType, { width: number; height: number }> = {
   text: { width: 200, height: 40 },
   barcode128: { width: 300, height: 100 },
+  // 14 digits, ^BY2,3: (14 * 9 + 9) modules x 2 dots
+  barcodeI2of5: { width: 270, height: 100 },
   qrcode: { width: 100, height: 100 },
   rect: { width: 200, height: 100 },
   line: { width: 200, height: 8 },
@@ -19,6 +21,7 @@ const DEFAULT_SIZES: Record<ElementType, { width: number; height: number }> = {
 const DEFAULT_VALUES: Partial<Record<ElementType, Partial<DesignElement>>> = {
   text: { value: 'New Text', fontSize: 34, fontName: '0' },
   barcode128: { value: '123456789' },
+  barcodeI2of5: { value: '17896380197511', moduleWidth: 2, ratio: 3 },
   qrcode: { value: 'https://example.com' },
 };
 

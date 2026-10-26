@@ -1,4 +1,5 @@
-import { Element, ParseResult } from './types';
+import { Element, FieldBlock, Orientation, ParseResult } from './types';
+import { i2of5DigitCount, i2of5Modules } from './i2of5';
 
 // A field whose entire data is {{name}} is a dynamic placeholder.
 const DYNAMIC_RE = /^\{\{([A-Za-z0-9_]+)\}\}$/;
@@ -12,10 +13,18 @@ const QR_PREFIX_RE = /^([HQML])A,/;
 // Barcode commands (^B0..^BZ except ^BY) are field commands as well.
 const FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FD', 'FB', 'FH', 'FR', 'FN', 'FP', 'SN', 'SF', 'GB', 'TB', 'FV']);
 
-// Field commands the canvas can represent. A field using any other command
-// (e.g. ^FT, ^FB, ^FH, ^B2) is kept verbatim as a 'raw' element so that
-// regenerating ZPL from the canvas never drops it.
-const EDITABLE_FIELD_COMMANDS = new Set(['FO', 'A', 'FD', 'FR', 'BY', 'BC', 'BQ', 'GB', 'FS']);
+// Field commands the canvas can represent (plus ^B2, see isEditableFieldCommand).
+// A field using any other command (e.g. ^FH, ^B3) is kept verbatim as a 'raw'
+// element so that regenerating ZPL from the canvas never drops it.
+const EDITABLE_FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FB', 'FD', 'FR', 'BY', 'BC', 'BQ', 'GB', 'FS']);
+
+// The tokenizer reads ^B2 as cmd "B" with tail "2..." (command names are letters only)
+const isInterleaved2of5 = (cmd: string, tail: string): boolean => cmd === 'B' && tail.startsWith('2');
+
+const isEditableFieldCommand = (cmd: string, tail: string): boolean =>
+  EDITABLE_FIELD_COMMANDS.has(cmd) || isInterleaved2of5(cmd, tail);
+
+const ORIENTATIONS = new Set(['N', 'R', 'I', 'B']);
 
 const isFieldCommand = (cmd: string): boolean =>
   FIELD_COMMANDS.has(cmd) || (cmd.startsWith('B') && cmd !== 'BY');
@@ -76,11 +85,14 @@ export function parseZpl(zpl: string): ParseResult {
 
   // ^BY defaults for barcodes
   let byModuleWidth = 2;
+  let byRatio = 3;
   let byHeight = 10;
 
   // Field-level state — reset after every ^FS
   let fieldX = 0;
   let fieldY = 0;
+  let fieldOrigin: 'FO' | 'FT' = 'FO';
+  let fieldBlock: (FieldBlock & { width: number }) | null = null;
   let fieldReversed = false;
   let fieldFontName = '';
   let fieldFontHeight = 0;
@@ -89,7 +101,9 @@ export function parseZpl(zpl: string): ParseResult {
   let fieldHasFont = false;
   // Pending barcode command (set between ^FO and ^FD)
   type PendingBarcode = { kind: 'bc128'; orientation: string; height: number; printLine: boolean } |
-                        { kind: 'bqr';   orientation: string; model: number; mag: number };
+                        { kind: 'bqr';   orientation: string; model: number; mag: number } |
+                        { kind: 'i2of5'; orientation: Orientation; height: number; printLine: boolean;
+                          lineAbove: boolean; checkDigit: boolean; moduleWidth: number; ratio: number };
   let pendingBarcode: PendingBarcode | null = null;
 
   // Tokens of the field being read and whether the canvas can represent it
@@ -97,6 +111,8 @@ export function parseZpl(zpl: string): ParseResult {
   let fieldEditable = true;
 
   function resetField() {
+    fieldOrigin = 'FO';
+    fieldBlock = null;
     fieldReversed = false;
     fieldFontName = '';
     fieldFontHeight = 0;
@@ -171,7 +187,7 @@ export function parseZpl(zpl: string): ParseResult {
     // ── Field commands ──────────────────────────────────────────────────────
     if (fieldTokens.length > 0 || isFieldCommand(cmd)) {
       fieldTokens.push(token);
-      if (!EDITABLE_FIELD_COMMANDS.has(cmd)) {
+      if (!isEditableFieldCommand(cmd, tail)) {
         fieldEditable = false;
         unknownCommands.push(token);
       }
@@ -182,6 +198,56 @@ export function parseZpl(zpl: string): ParseResult {
           const p = params(tail);
           fieldX = parseInt(p[0], 10) || 0;
           fieldY = parseInt(p[1], 10) || 0;
+          if ((p[2] ?? '').trim() !== '') fieldEditable = false;  // justification parameter
+          break;
+        }
+
+        // Field typeset (^FT x, y): x/y is the text baseline, not its top-left
+        case 'FT': {
+          const p = params(tail);
+          if ((p[0] ?? '').trim() === '' || (p[1] ?? '').trim() === '' || (p[2] ?? '').trim() !== '') {
+            fieldEditable = false;  // relative to the previous field, or with justification
+          }
+          fieldX = parseInt(p[0], 10) || 0;
+          fieldY = parseInt(p[1], 10) || 0;
+          fieldOrigin = 'FT';
+          break;
+        }
+
+        // Field block (^FB width, maxLines, lineSpacing, justify, hangingIndent)
+        case 'FB': {
+          const p = params(tail);
+          const justify = (p[3] ?? '').trim().toUpperCase() || 'L';
+          if (!['L', 'C', 'R', 'J'].includes(justify)) fieldEditable = false;
+          fieldBlock = {
+            width: parseInt(p[0], 10) || 0,
+            maxLines: parseInt(p[1], 10) || 1,
+            lineSpacing: parseInt(p[2], 10) || 0,
+            justify: justify as FieldBlock['justify'],
+            hangingIndent: parseInt(p[4], 10) || 0,
+          };
+          if (fieldBlock.width <= 0) fieldEditable = false;
+          break;
+        }
+
+        // Barcodes reported as cmd "B" (^B1..^B9). Only Interleaved 2 of 5 is drawable:
+        // ^B2 orientation, height, printLine, lineAbove, checkDigit
+        case 'B': {
+          if (!isInterleaved2of5(cmd, tail)) break;
+          const p = params(tail.slice(1));
+          const orientation = ((p[0] ?? '').trim().toUpperCase() || 'N') as Orientation;
+          if (!ORIENTATIONS.has(orientation)) fieldEditable = false;
+          const height = (p[1] ?? '').trim() !== '' ? parseInt(p[1], 10) : byHeight;
+          pendingBarcode = {
+            kind: 'i2of5',
+            orientation,
+            height: height || byHeight,
+            printLine: (p[2] ?? 'Y').trim().toUpperCase() !== 'N',
+            lineAbove: isYes(p[3]),
+            checkDigit: isYes(p[4]),
+            moduleWidth: byModuleWidth,
+            ratio: byRatio,
+          };
           break;
         }
 
@@ -210,6 +276,7 @@ export function parseZpl(zpl: string): ParseResult {
         case 'BY': {
           const p = params(tail);
           byModuleWidth = parseInt(p[0], 10) || byModuleWidth;
+          byRatio = parseFloat(p[1]) || byRatio;
           if (p[2] !== undefined && p[2] !== '') byHeight = parseInt(p[2], 10) || byHeight;
           break;
         }
@@ -248,6 +315,8 @@ export function parseZpl(zpl: string): ParseResult {
 
         // Graphic box (^GB width, height, thickness, color, rounding)
         case 'GB': {
+          // Boxes are only drawable with ^FO and no ^FB
+          if (fieldOrigin === 'FT' || fieldBlock) fieldEditable = false;
           if (!fieldEditable) break;  // emitted as raw at ^FS
           const p = params(tail);
           const w = parseInt(p[0], 10) || 1;
@@ -288,6 +357,9 @@ export function parseZpl(zpl: string): ParseResult {
             }
           }
 
+          // ^FT and ^FB are only drawable for text
+          if (pendingBarcode && (fieldOrigin === 'FT' || fieldBlock)) fieldEditable = false;
+
           if (!fieldEditable) {
             pushRaw(fieldTokens.join(''));
             resetField();
@@ -297,7 +369,29 @@ export function parseZpl(zpl: string): ParseResult {
           const dynMatch = fieldData.match(DYNAMIC_RE);
           const dyn = dynMatch ? { dynamic: true, variableName: dynMatch[1] } : {};
           if (pendingBarcode) {
-            if (pendingBarcode.kind === 'bc128') {
+            if (pendingBarcode.kind === 'i2of5') {
+              const bc = pendingBarcode;
+              // Canvas box: bars length x bar height, swapped when rotated 90/270 degrees
+              const length = bc.moduleWidth * i2of5Modules(i2of5DigitCount(fieldData), bc.ratio, bc.checkDigit);
+              const rotated = bc.orientation === 'R' || bc.orientation === 'B';
+              elements.push({
+                id: nextId(),
+                type: 'barcodeI2of5',
+                x: fieldX,
+                y: fieldY,
+                width: Math.round(rotated ? bc.height : length),
+                height: Math.round(rotated ? length : bc.height),
+                value: fieldData,
+                ...(bc.orientation !== 'N' ? { orientation: bc.orientation } : {}),
+                moduleWidth: bc.moduleWidth,
+                ratio: bc.ratio,
+                ...(bc.printLine ? {} : { printLine: false }),
+                ...(bc.lineAbove ? { lineAbove: true } : {}),
+                ...(bc.checkDigit ? { checkDigit: true } : {}),
+                ...dyn,
+                ...(fieldReversed ? { reversed: true } : {}),
+              });
+            } else if (pendingBarcode.kind === 'bc128') {
               elements.push({
                 id: nextId(),
                 type: 'barcode128',
@@ -333,18 +427,29 @@ export function parseZpl(zpl: string): ParseResult {
             const PROPORTIONAL_FONTS = new Set(['0', 'A', 'B', 'D', 'G', 'P']);
             const charWidth = PROPORTIONAL_FONTS.has(fontName) ? 0.75 : 0.65;
             const effectiveWidth = fontWidth > 0 ? fontWidth : fontSize;
+            const block = fieldBlock;
             elements.push({
               id: nextId(),
               type: 'text',
               x: fieldX,
-              y: fieldY,
-              width: Math.max(200, Math.round(effectiveWidth * charWidth * fieldData.length)),
-              height: fontSize + 10,
+              // ^FT gives the baseline; the canvas keeps the top-left of the text box
+              y: fieldOrigin === 'FT' ? fieldY - fontSize : fieldY,
+              width: block ? block.width : Math.max(200, Math.round(effectiveWidth * charWidth * fieldData.length)),
+              height: block ? block.maxLines * (fontSize + block.lineSpacing) : fontSize + 10,
               value: fieldData,
               fontSize,
               ...(fontWidth > 0 && fontWidth !== fontSize ? { fontWidth } : {}),
               fontName,
               fontSource: fieldHasFont ? 'a' : 'cf',
+              ...(fieldOrigin === 'FT' ? { origin: 'FT' as const } : {}),
+              ...(block ? {
+                block: {
+                  maxLines: block.maxLines,
+                  lineSpacing: block.lineSpacing,
+                  justify: block.justify,
+                  hangingIndent: block.hangingIndent,
+                },
+              } : {}),
               ...dyn,
               ...(fieldReversed ? { reversed: true } : {}),
             });
@@ -354,7 +459,7 @@ export function parseZpl(zpl: string): ParseResult {
         }
 
         default:
-          // ^FT, ^FB, ^FH, ^FN, ^B2... — nothing to read; the field is kept raw
+          // ^FH, ^FN, ^B3... — nothing to read; the field is kept raw
           break;
       }
       continue;
@@ -387,7 +492,7 @@ export function parseZpl(zpl: string): ParseResult {
       case 'BY': {
         const p = params(tail);
         byModuleWidth = parseInt(p[0], 10) || byModuleWidth;
-        // p[1] is widthRatio — not used for canvas sizing
+        byRatio = parseFloat(p[1]) || byRatio;
         if (p[2] !== undefined && p[2] !== '') byHeight = parseInt(p[2], 10) || byHeight;
         pushRaw(token);
         break;

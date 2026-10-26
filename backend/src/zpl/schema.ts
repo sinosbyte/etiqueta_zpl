@@ -6,7 +6,7 @@ import { z } from 'zod';
  */
 export const ElementSchema = z.object({
   id: z.string(),
-  type: z.enum(['text', 'barcode128', 'qrcode', 'rect', 'line', 'comment', 'raw']),
+  type: z.enum(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'rect', 'line', 'comment', 'raw']),
   x: z.number(),
   y: z.number(),
   width: z.number(),
@@ -22,6 +22,19 @@ export const ElementSchema = z.object({
   color: z.enum(['B', 'W']).optional(),
   rounding: z.number().int().min(0).max(8).optional(),
   qrErrorCorrection: z.enum(['H', 'Q', 'M', 'L']).optional(),
+  origin: z.literal('FT').optional(),
+  block: z.object({
+    maxLines: z.number().int().min(1),
+    lineSpacing: z.number(),
+    justify: z.enum(['L', 'C', 'R', 'J']),
+    hangingIndent: z.number(),
+  }).optional(),
+  orientation: z.enum(['N', 'R', 'I', 'B']).optional(),
+  moduleWidth: z.number().positive().optional(),
+  ratio: z.number().positive().optional(),
+  printLine: z.boolean().optional(),
+  lineAbove: z.boolean().optional(),
+  checkDigit: z.boolean().optional(),
   dynamic: z.boolean().optional(),
   variableName: z.string().optional(),
 });
