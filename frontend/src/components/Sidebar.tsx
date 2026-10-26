@@ -26,6 +26,19 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
+    type: 'barcodeI2of5',
+    label: 'Interleaved 2 of 5',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="3" width="1" height="10" fill="currentColor"/>
+        <rect x="4" y="3" width="2.5" height="10" fill="currentColor"/>
+        <rect x="7.5" y="3" width="1" height="10" fill="currentColor"/>
+        <rect x="9.5" y="3" width="2.5" height="10" fill="currentColor"/>
+        <rect x="13" y="3" width="1" height="10" fill="currentColor"/>
+      </svg>
+    ),
+  },
+  {
     type: 'qrcode',
     label: 'QR Code',
     icon: (

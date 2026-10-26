@@ -291,7 +291,7 @@ const ATLAS_LABEL = `^XA
 ^FO20,50^B2B,100,Y,N,N^FD{{EAN}}^FS
 ^XZ`;
 
-test('keeps unsupported fields and commands verbatim when regenerating (Atlas label)', () => {
+test('regenerates the Atlas label with every field and command intact', () => {
   const parsed = parseZpl(ATLAS_LABEL);
   const zpl = generateZpl({ labelWidth: parsed.labelWidth, labelHeight: parsed.labelHeight, elements: parsed.elements });
 
@@ -304,7 +304,8 @@ test('keeps unsupported fields and commands verbatim when regenerating (Atlas la
     '^FT330,145^A0N,75,50^FB470,1,0,C,0^FD{{REFERENCIA}}^FS',
     '^FT180,410^A0N,24,17^FDATLAS S/A AV. INDEPENDENCIA 8885^FS',
     '^BY3,3,130',
-    '^FO20,50^B2B,100,Y,N,N^FD{{EAN}}^FS',
+    // Interleaved 2 of 5 is now editable: regenerated with its ^BY inline (same print)
+    '^FO20,50^BY3,3^B2B,100,Y,N,N^FD{{EAN}}^FS',
   ]) {
     expect(zpl).toContain(fragment);
   }
@@ -374,4 +375,76 @@ test('parses QR error correction level and keeps it on regenerate', () => {
 test('keeps a field without ^FS as raw ZPL', () => {
   const parsed = parseZpl('^XA\n^FO10,10^A0N,30,30^FDOpen field\n^XZ');
   expect(parsed.elements[0]).toMatchObject({ type: 'raw', value: '^FO10,10^A0N,30,30^FDOpen field' });
+});
+
+// ── ^FT, ^FB and Interleaved 2 of 5 on the canvas ─────────────────────────────
+
+test('parses a ^FT text field as editable, top-left on the canvas', () => {
+  const parsed = parseZpl('^XA\n^FT180,70^A0N,65,55^FD{{MARCA}}^FS\n^XZ');
+  expect(parsed.elements).toEqual([expect.objectContaining({
+    type: 'text', origin: 'FT', x: 180, y: 5, fontSize: 65, fontWidth: 55, dynamic: true, variableName: 'MARCA',
+  })]);
+});
+
+test('parses a ^FB text field as an aligned block', () => {
+  const parsed = parseZpl(String.raw`^XA
+^FO500,230^A0N,35,29^FB305,1,0,C,0^FD{{LOTE}}\&^FS
+^XZ`);
+  expect(parsed.elements[0]).toMatchObject({
+    type: 'text', x: 500, y: 230, width: 305, height: 35, value: String.raw`{{LOTE}}\&`,
+    block: { maxLines: 1, lineSpacing: 0, justify: 'C', hangingIndent: 0 },
+  });
+});
+
+test('regenerates ^FT and ^FB fields exactly as written', () => {
+  const zpl = String.raw`^XA
+^FT220,145^A0N,34,30^FB120,1,0,R,0^FDREF.:\&^FS
+^FT330,145^A0N,75,50^FB470,1,0,C,0^FD{{REFERENCIA}}\&^FS
+^FO480,280^A0N,25,20^FB325,2,4,J,10^FDDATA:\&^FS
+^XZ`;
+  const parsed = parseZpl(zpl);
+  expect(parsed.elements.every(e => e.type === 'text')).toBe(true);
+  const out = generateZpl({ labelWidth: 812, labelHeight: 551, elements: parsed.elements });
+  expect(out).toContain(String.raw`^FT220,145^A0N,34,30^FB120,1,0,R,0^FDREF.:\&^FS`);
+  expect(out).toContain(String.raw`^FT330,145^A0N,75,50^FB470,1,0,C,0^FD{{REFERENCIA}}\&^FS`);
+  expect(out).toContain(String.raw`^FO480,280^A0N,25,20^FB325,2,4,J,10^FDDATA:\&^FS`);
+});
+
+test('moving and resizing a ^FT/^FB field keeps ^FT and resizes the block', () => {
+  const parsed = parseZpl('^XA\n^FT330,145^A0N,75,50^FB470,1,0,C,0^FDREF^FS\n^XZ');
+  const el = { ...parsed.elements[0], x: 300, y: 100, width: 500 };
+  const out = generateZpl({ labelWidth: 812, labelHeight: 551, elements: [el] });
+  // baseline = new top (100) + font height (75)
+  expect(out).toContain('^FT300,175^A0N,75,50^FB500,1,0,C,0^FDREF^FS');
+});
+
+test('parses Interleaved 2 of 5 (^B2) with ^BY settings and vertical orientation', () => {
+  const parsed = parseZpl('^XA\n^BY3,3,130\n^FO20,50^B2B,100,Y,N,N^FD{{EAN}}^FS\n^XZ');
+  const bc = parsed.elements.find(e => e.type === 'barcodeI2of5');
+  // GTIN-14 placeholder: 14 digits x (3 + 2*3) + 6 + 3 = 135 modules x 3 dots = 405
+  expect(bc).toMatchObject({
+    x: 20, y: 50, width: 100, height: 405, orientation: 'B', moduleWidth: 3, ratio: 3,
+    dynamic: true, variableName: 'EAN',
+  });
+  expect(bc?.printLine).toBeUndefined();  // default Y
+});
+
+test('regenerates Interleaved 2 of 5 in every orientation', () => {
+  for (const o of ['N', 'R', 'I', 'B']) {
+    const zpl = `^XA\n^FO10,10^BY2,2.5^B2${o},80,N,Y,Y^FD12345678^FS\n^XZ`;
+    const parsed = parseZpl(zpl);
+    expect(parsed.elements[0].type).toBe('barcodeI2of5');
+    expect(generateZpl({ labelWidth: 800, labelHeight: 400, elements: parsed.elements }))
+      .toContain(`^FO10,10^BY2,2.5^B2${o},80,N,Y,Y^FD12345678^FS`);
+  }
+});
+
+test('keeps ^FT/^FB barcodes and boxes as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FT10,100^BCN,80,Y,N,N^FD123^FS\n^FO10,10^FB200,1,0,C,0^GB100,50,2^FS\n^XZ');
+  expect(parsed.elements.map(e => e.type)).toEqual(['raw', 'raw']);
+});
+
+test('keeps ^FO with justification and other barcodes (^B3) as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FO10,10,1^A0N,30,30^FDRight^FS\n^FO10,100^B3N,N,80,Y,N^FDABC^FS\n^XZ');
+  expect(parsed.elements.map(e => e.type)).toEqual(['raw', 'raw']);
 });

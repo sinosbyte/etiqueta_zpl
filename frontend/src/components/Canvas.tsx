@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { DndContext, DragEndEvent, DragMoveEvent, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { useShallow } from 'zustand/react/shallow';
 import { useDesignerStore } from '../store/useDesignerStore';
-import { DesignElement } from '../types';
+import { DesignElement, isRawField } from '../types';
 import { ResizeHandle } from './ResizeHandle';
 import { TextElement } from './elements/TextElement';
 import { BarcodeElement } from './elements/BarcodeElement';
+import { I2of5Element } from './elements/I2of5Element';
 import { QRCodeElement } from './elements/QRCodeElement';
 import { RectElement } from './elements/RectElement';
 import { LineElement } from './elements/LineElement';
@@ -16,6 +17,7 @@ function ElementRenderer({ element, scale }: { element: DesignElement; scale: nu
   switch (element.type) {
     case 'text': return <TextElement element={element} scale={scale} />;
     case 'barcode128': return <BarcodeElement element={element} scale={scale} />;
+    case 'barcodeI2of5': return <I2of5Element element={element} scale={scale} />;
     case 'qrcode': return <QRCodeElement element={element} scale={scale} />;
     case 'rect': return <RectElement element={element} scale={scale} />;
     case 'line': return <LineElement element={element} scale={scale} />;
@@ -132,8 +134,9 @@ export function Canvas() {
   const canvasWidth = labelWidth * zoom;
   const canvasHeight = labelHeight * zoom;
 
-  // Fields/commands kept verbatim because the canvas cannot draw them
-  const rawCount = elements.filter(el => el.type === 'raw').length;
+  // Printed fields kept verbatim because the canvas cannot draw them
+  // (label-level settings such as ^CI28 have nothing to draw and are not counted)
+  const rawCount = elements.filter(isRawField).length;
 
   // Live pixel offset while a multi-selection drag is in progress, so the
   // non-active members follow the pointer too.
@@ -199,8 +202,9 @@ export function Canvas() {
               boxSizing: 'border-box',
             }}
           >
-            {rawCount} ZPL {rawCount === 1 ? 'command is' : 'commands are'} kept as written but not drawn on the canvas
-            (e.g. ^FT, ^FB, Interleaved 2 of 5). Edit them in the Code tab and use Preview to see the real label.
+            {rawCount} ZPL {rawCount === 1 ? 'field is' : 'fields are'} kept as written but not drawn on the canvas
+            (e.g. rotated text, ^FH, barcodes other than Code 128 / Interleaved 2 of 5 / QR). Edit them in the
+            Code tab and use Preview to see the real label.
           </div>
         )}
         <div

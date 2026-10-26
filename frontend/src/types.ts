@@ -1,6 +1,16 @@
 // 'raw' holds ZPL the editor cannot represent (e.g. ^FT, ^FB, ^B2, ^CI, ~SD).
 // It is not drawn on the canvas and is emitted back verbatim.
-export type ElementType = 'text' | 'barcode128' | 'qrcode' | 'rect' | 'line' | 'comment' | 'raw';
+export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'rect' | 'line' | 'comment' | 'raw';
+
+export type Orientation = 'N' | 'R' | 'I' | 'B';
+
+// ^FB field block: text aligned inside a box whose width is the element width
+export interface FieldBlock {
+  maxLines: number;
+  lineSpacing: number;
+  justify: 'L' | 'C' | 'R' | 'J';
+  hangingIndent: number;
+}
 
 export interface DesignElement {
   id: string;
@@ -20,6 +30,14 @@ export interface DesignElement {
   color?: 'B' | 'W';    // ^GB line color
   rounding?: number;    // ^GB corner rounding, 0 (none) to 8 (heaviest)
   qrErrorCorrection?: 'H' | 'Q' | 'M' | 'L';
+  origin?: 'FT';              // text positioned with ^FT (baseline); x/y stay the top-left
+  block?: FieldBlock;         // text inside a ^FB block
+  orientation?: Orientation;  // barcodeI2of5; omitted = N
+  moduleWidth?: number;       // barcodeI2of5 ^BY narrow bar width
+  ratio?: number;             // barcodeI2of5 ^BY wide-to-narrow ratio
+  printLine?: boolean;        // barcodeI2of5 interpretation line; omitted = true
+  lineAbove?: boolean;
+  checkDigit?: boolean;
   dynamic?: boolean;
   variableName?: string;
 }
@@ -28,3 +46,8 @@ export interface DesignElement {
 // render their {{variableName}} placeholder rather than a static value.
 export const displayValue = (el: DesignElement): string | undefined =>
   el.dynamic && el.variableName ? `{{${el.variableName}}}` : el.value;
+
+// Raw ZPL that is a printed field (has data or graphics) rather than a
+// label-level setting such as ^CI28 or ^MMT, which has nothing to draw.
+export const isRawField = (el: DesignElement): boolean =>
+  el.type === 'raw' && /\^(FD|FS|G[BCDEF]|FV)/.test(el.value ?? '');

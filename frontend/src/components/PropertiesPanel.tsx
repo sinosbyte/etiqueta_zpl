@@ -200,14 +200,71 @@ export function PropertiesPanel() {
               </select>
             </div>
           </div>
+          {el.block && (
+            <div style={{ marginBottom: 8 }}>
+              <label style={labelStyle}>Text block alignment</label>
+              <select
+                className="chrome-input"
+                value={el.block.justify}
+                onChange={e => updateElement(el.id, {
+                  block: { ...el.block!, justify: e.target.value as 'L' | 'C' | 'R' | 'J' },
+                })}
+              >
+                <option value="L">Left</option>
+                <option value="C">Center</option>
+                <option value="R">Right</option>
+                <option value="J">Justified</option>
+              </select>
+              <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 3 }}>
+                ^FB block — its width is the element width
+              </p>
+            </div>
+          )}
           {dynamicControls}
         </div>
       )}
 
-      {(el.type === 'barcode128' || el.type === 'qrcode') && (
+      {(el.type === 'barcode128' || el.type === 'barcodeI2of5' || el.type === 'qrcode') && (
         <div style={sectionStyle}>
           {!el.dynamic && field('Value', el.value ?? '', 'value')}
           {dynamicControls}
+          {el.type === 'barcodeI2of5' && (
+            <>
+              <div style={{ marginBottom: 8 }}>
+                <label style={labelStyle}>Orientation</label>
+                <select
+                  className="chrome-input"
+                  value={el.orientation ?? 'N'}
+                  onChange={e => {
+                    const next = e.target.value as 'N' | 'R' | 'I' | 'B';
+                    const wasRotated = el.orientation === 'R' || el.orientation === 'B';
+                    const isRotated = next === 'R' || next === 'B';
+                    // Turning 90 degrees swaps the footprint on the canvas
+                    updateElement(el.id, wasRotated === isRotated
+                      ? { orientation: next }
+                      : { orientation: next, width: el.height, height: el.width });
+                  }}
+                >
+                  <option value="N">Normal</option>
+                  <option value="R">Rotated 90°</option>
+                  <option value="I">Inverted 180°</option>
+                  <option value="B">Bottom-up 270°</option>
+                </select>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={el.printLine ?? true}
+                  onChange={e => updateElement(el.id, { printLine: e.target.checked })}
+                  style={{ accentColor: 'var(--accent)' }}
+                />
+                <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Print digits below bars</span>
+              </label>
+              <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0 }}>
+                Digits only; an odd count gets a leading zero.
+              </p>
+            </>
+          )}
         </div>
       )}
 
