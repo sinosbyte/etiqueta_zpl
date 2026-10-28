@@ -4,6 +4,7 @@ import { useDesignsStore } from '../store/useDesignsStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useHistory } from '../hooks/useHistory';
 import { mmToDots, dotsToMm } from '../utils/units';
+import { NumberInput } from './NumberInput';
 import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables, substituteVariables } from '../utils/variables';
 
@@ -191,25 +192,21 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         {/* Label dimensions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)', whiteSpace: 'nowrap' }}>W</span>
-          <input
-            className="chrome-input"
-            type="number"
+          <NumberInput
             min={10}
             style={{ width: 58, textAlign: 'center' }}
-            value={parseFloat(dotsToMm(labelWidth).toFixed(1))}
-            onChange={e => setLabelSize(mmToDots(Number(e.target.value)), labelHeight)}
+            value={dotsToMm(labelWidth)}
+            onCommit={mm => setLabelSize(mmToDots(mm), labelHeight)}
             title="Label width (mm)"
           />
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>mm</span>
           <span style={{ fontSize: 11, color: 'var(--chrome-border)', padding: '0 2px' }}>×</span>
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)', whiteSpace: 'nowrap' }}>H</span>
-          <input
-            className="chrome-input"
-            type="number"
+          <NumberInput
             min={10}
             style={{ width: 58, textAlign: 'center' }}
-            value={parseFloat(dotsToMm(labelHeight).toFixed(1))}
-            onChange={e => setLabelSize(labelWidth, mmToDots(Number(e.target.value)))}
+            value={dotsToMm(labelHeight)}
+            onCommit={mm => setLabelSize(labelWidth, mmToDots(mm))}
             title="Label height (mm)"
           />
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>mm</span>

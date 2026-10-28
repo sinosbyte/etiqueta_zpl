@@ -73,6 +73,7 @@ Source is mounted into the containers, so edits hot-reload. The frontend is on
 - **Drag elements from the sidebar** onto the canvas: Text, Barcode 128, QR Code, Box (rectangle), Line
 - **Select and move** elements by dragging them
 - **Resize** any element with 8 directional handles (n, s, e, w, ne, nw, se, sw)
+- **Type exact values** in the Properties Panel and label size fields (mm, comma or dot as decimal separator): applied on Enter or when leaving the field; ↑/↓ step 0.1 mm (Shift: 1 mm); Esc discards
 - **Multi-select** with Shift+click; alignment tools appear in the toolbar when ≥2 elements are selected
 - **Duplicate** a selected element with `Ctrl+D` or the button in the Properties Panel (16-dot offset)
 - **Z-order controls** — bring forward / backward / to front / to back in the Properties Panel
@@ -86,6 +87,8 @@ Source is mounted into the containers, so edits hot-reload. The frontend is on
 - Font 0 uses the printer's own character widths, measured from Labelary renders: each character is placed at its printed position (within about 1 dot), with Roboto Condensed Bold glyphs sized to the printed cap height. Other fonts are approximated with the browser font
 - `^FO` text starts at the top of the character cell (baseline at 75% of the font height); `^FT` is the baseline (of the last line, in a `^FB` block)
 - Text outside a `^FB` block is as big as the printed text: resizing it (handles or W/H) changes the `^A` height and width
+- **Align in a fixed width** (Properties Panel, text) turns the text into a `^FB` block: alignment (left / center / right / justified) and max lines; the block width is the element width
+- **Corners** (Properties Panel, box) sets the `^GB` corner rounding, from square (0) to Rounded 8
 - `^FB` blocks wrap like the printer (at spaces, `\&` forces a break, long words split between characters). Text that needs more lines than the block allows is overprinted on the last line, as the printer does, and the block gets a dashed red outline
 
 ### Dynamic Variables
