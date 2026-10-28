@@ -433,7 +433,10 @@ export function parseZpl(zpl: string): ParseResult {
               type: 'text',
               x: fieldX,
               // ^FT gives the baseline; the canvas keeps the top-left of the text box
-              y: fieldOrigin === 'FT' ? fieldY - fontSize : fieldY,
+              // (with ^FB, ^FT is the baseline of the last line of the block)
+              y: fieldOrigin === 'FT'
+                ? fieldY - fontSize - (block ? (block.maxLines - 1) * (fontSize + block.lineSpacing) : 0)
+                : fieldY,
               width: block ? block.width : Math.max(200, Math.round(effectiveWidth * charWidth * fieldData.length)),
               height: block ? block.maxLines * (fontSize + block.lineSpacing) : fontSize + 10,
               value: fieldData,

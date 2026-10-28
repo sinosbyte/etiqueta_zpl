@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { DesignElement, ElementType } from '../types';
 import { generateZpl, parseZpl, previewZpl } from '../utils/zplClient';
+import { elementBox } from '../utils/zplText';
 
 let idCounter = 0;
 const nextId = () => `el-${Date.now()}-${++idCounter}`;
@@ -40,6 +41,8 @@ interface DesignerStore {
   zoom: number;
   snapToGrid: boolean;
   gridSize: number;
+  sampleValues: Record<string, string>;  // example value per {{variable}}, for Preview/Export and the canvas
+  showSamples: boolean;                  // canvas shows sample values instead of {{variable}}
   setLabelSize(width: number, height: number): void;
   addElement(type: ElementType, x?: number, y?: number): void;
   updateElement(id: string, patch: Partial<DesignElement>): void;
@@ -58,6 +61,8 @@ interface DesignerStore {
   setActiveTab(tab: 'design' | 'code'): void;
   setZoom(zoom: number): void;
   toggleSnapToGrid(): void;
+  setSampleValues(values: Record<string, string>): void;
+  setShowSamples(show: boolean): void;
   onCodeChange(code: string): void;
   syncToCode(): Promise<void>;
   setPreviewUrl(url: string | null): void;
@@ -90,6 +95,8 @@ export const useDesignerStore = create<DesignerStore>()(
   zoom: 2,
   snapToGrid: false,
   gridSize: 8,
+  sampleValues: {},
+  showSamples: false,
 
   setLabelSize(width, height) {
     set({ labelWidth: width, labelHeight: height });
@@ -228,10 +235,16 @@ export const useDesignerStore = create<DesignerStore>()(
     const selected = elements.filter(e => selectedIds.includes(e.id));
     if (selected.length < 2) return;
 
+    // Canvas box of each element (text is sized like the printed text)
+    const samples = get().showSamples ? get().sampleValues : null;
+    const box = new Map(selected.map(e => [e.id, elementBox(e, samples)]));
+    const w = (e: DesignElement) => box.get(e.id)!.width;
+    const h = (e: DesignElement) => box.get(e.id)!.height;
+
     const minX = Math.min(...selected.map(e => e.x));
-    const maxX = Math.max(...selected.map(e => e.x + e.width));
+    const maxX = Math.max(...selected.map(e => e.x + w(e)));
     const minY = Math.min(...selected.map(e => e.y));
-    const maxY = Math.max(...selected.map(e => e.y + e.height));
+    const maxY = Math.max(...selected.map(e => e.y + h(e)));
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
 
@@ -239,11 +252,11 @@ export const useDesignerStore = create<DesignerStore>()(
       selected.map(el => {
         switch (alignment) {
           case 'left':     return [el.id, { x: minX }];
-          case 'center-h': return [el.id, { x: Math.round(centerX - el.width / 2) }];
-          case 'right':    return [el.id, { x: maxX - el.width }];
+          case 'center-h': return [el.id, { x: Math.round(centerX - w(el) / 2) }];
+          case 'right':    return [el.id, { x: maxX - w(el) }];
           case 'top':      return [el.id, { y: minY }];
-          case 'center-v': return [el.id, { y: Math.round(centerY - el.height / 2) }];
-          case 'bottom':   return [el.id, { y: maxY - el.height }];
+          case 'center-v': return [el.id, { y: Math.round(centerY - h(el) / 2) }];
+          case 'bottom':   return [el.id, { y: maxY - h(el) }];
           default:         return [el.id, {}];
         }
       })
@@ -264,6 +277,14 @@ export const useDesignerStore = create<DesignerStore>()(
 
   toggleSnapToGrid() {
     set(s => ({ snapToGrid: !s.snapToGrid }));
+  },
+
+  setSampleValues(values) {
+    set(s => ({ sampleValues: { ...s.sampleValues, ...values } }));
+  },
+
+  setShowSamples(show) {
+    set({ showSamples: show });
   },
 
   onCodeChange(code: string) {

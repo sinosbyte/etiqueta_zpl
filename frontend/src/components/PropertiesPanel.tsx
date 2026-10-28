@@ -3,9 +3,10 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { ZPL_FONTS } from '../utils/zplFonts';
 import { mmToDots, dotsToMm } from '../utils/units';
 import { extractVariables } from '../utils/variables';
+import { elementBox, resizeTextPatch } from '../utils/zplText';
 
 export function PropertiesPanel() {
-  const { elements, selectedId, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
+  const { elements, selectedId, showSamples, sampleValues, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
   const el = elements.find(e => e.id === selectedId);
 
   const sectionStyle: React.CSSProperties = {
@@ -66,6 +67,15 @@ export function PropertiesPanel() {
       />
     </div>
   );
+
+  // Text outside a ^FB block is as big as the printed text: W/H change the font
+  const samples = showSamples ? sampleValues : null;
+  const box = elementBox(el, samples);
+  const sizedByFont = el.type === 'text' && !el.block;
+  const setSize = (patch: { width?: number; height?: number }) =>
+    updateElement(el.id, sizedByFont
+      ? resizeTextPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
+      : patch);
 
   // {{name}} placeholders typed inside a fixed value, e.g. "CONTÉM: {{QTD}} PEÇAS"
   const inlineVariables = el.dynamic ? [] : extractVariables(el.value ?? '');
@@ -165,15 +175,15 @@ export function PropertiesPanel() {
         <div>
           <label style={labelStyle}>W mm</label>
           <input className="chrome-input" type="number" min={0.1}
-            value={parseFloat(dotsToMm(el.width).toFixed(1))}
-            onChange={e => updateElement(el.id, { width: Math.max(1, mmToDots(Number(e.target.value))) })}
+            value={parseFloat(dotsToMm(box.width).toFixed(1))}
+            onChange={e => setSize({ width: Math.max(1, mmToDots(Number(e.target.value))) })}
           />
         </div>
         <div>
           <label style={labelStyle}>H mm</label>
           <input className="chrome-input" type="number" min={0.1}
-            value={parseFloat(dotsToMm(el.height).toFixed(1))}
-            onChange={e => updateElement(el.id, { height: Math.max(1, mmToDots(Number(e.target.value))) })}
+            value={parseFloat(dotsToMm(box.height).toFixed(1))}
+            onChange={e => setSize({ height: Math.max(1, mmToDots(Number(e.target.value))) })}
           />
         </div>
       </div>

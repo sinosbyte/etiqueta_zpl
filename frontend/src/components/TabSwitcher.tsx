@@ -1,9 +1,23 @@
 import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
+import { SampleValuesModal } from './SampleValuesModal';
+import { extractVariables } from '../utils/variables';
 
 export function TabSwitcher() {
-  const { activeTab, setActiveTab, zoom, setZoom } = useDesignerStore();
+  const {
+    activeTab, setActiveTab, zoom, setZoom, zplCode,
+    sampleValues, setSampleValues, showSamples, setShowSamples,
+  } = useDesignerStore();
   const displayPct = Math.round(zoom * 50);
+  const [askSamples, setAskSamples] = React.useState(false);
+  const variables = extractVariables(zplCode);
+
+  // Show sample values on the canvas; ask for them first if some are missing
+  const toggleSamples = () => {
+    if (showSamples) setShowSamples(false);
+    else if (variables.some(v => !sampleValues[v])) setAskSamples(true);
+    else setShowSamples(true);
+  };
 
   return (
     <div style={{
@@ -48,9 +62,19 @@ export function TabSwitcher() {
         ))}
       </div>
 
-      {/* Zoom controls */}
+      {/* Sample values + zoom controls */}
       {activeTab === 'design' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {variables.length > 0 && (
+            <button
+              onClick={toggleSamples}
+              className={`chrome-btn ${showSamples ? 'chrome-btn-primary' : 'chrome-btn-ghost'}`}
+              style={{ height: 24, fontSize: 11, padding: '0 8px', marginRight: 8 }}
+              title={showSamples ? 'Show the {{variables}} on the canvas' : 'Show sample values in place of the {{variables}} on the canvas'}
+            >
+              {showSamples ? 'Showing sample values' : 'Show sample values'}
+            </button>
+          )}
           <button
             className="chrome-icon-btn"
             onClick={() => setZoom(zoom - 0.25)}
@@ -86,6 +110,15 @@ export function TabSwitcher() {
             title="Zoom in"
           >+</button>
         </div>
+      )}
+      {askSamples && (
+        <SampleValuesModal
+          variables={variables}
+          initialValues={sampleValues}
+          confirmLabel="Show on canvas"
+          onConfirm={values => { setSampleValues(values); setShowSamples(true); setAskSamples(false); }}
+          onClose={() => setAskSamples(false)}
+        />
       )}
     </div>
   );

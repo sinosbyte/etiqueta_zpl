@@ -12,10 +12,26 @@ import { RectElement } from './elements/RectElement';
 import { LineElement } from './elements/LineElement';
 import { usePanning } from '../hooks/usePanning';
 import { useElementResize } from '../hooks/useElementResize';
+import { extractVariables, substituteVariables } from '../utils/variables';
+
+// A barcode/QR with its sample value in place of {{variables}}, so the canvas
+// draws real bars. Variables without a sample value stay as placeholders.
+function withSampleValue(element: DesignElement, samples: Record<string, string>): DesignElement {
+  if (element.dynamic && element.variableName) {
+    const sample = samples[element.variableName];
+    return sample ? { ...element, dynamic: false, value: sample } : element;
+  }
+  if (!element.value || extractVariables(element.value).some(v => !samples[v])) return element;
+  return { ...element, value: substituteVariables(element.value, samples) };
+}
 
 function ElementRenderer({ element, scale }: { element: DesignElement; scale: number }) {
+  const samples = useDesignerStore(s => (s.showSamples ? s.sampleValues : null));
+  if (samples && (element.type === 'barcode128' || element.type === 'barcodeI2of5' || element.type === 'qrcode')) {
+    element = withSampleValue(element, samples);
+  }
   switch (element.type) {
-    case 'text': return <TextElement element={element} scale={scale} />;
+    case 'text': return <TextElement element={element} scale={scale} samples={samples} />;
     case 'barcode128': return <BarcodeElement element={element} scale={scale} />;
     case 'barcodeI2of5': return <I2of5Element element={element} scale={scale} />;
     case 'qrcode': return <QRCodeElement element={element} scale={scale} />;

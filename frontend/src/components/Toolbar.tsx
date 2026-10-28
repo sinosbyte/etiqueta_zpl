@@ -11,9 +11,6 @@ interface Props {
   onNavigateToMyDesigns: () => void;
 }
 
-// Sample values typed for the last preview/export, offered again next time
-let lastSampleValues: Record<string, string> = {};
-
 export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const {
     labelWidth, labelHeight, setLabelSize,
@@ -21,6 +18,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
     snapToGrid, toggleSnapToGrid,
     alignElements,
     fetchPreview, closePreview, previewUrl, previewLoading, zplCode,
+    sampleValues, setSampleValues,
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
   const { logout } = useAuthStore();
@@ -54,7 +52,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   };
 
   const handleSamplesConfirm = (values: Record<string, string>) => {
-    lastSampleValues = { ...lastSampleValues, ...values };
+    setSampleValues(values);
     const finalZpl = substituteVariables(zplCode, values);
     const action = samplesFor;
     setSamplesFor(null);
@@ -277,7 +275,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
       {samplesFor && (
         <SampleValuesModal
           variables={variables}
-          initialValues={lastSampleValues}
+          initialValues={sampleValues}
           confirmLabel={samplesFor === 'preview' ? 'Preview' : 'Continue'}
           onConfirm={handleSamplesConfirm}
           onClose={() => setSamplesFor(null)}
