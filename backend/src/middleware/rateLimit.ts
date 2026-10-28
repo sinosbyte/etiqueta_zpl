@@ -7,10 +7,24 @@ import { isTest } from '../config';
  */
 
 /**
- * Tight limiter for authentication endpoints (login/register) to blunt
- * credential brute-force attempts. 10 requests / 15 min / IP.
+ * Login limiter against credential brute-force: 10 failed logins / 15 min / IP.
+ * Successful logins are not counted, so users sharing an IP (the SAP
+ * integration, people on the same VM) are never locked out by normal use.
  */
-export const authLimiter = rateLimit({
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many failed attempts, please try again later' },
+  skip: () => isTest,
+});
+
+/**
+ * Tight limiter for account creation. 10 requests / 15 min / IP.
+ */
+export const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   standardHeaders: 'draft-7',

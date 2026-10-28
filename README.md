@@ -276,8 +276,8 @@ The app uses a **dual-token scheme**:
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check. Returns `{ ok: true, db: "up" }` or 503 |
-| `POST` | `/api/auth/register` | Register. Body: `{ username, password }`. Returns 201 or 409 |
-| `POST` | `/api/auth/login` | Login. Body: `{ username, password }`. Returns `{ token }`, sets refresh cookie |
+| `POST` | `/api/auth/register` | Register. Body: `{ username, password }`. Returns 201 or 409. Limit: 10 requests / 15 min / IP |
+| `POST` | `/api/auth/login` | Login. Body: `{ username, password }`. Returns `{ token }`, sets refresh cookie. Limit: 10 **failed** logins / 15 min / IP (successful logins are not counted), then 429 |
 | `POST` | `/api/auth/refresh` | Rotate refresh token. Returns `{ token }` or 401. Reads `zpl_refresh` cookie |
 | `POST` | `/api/auth/logout` | Revoke refresh token. Clears cookie. Returns 204 |
 
