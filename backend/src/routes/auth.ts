@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
   registerUser, verifyCredentials, issueTokens, rotateRefreshToken, revokeRefreshToken,
 } from '../auth/authService';
-import { authLimiter, refreshLimiter } from '../middleware/rateLimit';
+import { loginLimiter, registerLimiter, refreshLimiter } from '../middleware/rateLimit';
 import { REFRESH_COOKIE_NAME, REFRESH_COOKIE_OPTIONS } from '../config';
 
 export const authRouter = Router();
@@ -23,7 +23,7 @@ function clearRefreshCookie(res: Response): void {
   res.clearCookie(REFRESH_COOKIE_NAME, opts);
 }
 
-authRouter.post('/register', authLimiter, async (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/register', registerLimiter, async (req: Request, res: Response, next: NextFunction) => {
   const parsed = CredentialsSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -41,7 +41,7 @@ authRouter.post('/register', authLimiter, async (req: Request, res: Response, ne
   }
 });
 
-authRouter.post('/login', authLimiter, async (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/login', loginLimiter, async (req: Request, res: Response, next: NextFunction) => {
   const parsed = CredentialsSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
