@@ -4,6 +4,7 @@ import { ZPL_FONTS } from '../utils/zplFonts';
 import { mmToDots, dotsToMm } from '../utils/units';
 import { extractVariables } from '../utils/variables';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
+import { NumberInput } from './NumberInput';
 
 export function PropertiesPanel() {
   const { elements, selectedId, showSamples, sampleValues, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
@@ -44,26 +45,15 @@ export function PropertiesPanel() {
     );
   }
 
-  const field = (label: string, value: string | number, key: string, type = 'text', min?: number) => (
+  // Text field (numeric fields use NumberInput)
+  const field = (label: string, value: string, key: string) => (
     <div key={key} style={{ marginBottom: 8 }}>
       <label style={labelStyle}>{label}</label>
       <input
         className="chrome-input"
-        type={type}
-        min={min}
+        type="text"
         value={value}
-        onChange={e => {
-          const v = type === 'number' ? Number(e.target.value) : e.target.value;
-          if (key === 'thickness') {
-            updateElement(el.id, { thickness: Math.max(1, mmToDots(Number(v))) });
-          } else if (['x', 'y'].includes(key)) {
-            updateElement(el.id, { [key]: Math.max(0, mmToDots(Number(v))) });
-          } else if (['width', 'height'].includes(key)) {
-            updateElement(el.id, { [key]: Math.max(1, mmToDots(Number(v))) });
-          } else {
-            updateElement(el.id, { [key]: v });
-          }
-        }}
+        onChange={e => updateElement(el.id, { [key]: e.target.value })}
       />
     </div>
   );
@@ -160,41 +150,54 @@ export function PropertiesPanel() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
         <div>
           <label style={labelStyle}>X mm</label>
-          <input className="chrome-input" type="number" min={0}
-            value={parseFloat(dotsToMm(el.x).toFixed(1))}
-            onChange={e => updateElement(el.id, { x: Math.max(0, mmToDots(Number(e.target.value))) })}
+          <NumberInput min={0} value={dotsToMm(el.x)}
+            onCommit={mm => updateElement(el.id, { x: mmToDots(mm) })}
           />
         </div>
         <div>
           <label style={labelStyle}>Y mm</label>
-          <input className="chrome-input" type="number" min={0}
-            value={parseFloat(dotsToMm(el.y).toFixed(1))}
-            onChange={e => updateElement(el.id, { y: Math.max(0, mmToDots(Number(e.target.value))) })}
+          <NumberInput min={0} value={dotsToMm(el.y)}
+            onCommit={mm => updateElement(el.id, { y: mmToDots(mm) })}
           />
         </div>
         <div>
           <label style={labelStyle}>W mm</label>
-          <input className="chrome-input" type="number" min={0.1}
-            value={parseFloat(dotsToMm(box.width).toFixed(1))}
-            onChange={e => setSize({ width: Math.max(1, mmToDots(Number(e.target.value))) })}
+          <NumberInput min={0.1} value={dotsToMm(box.width)}
+            onCommit={mm => setSize({ width: Math.max(1, mmToDots(mm)) })}
           />
         </div>
         <div>
           <label style={labelStyle}>H mm</label>
-          <input className="chrome-input" type="number" min={0.1}
-            value={parseFloat(dotsToMm(box.height).toFixed(1))}
-            onChange={e => setSize({ height: Math.max(1, mmToDots(Number(e.target.value))) })}
+          <NumberInput min={0.1} value={dotsToMm(box.height)}
+            onCommit={mm => setSize({ height: Math.max(1, mmToDots(mm)) })}
           />
         </div>
       </div>
 
-      {el.type === 'rect' && !el.filled && (
-        <div style={{ marginBottom: 8 }}>
-          <label style={labelStyle}>Border thickness mm</label>
-          <input className="chrome-input" type="number" min={0.1}
-            value={parseFloat(dotsToMm(el.thickness ?? 8).toFixed(1))}
-            onChange={e => updateElement(el.id, { thickness: Math.max(1, mmToDots(Number(e.target.value))) })}
-          />
+      {el.type === 'rect' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          {!el.filled && (
+            <div>
+              <label style={labelStyle}>Border mm</label>
+              <NumberInput min={0.1} value={dotsToMm(el.thickness ?? 8)}
+                onCommit={mm => updateElement(el.id, { thickness: Math.max(1, mmToDots(mm)) })}
+              />
+            </div>
+          )}
+          <div>
+            {/* ^GB corner rounding: 0 (square) to 8 (heaviest) */}
+            <label style={labelStyle}>Corners</label>
+            <select
+              className="chrome-input"
+              value={el.rounding ?? 0}
+              onChange={e => updateElement(el.id, { rounding: Number(e.target.value) || undefined })}
+            >
+              <option value={0}>Square</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(r => (
+                <option key={r} value={r}>Rounded {r}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -204,10 +207,9 @@ export function PropertiesPanel() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <div>
               <label style={labelStyle}>Font size</label>
-              <input className="chrome-input" type="number"
+              <NumberInput min={1} max={999} decimals={0}
                 value={el.fontSize ?? 30}
-                onChange={e => {
-                  const fontSize = Number(e.target.value);
+                onCommit={fontSize => {
                   // Keep a custom ^A width in proportion to the new height
                   const fontWidth = el.fontWidth && el.fontSize
                     ? Math.max(1, Math.round(el.fontWidth * fontSize / el.fontSize))
@@ -230,23 +232,48 @@ export function PropertiesPanel() {
               </select>
             </div>
           </div>
+          {/* ^FB: text aligned inside a fixed width (the element width) */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={!!el.block}
+              onChange={e => updateElement(el.id, e.target.checked
+                // Start with the block as wide as the text, so nothing moves
+                ? { block: { maxLines: 1, lineSpacing: 0, justify: 'C', hangingIndent: 0 }, width: box.width }
+                : { block: undefined })}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Align in a fixed width</span>
+          </label>
           {el.block && (
             <div style={{ marginBottom: 8 }}>
-              <label style={labelStyle}>Text block alignment</label>
-              <select
-                className="chrome-input"
-                value={el.block.justify}
-                onChange={e => updateElement(el.id, {
-                  block: { ...el.block!, justify: e.target.value as 'L' | 'C' | 'R' | 'J' },
-                })}
-              >
-                <option value="L">Left</option>
-                <option value="C">Center</option>
-                <option value="R">Right</option>
-                <option value="J">Justified</option>
-              </select>
-              <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 3 }}>
-                ^FB block — its width is the element width
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <label style={labelStyle}>Alignment</label>
+                  <select
+                    className="chrome-input"
+                    value={el.block.justify}
+                    onChange={e => updateElement(el.id, {
+                      block: { ...el.block!, justify: e.target.value as 'L' | 'C' | 'R' | 'J' },
+                    })}
+                  >
+                    <option value="L">Left</option>
+                    <option value="C">Center</option>
+                    <option value="R">Right</option>
+                    <option value="J">Justified</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Max lines</label>
+                  <NumberInput min={1} max={9} decimals={0}
+                    value={el.block.maxLines}
+                    onCommit={maxLines => updateElement(el.id, { block: { ...el.block!, maxLines } })}
+                  />
+                </div>
+              </div>
+              <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 3, lineHeight: 1.5 }}>
+                The text is aligned inside the box width (^FB). Drag the side handles to set the width;
+                a red outline means the text does not fit.
               </p>
             </div>
           )}
