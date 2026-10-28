@@ -16,6 +16,20 @@ export function extractVariables(zpl: string): string[] {
   return out;
 }
 
+// Text split into fixed parts and {{name}} placeholders, in order.
+// "CONTÉM: {{QTD}} PEÇAS" -> [fixed "CONTÉM: ", variable "QTD", fixed " PEÇAS"]
+export function splitVariables(text: string): { text: string; variable?: string }[] {
+  const parts: { text: string; variable?: string }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(VAR_RE)) {
+    if (m.index! > last) parts.push({ text: text.slice(last, m.index) });
+    parts.push({ text: m[0], variable: m[1] });
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  return parts;
+}
+
 // Replace every {{name}} with values[name]. Falls back to the variable name
 // itself when no value is supplied, so a placeholder is never left in output.
 export function substituteVariables(zpl: string, values: Record<string, string>): string {

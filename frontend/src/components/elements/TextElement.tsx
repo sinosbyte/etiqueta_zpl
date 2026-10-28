@@ -1,10 +1,21 @@
 import React from 'react';
 import { DesignElement, displayValue } from '../../types';
 import { getZplFont } from '../../utils/zplFonts';
+import { splitVariables } from '../../utils/variables';
 
 interface Props { element: DesignElement; scale: number; }
 
 const JUSTIFY_TO_CSS = { L: 'left', C: 'center', R: 'right', J: 'justify' } as const;
+
+// {{name}} placeholders get a light tint so they stand out from the fixed text;
+// the tint does not change the text size or position.
+function withVariables(text: string) {
+  return splitVariables(text).map((part, i) =>
+    part.variable
+      ? <span key={i} style={{ background: 'rgba(59, 130, 246, 0.22)', borderRadius: 2 }}>{part.text}</span>
+      : <React.Fragment key={i}>{part.text}</React.Fragment>
+  );
+}
 
 export function TextElement({ element, scale }: Props) {
   const fontSize = (element.fontSize ?? 30) * scale;
@@ -47,7 +58,7 @@ export function TextElement({ element, scale }: Props) {
           }}
         >
           {lines.slice(0, maxLines).map((line, i) => (
-            <div key={i}>{line || ' '}</div>
+            <div key={i}>{line ? withVariables(line) : ' '}</div>
           ))}
         </div>
       </div>
@@ -57,7 +68,7 @@ export function TextElement({ element, scale }: Props) {
   return (
     <div style={{ ...boxStyle, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
       <span style={{ display: 'inline-block', transform: `scaleX(${widthRatio})`, transformOrigin: 'left center' }}>
-        {text}
+        {withVariables(text)}
       </span>
     </div>
   );

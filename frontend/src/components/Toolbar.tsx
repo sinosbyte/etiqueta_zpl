@@ -4,10 +4,15 @@ import { useDesignsStore } from '../store/useDesignsStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useHistory } from '../hooks/useHistory';
 import { mmToDots, dotsToMm } from '../utils/units';
+import { SampleValuesModal } from './SampleValuesModal';
+import { extractVariables, substituteVariables } from '../utils/variables';
 
 interface Props {
   onNavigateToMyDesigns: () => void;
 }
+
+// Sample values typed for the last preview/export, offered again next time
+let lastSampleValues: Record<string, string> = {};
 
 export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const {
@@ -15,26 +20,54 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
     elements, selectedIds, selectedId,
     snapToGrid, toggleSnapToGrid,
     alignElements,
-    fetchPreview, closePreview, previewUrl, previewLoading,
+    fetchPreview, closePreview, previewUrl, previewLoading, zplCode,
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
   const { logout } = useAuthStore();
   const { undo, redo, canUndo, canRedo } = useHistory();
   const [showExport, setShowExport] = React.useState(false);
+  const [exportZplOverride, setExportZplOverride] = React.useState<string | undefined>(undefined);
+  const [samplesFor, setSamplesFor] = React.useState<null | 'preview' | 'export'>(null);
 
   const multiSelected = selectedIds.length >= 2;
   const previewActive = !!(previewUrl || previewLoading);
+  // Every {{name}} in the ZPL, including ones mixed with fixed text in a field
+  const variables = extractVariables(zplCode);
 
   const handlePreview = () => {
     if (previewActive) {
       closePreview();
+    } else if (variables.length > 0) {
+      setSamplesFor('preview');
     } else {
       fetchPreview();
     }
   };
 
+  const handleExport = () => {
+    if (variables.length > 0) {
+      setSamplesFor('export');
+    } else {
+      setExportZplOverride(undefined);
+      setShowExport(true);
+    }
+  };
+
+  const handleSamplesConfirm = (values: Record<string, string>) => {
+    lastSampleValues = { ...lastSampleValues, ...values };
+    const finalZpl = substituteVariables(zplCode, values);
+    const action = samplesFor;
+    setSamplesFor(null);
+    if (action === 'preview') {
+      fetchPreview(finalZpl);
+    } else if (action === 'export') {
+      setExportZplOverride(finalZpl);
+      setShowExport(true);
+    }
+  };
+
   // Lazy-load ExportModal to avoid circular deps
-  const [ExportModal, setExportModal] = React.useState<React.ComponentType<{ onClose: () => void }> | null>(null);
+  const [ExportModal, setExportModal] = React.useState<React.ComponentType<{ onClose: () => void; zplOverride?: string }> | null>(null);
   React.useEffect(() => {
     if (showExport && !ExportModal) {
       import('./ExportModal').then(m => setExportModal(() => m.ExportModal));
@@ -214,7 +247,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
 
         <button
           className="chrome-btn chrome-btn-success"
-          onClick={() => setShowExport(true)}
+          onClick={handleExport}
           title="Export label"
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -239,7 +272,16 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
       </header>
 
       {showExport && ExportModal && (
-        <ExportModal onClose={() => setShowExport(false)} />
+        <ExportModal zplOverride={exportZplOverride} onClose={() => setShowExport(false)} />
+      )}
+      {samplesFor && (
+        <SampleValuesModal
+          variables={variables}
+          initialValues={lastSampleValues}
+          confirmLabel={samplesFor === 'preview' ? 'Preview' : 'Continue'}
+          onConfirm={handleSamplesConfirm}
+          onClose={() => setSamplesFor(null)}
+        />
       )}
     </>
   );

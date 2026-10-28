@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 
 interface Props {
   variables: string[];
+  initialValues?: Record<string, string>;
   confirmLabel: string;
   onConfirm(values: Record<string, string>): void;
   onClose(): void;
 }
 
-export function SampleValuesModal({ variables, confirmLabel, onConfirm, onClose }: Props) {
+export function SampleValuesModal({ variables, initialValues = {}, confirmLabel, onConfirm, onClose }: Props) {
   const [values, setValues] = useState<Record<string, string>>(
-    () => Object.fromEntries(variables.map(v => [v, '']))
+    () => Object.fromEntries(variables.map(v => [v, initialValues[v] ?? '']))
   );
 
   const setValue = (name: string, value: string) =>
