@@ -32,8 +32,10 @@ export function generateZpl(req: GenerateRequest): string {
         const fontName = el.fontName ?? '0';
         const fontSize = el.fontSize ?? 30;
         const data = fieldData(el);
-        // ^FT positions the baseline: the canvas top-left plus the font height
-        const origin = el.origin === 'FT' ? `^FT${el.x},${el.y + fontSize}` : fo;
+        // ^FT positions the baseline (of the last line of a ^FB block): the canvas
+        // top-left plus the font height, plus the lines above the last one
+        const linesAbove = el.block ? (el.block.maxLines - 1) * (fontSize + el.block.lineSpacing) : 0;
+        const origin = el.origin === 'FT' ? `^FT${el.x},${el.y + fontSize + linesAbove}` : fo;
         // ^FB block width follows the element width, so resizing on the canvas resizes the block
         const fb = el.block
           ? `^FB${Math.round(el.width)},${el.block.maxLines},${el.block.lineSpacing},${el.block.justify},${el.block.hangingIndent}`

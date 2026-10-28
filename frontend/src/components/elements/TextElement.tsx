@@ -1,75 +1,104 @@
 import React from 'react';
-import { DesignElement, displayValue } from '../../types';
+import { DesignElement } from '../../types';
 import { getZplFont } from '../../utils/zplFonts';
-import { splitVariables } from '../../utils/variables';
+import { FONT0_GLYPH, FONT0_HYPHEN, BASELINE_RATIO, canvasTextParts, fontMetrics, layoutText } from '../../utils/zplText';
 
-interface Props { element: DesignElement; scale: number; }
-
-const JUSTIFY_TO_CSS = { L: 'left', C: 'center', R: 'right', J: 'justify' } as const;
-
-// {{name}} placeholders get a light tint so they stand out from the fixed text;
-// the tint does not change the text size or position.
-function withVariables(text: string) {
-  return splitVariables(text).map((part, i) =>
-    part.variable
-      ? <span key={i} style={{ background: 'rgba(59, 130, 246, 0.22)', borderRadius: 2 }}>{part.text}</span>
-      : <React.Fragment key={i}>{part.text}</React.Fragment>
-  );
+interface Props {
+  element: DesignElement;
+  scale: number;
+  samples?: Record<string, string> | null;  // sample values shown in place of {{name}}
 }
 
-export function TextElement({ element, scale }: Props) {
-  const fontSize = (element.fontSize ?? 30) * scale;
-  const reversed = element.reversed ?? false;
+const VARIABLE_TINT = 'rgba(59, 130, 246, 0.22)';
+
+// Text drawn where the printer puts it: each character at its printed position
+// (see utils/zplText), in an SVG whose units are printer dots.
+export function TextElement({ element, scale, samples }: Props) {
+  const m = fontMetrics(element);
   const font = getZplFont(element.fontName);
-  // ^A width narrower/wider than the height: stretch the glyphs horizontally
-  const widthRatio = element.fontWidth && element.fontSize ? element.fontWidth / element.fontSize : 1;
-  const text = displayValue(element) || 'Text';
 
-  const boxStyle: React.CSSProperties = {
-    width: element.width * scale,
-    height: element.height * scale,
-    fontFamily: font.cssFamily,
-    fontSize: Math.max(8, fontSize),
-    fontWeight: font.fontWeight,
-    textTransform: font.textTransform,
-    overflow: 'hidden',
-    userSelect: 'none',
-    background: reversed ? 'black' : 'transparent',
-    color: reversed ? 'white' : 'black',
-  };
+  // {{name}} placeholders (or their sample values) are tinted
+  const parts = canvasTextParts(element, samples);
+  const text = parts.map(p => p.text).join('');
+  const isVariable = parts.flatMap(p => [...p.text].map(() => !!p.variable));
 
-  if (element.block) {
-    // ^FB: lines split on \& and aligned inside the block. The block is laid out at
-    // width / widthRatio and scaled back, so wrapping and alignment follow the glyph width.
-    const { maxLines, lineSpacing, justify, hangingIndent } = element.block;
-    const lines = text.split('\\&');
-    if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
-    return (
-      <div style={boxStyle}>
-        <div
-          style={{
-            width: (element.width * scale) / widthRatio,
-            transform: `scaleX(${widthRatio})`,
-            transformOrigin: 'left top',
-            textAlign: JUSTIFY_TO_CSS[justify],
-            lineHeight: `${(element.fontSize ?? 30) * scale + lineSpacing * scale}px`,
-            paddingLeft: hangingIndent * scale,
-            textIndent: -hangingIndent * scale,
-          }}
-        >
-          {lines.slice(0, maxLines).map((line, i) => (
-            <div key={i}>{line ? withVariables(line) : ' '}</div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const layout = layoutText(element, text);
+  const { chars, offsets } = layout;
+  const reversed = element.reversed ?? false;
+  const ink = reversed ? 'white' : 'black';
+
+  const glyphScale = (m.font0 ? FONT0_GLYPH.scaleX : 1) * (m.width / m.height);
+  const glyphSize = m.font0 ? m.height * FONT0_GLYPH.emPerHeight : m.height;
+  const family = m.font0 ? FONT0_GLYPH.family : font.cssFamily;
+  const weight = m.font0 ? FONT0_GLYPH.weight : font.fontWeight;
 
   return (
-    <div style={{ ...boxStyle, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-      <span style={{ display: 'inline-block', transform: `scaleX(${widthRatio})`, transformOrigin: 'left center' }}>
-        {withVariables(text)}
-      </span>
+    <div
+      title={layout.overflow ? 'The text does not fit in this block: the printer overprints the extra lines on the last one' : undefined}
+      style={{
+        position: 'relative',
+        width: layout.width * scale,
+        height: layout.height * scale,
+        background: reversed ? 'black' : 'transparent',
+        outline: layout.overflow ? '2px dashed #ef4444' : undefined,
+        outlineOffset: 1,
+        userSelect: 'none',
+      }}
+    >
+      <svg
+        width={layout.width * scale}
+        height={layout.height * scale}
+        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        style={{ position: 'absolute', inset: 0, overflow: 'visible' }}
+      >
+        {layout.lines.map((line, li) => {
+          const xs = (i: number) => line.x + offsets[i] - offsets[line.start];
+          const top = line.baseline - BASELINE_RATIO * m.height;
+
+          // Runs of variable characters on this line
+          const tints: { from: number; to: number }[] = [];
+          for (let i = line.start; i < line.end; i++) {
+            if (!isVariable[i]) continue;
+            const last = tints[tints.length - 1];
+            if (last && last.to === i) last.to = i + 1; else tints.push({ from: i, to: i + 1 });
+          }
+
+          // Font 0 hyphens are drawn as bars; spaces are kept as positioned characters
+          const glyphs = chars.slice(line.start, line.end).map(ch =>
+            ch === ' ' || (m.font0 && ch === '-') ? ' ' : ch
+          );
+
+          return (
+            <g key={li}>
+              {tints.map(t => (
+                <rect key={t.from} x={xs(t.from)} y={top} width={xs(t.to) - xs(t.from)} height={m.height} fill={VARIABLE_TINT} rx={2} />
+              ))}
+              <text
+                transform={`scale(${glyphScale}, 1)`}
+                x={glyphs.map((_, i) => (xs(line.start + i) / glyphScale).toFixed(2)).join(' ')}
+                y={line.baseline}
+                fontFamily={family}
+                fontWeight={weight}
+                fontSize={glyphSize}
+                fill={ink}
+                style={{ whiteSpace: 'pre' }}
+              >
+                {glyphs.join('')}
+              </text>
+              {m.font0 && chars.slice(line.start, line.end).map((ch, i) => ch === '-' && (
+                <rect
+                  key={`h${i}`}
+                  x={xs(line.start + i) + FONT0_HYPHEN.left * m.width}
+                  y={line.baseline - FONT0_HYPHEN.top * m.height}
+                  width={FONT0_HYPHEN.width * m.width}
+                  height={FONT0_HYPHEN.height * m.height}
+                  fill={ink}
+                />
+              ))}
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

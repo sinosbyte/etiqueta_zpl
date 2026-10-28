@@ -418,6 +418,14 @@ test('moving and resizing a ^FT/^FB field keeps ^FT and resizes the block', () =
   expect(out).toContain('^FT300,175^A0N,75,50^FB500,1,0,C,0^FDREF^FS');
 });
 
+test('^FT on a multi-line ^FB block is the baseline of the last line', () => {
+  const zpl = String.raw`^FT450,520^A0N,50,40^FB300,2,10,L,0^FDLINE1\&LINE2^FS`;
+  const parsed = parseZpl(`^XA\n${zpl}\n^XZ`);
+  // top of the block = 520 - 50 (font) - 1 line above x (50 + 10)
+  expect(parsed.elements[0]).toMatchObject({ y: 410, origin: 'FT' });
+  expect(generateZpl({ labelWidth: 812, labelHeight: 551, elements: parsed.elements })).toContain(zpl);
+});
+
 test('parses Interleaved 2 of 5 (^B2) with ^BY settings and vertical orientation', () => {
   const parsed = parseZpl('^XA\n^BY3,3,130\n^FO20,50^B2B,100,Y,N,N^FD{{EAN}}^FS\n^XZ');
   const bc = parsed.elements.find(e => e.type === 'barcodeI2of5');

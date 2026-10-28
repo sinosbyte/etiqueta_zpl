@@ -81,6 +81,13 @@ Source is mounted into the containers, so edits hot-reload. The frontend is on
 - **Dot-grid background** that scales with zoom to help with alignment
 - **Undo / Redo** (`Ctrl+Z` / `Ctrl+Shift+Z`) — 100-step history tracking elements and label dimensions
 
+**Text is drawn where the printer prints it** (`frontend/src/utils/zplText.ts`):
+
+- Font 0 uses the printer's own character widths, measured from Labelary renders: each character is placed at its printed position (within about 1 dot), with Roboto Condensed Bold glyphs sized to the printed cap height. Other fonts are approximated with the browser font
+- `^FO` text starts at the top of the character cell (baseline at 75% of the font height); `^FT` is the baseline (of the last line, in a `^FB` block)
+- Text outside a `^FB` block is as big as the printed text: resizing it (handles or W/H) changes the `^A` height and width
+- `^FB` blocks wrap like the printer (at spaces, `\&` forces a break, long words split between characters). Text that needs more lines than the block allows is overprinted on the last line, as the printer does, and the block gets a dashed red outline
+
 ### Dynamic Variables
 
 Text, Barcode 128, and QR Code elements can be marked **dynamic** in the Properties Panel. A dynamic element stores a **variable name** (restricted to `[A-Za-z0-9_]`) instead of a fixed value and emits a `{{variableName}}` placeholder into the ZPL `^FD` field.
@@ -89,6 +96,7 @@ Text, Barcode 128, and QR Code elements can be marked **dynamic** in the Propert
 - Parsing ZPL that contains a `{{name}}` field marks the element dynamic — full round-trip
 - Variables can also be mixed with fixed text by typing them in the element's Value, e.g. `CONTÉM: {{QTD}} PEÇAS`. The element stays a regular (non-dynamic) element; the canvas tints each `{{name}}` and the Properties Panel lists the variables found
 - When **Preview** or **Export** runs on a label with variables (whole-field or mixed with text), a **Sample values** dialog collects an example value per variable and substitutes them before sending to Labelary. The values typed are offered again on the next Preview/Export
+- **Show sample values** (above the canvas) draws the sample values in place of the `{{variables}}` — text, barcodes and QR codes — so the layout can be checked with real lengths. Values are still tinted; the ZPL keeps the `{{variables}}`
 
 ### ZPL Code Editor
 
