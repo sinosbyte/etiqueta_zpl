@@ -2,6 +2,7 @@ import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ZPL_FONTS } from '../utils/zplFonts';
 import { mmToDots, dotsToMm } from '../utils/units';
+import { extractVariables } from '../utils/variables';
 
 export function PropertiesPanel() {
   const { elements, selectedId, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
@@ -64,6 +65,25 @@ export function PropertiesPanel() {
         }}
       />
     </div>
+  );
+
+  // {{name}} placeholders typed inside a fixed value, e.g. "CONTÉM: {{QTD}} PEÇAS"
+  const inlineVariables = el.dynamic ? [] : extractVariables(el.value ?? '');
+
+  const valueControls = !el.dynamic && (
+    <>
+      {field('Value', el.value ?? '', 'value')}
+      {inlineVariables.length > 0 && (
+        <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: -4, marginBottom: 8, lineHeight: 1.5 }}>
+          Variables in this value:{' '}
+          <span style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
+            {inlineVariables.map(v => `{{${v}}}`).join(' ')}
+          </span>
+          <br />
+          Filled in when the label is printed; Preview asks for sample values.
+        </p>
+      )}
+    </>
   );
 
   const dynamicControls = (
@@ -170,7 +190,7 @@ export function PropertiesPanel() {
 
       {el.type === 'text' && (
         <div style={sectionStyle}>
-          {!el.dynamic && field('Value', el.value ?? '', 'value')}
+          {valueControls}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <div>
               <label style={labelStyle}>Font size</label>
@@ -226,7 +246,7 @@ export function PropertiesPanel() {
 
       {(el.type === 'barcode128' || el.type === 'barcodeI2of5' || el.type === 'qrcode') && (
         <div style={sectionStyle}>
-          {!el.dynamic && field('Value', el.value ?? '', 'value')}
+          {valueControls}
           {dynamicControls}
           {el.type === 'barcodeI2of5' && (
             <>

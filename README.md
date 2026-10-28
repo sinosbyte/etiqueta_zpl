@@ -87,7 +87,8 @@ Text, Barcode 128, and QR Code elements can be marked **dynamic** in the Propert
 
 - The canvas shows the literal `{{variableName}}`; dynamic barcodes/QR codes render a dashed placeholder box
 - Parsing ZPL that contains a `{{name}}` field marks the element dynamic — full round-trip
-- When **Preview** or **Export** runs on a label with variables, a **Sample values** dialog collects an example value per variable and substitutes them before sending to Labelary
+- Variables can also be mixed with fixed text by typing them in the element's Value, e.g. `CONTÉM: {{QTD}} PEÇAS`. The element stays a regular (non-dynamic) element; the canvas tints each `{{name}}` and the Properties Panel lists the variables found
+- When **Preview** or **Export** runs on a label with variables (whole-field or mixed with text), a **Sample values** dialog collects an example value per variable and substitutes them before sending to Labelary. The values typed are offered again on the next Preview/Export
 
 ### ZPL Code Editor
 
