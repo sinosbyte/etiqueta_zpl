@@ -1,22 +1,28 @@
 import React, { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 import { DesignElement } from '../../types';
+import { CODE128_FORMAT, code128Value, code128Width } from '../../utils/code128';
 
 interface Props { element: DesignElement; scale: number; }
 
+// Code 128 (^BC). Sample values are already in element.value when shown on the canvas.
 export function BarcodeElement({ element, scale }: Props) {
   const ref = useRef<SVGSVGElement>(null);
-  const containerWidth = element.width * scale;
+  const containerWidth = code128Width(element) * scale;
   const containerHeight = element.height * scale;
-  const textHeight = Math.max(12, containerHeight * 0.1);
-  const barsHeight = containerHeight - textHeight - 4;
-  const isDynamic = element.dynamic && element.variableName;
+  const printLine = element.printLine ?? true;
+  const textHeight = printLine ? Math.max(12, containerHeight * 0.1) : 0;
+  const barsHeight = containerHeight - (printLine ? textHeight + 4 : 0);
+  const value = code128Value(element);
+  // A {{variable}} has no bars until a sample value is shown
+  const isPlaceholder = value.includes('{{');
 
   useEffect(() => {
-    if (isDynamic || !ref.current) return;
+    if (isPlaceholder || !ref.current) return;
     try {
-      JsBarcode(ref.current, element.value || '000000', {
-        format: 'CODE128',
+      // Without a start code the printer encodes in subset B
+      JsBarcode(ref.current, value || '000000', {
+        format: CODE128_FORMAT[element.codeSet ?? 'B'],
         width: 2,
         height: barsHeight,
         displayValue: false,
@@ -34,9 +40,9 @@ export function BarcodeElement({ element, scale }: Props) {
     } catch (e) {
       // invalid barcode value
     }
-  }, [element.value, containerWidth, barsHeight, isDynamic]);
+  }, [value, element.codeSet, containerWidth, barsHeight, isPlaceholder]);
 
-  if (isDynamic) {
+  if (isPlaceholder) {
     return (
       <div
         style={{
@@ -48,14 +54,15 @@ export function BarcodeElement({ element, scale }: Props) {
           justifyContent: 'center',
           border: '2px dashed #9ca3af',
           background: '#f9fafb',
+          boxSizing: 'border-box',
           userSelect: 'none',
           overflow: 'hidden',
         }}
       >
-        <span style={{ fontSize: Math.max(10, textHeight), fontFamily: 'monospace', color: '#374151' }}>
-          {`{{${element.variableName}}}`}
+        <span style={{ fontSize: Math.max(10, containerHeight * 0.18), fontFamily: 'monospace', color: '#374151' }}>
+          {value}
         </span>
-        <span style={{ fontSize: Math.max(9, textHeight * 0.8), color: '#9ca3af' }}>barcode</span>
+        <span style={{ fontSize: Math.max(9, containerHeight * 0.12), color: '#9ca3af' }}>Code 128</span>
       </div>
     );
   }
@@ -63,9 +70,11 @@ export function BarcodeElement({ element, scale }: Props) {
   return (
     <div style={{ width: containerWidth, height: containerHeight, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <svg ref={ref} style={{ width: containerWidth, height: barsHeight }} />
-      <span style={{ fontSize: textHeight, fontFamily: 'monospace', marginTop: 2, userSelect: 'none' }}>
-        {element.value || '000000'}
-      </span>
+      {printLine && (
+        <span style={{ fontSize: textHeight, fontFamily: 'monospace', marginTop: 2, userSelect: 'none' }}>
+          {value || '000000'}
+        </span>
+      )}
     </div>
   );
 }

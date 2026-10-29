@@ -357,8 +357,37 @@ test('keeps a rotated text field as raw ZPL', () => {
 });
 
 test('keeps a Code 128 with non-default options as raw ZPL', () => {
-  const parsed = parseZpl('^XA\n^FO10,10^BCN,100,N,N,N^FD123^FS\n^XZ');
-  expect(parsed.elements[0]).toMatchObject({ type: 'raw', value: '^FO10,10^BCN,100,N,N,N^FD123^FS' });
+  const parsed = parseZpl('^XA\n^FO10,10^BCR,100,Y,N,N^FD123^FS\n^FO10,200^BCN,100,Y,Y,N^FD123^FS\n^XZ');
+  expect(parsed.elements.map(e => e.type)).toEqual(['raw', 'raw']);
+});
+
+test('parses a Code 128 without the digits line and with a start code (UC label)', () => {
+  const parsed = parseZpl('^XA\n^FO90,58^BY2,2.5,70\n^BCN,70,N,N,N\n^FD>:{{UC}}^FS\n^FO90,240^BY3^BCN,60,Y,N,N^FD>;80002015^FS\n^XZ');
+  expect(parsed.elements[0]).toMatchObject({
+    type: 'barcode128', x: 90, y: 58, height: 70, value: '{{UC}}', moduleWidth: 2, printLine: false, codeSet: 'B',
+  });
+  // Subset C: 8 digits = 4 symbols, (11 * 4 + 35) modules x 3 dots
+  expect(parsed.elements[1]).toMatchObject({ type: 'barcode128', value: '80002015', moduleWidth: 3, codeSet: 'C', width: 237 });
+  expect(parsed.elements[1].printLine).toBeUndefined();
+
+  const zpl = generateZpl({ labelWidth: 800, labelHeight: 480, elements: parsed.elements });
+  expect(zpl).toContain('^FO90,58^BY2^BCN,70,N,N,N^FD>:{{UC}}^FS');
+  expect(zpl).toContain('^FO90,240^BY3^BCN,60,Y,N,N^FD>;80002015^FS');
+});
+
+test('keeps a Code 128 with invocation codes inside the data as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FO10,10^BCN,100,Y,N,N^FD>;0038>6AB^FS\n^XZ');
+  expect(parsed.elements[0]).toMatchObject({ type: 'raw', value: '^FO10,10^BCN,100,Y,N,N^FD>;0038>6AB^FS' });
+});
+
+test('keeps ^FR on regenerated text, barcodes and lines (white text on a black box)', () => {
+  const zpl = '^XA\n^FO555,135^GB185,155,185^FS\n^FO565,180^A0N,26,26^FR^FDBOX^FS\n' +
+    '^FO10,10^FR^BY2^BCN,50,N,N,N^FD123^FS\n^FO10,100^FR^GB300,3,3^FS\n^XZ';
+  const parsed = parseZpl(zpl);
+  const out = generateZpl({ labelWidth: 800, labelHeight: 480, elements: parsed.elements });
+  expect(out).toContain('^FO565,180^A0N,26,26^FR^FDBOX^FS');
+  expect(out).toContain('^FO10,10^FR^BY2^BCN,50,N,N,N^FD123^FS');
+  expect(out).toContain('^FO10,100^FR^GB300,3,3^FS');
 });
 
 test('keeps a QR code with manual input mode as raw ZPL', () => {

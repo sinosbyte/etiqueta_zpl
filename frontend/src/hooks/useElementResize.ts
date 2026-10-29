@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { DesignElement } from '../types';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
+import { resizeCode128Patch } from '../utils/code128';
 import { useDesignerStore } from '../store/useDesignerStore';
 
 export function useElementResize(
@@ -39,6 +40,15 @@ export function useElementResize(
       // Text outside a ^FB block: the box is the text, so resizing scales the font
       const { width, height, ...position } = patch;
       updateElement(snap.id, { ...position, ...resizeTextPatch(snap, width ?? snap.width, height ?? snap.height, samples) });
+      return;
+    }
+    if (snap.type === 'barcode128' && snap.moduleWidth) {
+      // Code 128: the width sets the bar width (^BY), in whole dots
+      const { width, height, ...position } = patch;
+      const resized = resizeCode128Patch(snap, width ?? snap.width, height ?? snap.height, samples);
+      // Dragging a left handle keeps the right edge in place
+      if (dir.includes('w')) position.x = snap.x + snap.width - resized.width!;
+      updateElement(snap.id, { ...position, ...resized });
       return;
     }
     updateElement(snap.id, patch);
