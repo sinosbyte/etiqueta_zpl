@@ -1,5 +1,6 @@
 import { Element, FieldBlock, Orientation, ParseResult } from './types';
 import { i2of5DigitCount, i2of5Modules } from './i2of5';
+import { Code128Set, code128Modules, splitCode128Start } from './code128';
 
 // A field whose entire data is {{name}} is a dynamic placeholder.
 const DYNAMIC_RE = /^\{\{([A-Za-z0-9_]+)\}\}$/;
@@ -100,7 +101,7 @@ export function parseZpl(zpl: string): ParseResult {
   let fieldData = '';
   let fieldHasFont = false;
   // Pending barcode command (set between ^FO and ^FD)
-  type PendingBarcode = { kind: 'bc128'; orientation: string; height: number; printLine: boolean } |
+  type PendingBarcode = { kind: 'bc128'; orientation: string; height: number; printLine: boolean; moduleWidth: number } |
                         { kind: 'bqr';   orientation: string; model: number; mag: number } |
                         { kind: 'i2of5'; orientation: Orientation; height: number; printLine: boolean;
                           lineAbove: boolean; checkDigit: boolean; moduleWidth: number; ratio: number };
@@ -289,11 +290,11 @@ export function parseZpl(zpl: string): ParseResult {
           const height = (p[1] !== undefined && p[1] !== '') ? parseInt(p[1], 10) : byHeight;
           const printLine = (p[2] ?? 'Y').trim().toUpperCase() !== 'N';
           const mode = (p[5] ?? '').trim().toUpperCase();
-          // The generator always emits ^BCN,h,Y,N,N — anything else stays raw
-          if (orientation !== 'N' || !printLine || isYes(p[3]) || isYes(p[4]) || (mode !== '' && mode !== 'N')) {
+          // The generator emits ^BCN,h,Y|N,N,N — anything else stays raw
+          if (orientation !== 'N' || isYes(p[3]) || isYes(p[4]) || (mode !== '' && mode !== 'N')) {
             fieldEditable = false;
           }
-          pendingBarcode = { kind: 'bc128', orientation, height, printLine };
+          pendingBarcode = { kind: 'bc128', orientation, height, printLine, moduleWidth: byModuleWidth };
           break;
         }
 
@@ -357,6 +358,18 @@ export function parseZpl(zpl: string): ParseResult {
             }
           }
 
+          // Code 128 data may start with a start code (>: etc.); other invocation codes stay raw
+          let code128Set: Code128Set | undefined;
+          if (fieldEditable && pendingBarcode?.kind === 'bc128') {
+            const split = splitCode128Start(fieldData);
+            if (split) {
+              code128Set = split.codeSet;
+              fieldData = split.value;
+            } else {
+              fieldEditable = false;
+            }
+          }
+
           // ^FT and ^FB are only drawable for text
           if (pendingBarcode && (fieldOrigin === 'FT' || fieldBlock)) fieldEditable = false;
 
@@ -392,14 +405,18 @@ export function parseZpl(zpl: string): ParseResult {
                 ...(fieldReversed ? { reversed: true } : {}),
               });
             } else if (pendingBarcode.kind === 'bc128') {
+              const bc = pendingBarcode;
               elements.push({
                 id: nextId(),
                 type: 'barcode128',
                 x: fieldX,
                 y: fieldY,
-                width: byModuleWidth * (11 * (fieldData.length || 8) + 35),
-                height: pendingBarcode.height,
+                width: bc.moduleWidth * code128Modules(fieldData, code128Set),
+                height: bc.height,
                 value: fieldData,
+                moduleWidth: bc.moduleWidth,
+                ...(bc.printLine ? {} : { printLine: false }),
+                ...(code128Set ? { codeSet: code128Set } : {}),
                 ...dyn,
                 ...(fieldReversed ? { reversed: true } : {}),
               });

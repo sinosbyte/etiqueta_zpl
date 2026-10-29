@@ -90,6 +90,14 @@ Source is mounted into the containers, so edits hot-reload. The frontend is on
 - **Align in a fixed width** (Properties Panel, text) turns the text into a `^FB` block: alignment (left / center / right / justified) and max lines; the block width is the element width
 - **Corners** (Properties Panel, box) sets the `^GB` corner rounding, from square (0) to Rounded 8
 - `^FB` blocks wrap like the printer (at spaces, `\&` forces a break, long words split between characters). Text that needs more lines than the block allows is overprinted on the last line, as the printer does, and the block gets a dashed red outline
+- `^FR` (reverse print, e.g. white text on a black box) is kept on every element when the canvas regenerates the ZPL
+
+**Code 128 is drawn at its printed size** (`frontend/src/utils/code128.ts`):
+
+- The width is the bar width (`^BY`) times the symbol length, so resizing it (handles or W) changes the `^BY` bar width in whole dots
+- **Print digits below bars** (Properties Panel) sets the interpretation line (`^BCN,h,Y` / `N`)
+- A start code at the beginning of the data (`>:` subset B, `>;` subset C, `>9` subset A) is kept and drawn; without one the printer uses subset B. Data with other invocation codes (`>` inside the value) stays as raw ZPL
+- With `{{variables}}` the length is only known when printing: the canvas assumes 12 characters, and **Show sample values** shows the real size
 
 ### Dynamic Variables
 
@@ -194,7 +202,7 @@ All positions and sizes are stored in **ZPL dots** (203 DPI → 8.03 dots/mm). T
 | Type | Default size (dots) | ZPL command |
 |---|---|---|
 | `text` | 200 × 40 | `^FO{x},{y}^A{font}N,{size},{size}^FD{value}^FS` |
-| `barcode128` | 300 × 100 | `^FO{x},{y}^BY{module}^BCN,{height},Y,N,N^FD{value}^FS` |
+| `barcode128` | 268 × 100 | `^FO{x},{y}^BY{module}^BCN,{height},{Y\|N},N,N^FD{start}{value}^FS` |
 | `qrcode` | 100 × 100 | `^FO{x},{y}^BQN,2,{mag}^FDMA,{value}^FS` |
 | `rect` | 200 × 100 | `^FO{x},{y}^GB{w},{h},8^FS` |
 | `line` | 200 × 8 | `^FO{x},{y}^GB{w},{h},3^FS` |

@@ -33,9 +33,10 @@ export interface DesignElement {
   origin?: 'FT';              // text positioned with ^FT (baseline); x/y stay the top-left
   block?: FieldBlock;         // text inside a ^FB block
   orientation?: Orientation;  // barcodeI2of5; omitted = N
-  moduleWidth?: number;       // barcodeI2of5 ^BY narrow bar width
+  moduleWidth?: number;       // barcode ^BY narrow bar width
   ratio?: number;             // barcodeI2of5 ^BY wide-to-narrow ratio
-  printLine?: boolean;        // barcodeI2of5 interpretation line; omitted = true
+  printLine?: boolean;        // barcode interpretation line; omitted = true
+  codeSet?: 'A' | 'B' | 'C';  // barcode128 start code in ^FD (>9, >:, >;); omitted = none
   lineAbove?: boolean;
   checkDigit?: boolean;
   dynamic?: boolean;

@@ -34,9 +34,10 @@ export interface Element {
   origin?: 'FT';       // text positioned with ^FT (baseline); x/y stay the top-left on the canvas
   block?: FieldBlock;  // text inside a ^FB block; the block width is the element width
   orientation?: Orientation;  // barcodeI2of5 orientation; omitted = N
-  moduleWidth?: number;       // barcodeI2of5 ^BY narrow bar width in dots
+  moduleWidth?: number;       // barcode ^BY narrow bar width in dots
   ratio?: number;             // barcodeI2of5 ^BY wide-to-narrow ratio
-  printLine?: boolean;        // barcodeI2of5 interpretation line below the bars; omitted = true
+  printLine?: boolean;        // barcode interpretation line below the bars; omitted = true
+  codeSet?: 'A' | 'B' | 'C';  // barcode128 start code in ^FD (>9, >:, >;); omitted = none
   lineAbove?: boolean;        // barcodeI2of5 interpretation line above the bars
   checkDigit?: boolean;       // barcodeI2of5 Mod 10 check digit
   dynamic?: boolean;

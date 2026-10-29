@@ -4,6 +4,7 @@ import { ZPL_FONTS } from '../utils/zplFonts';
 import { mmToDots, dotsToMm } from '../utils/units';
 import { extractVariables } from '../utils/variables';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
+import { code128Value, resizeCode128Patch } from '../utils/code128';
 import { NumberInput } from './NumberInput';
 
 export function PropertiesPanel() {
@@ -58,14 +59,18 @@ export function PropertiesPanel() {
     </div>
   );
 
-  // Text outside a ^FB block is as big as the printed text: W/H change the font
+  // Text outside a ^FB block is as big as the printed text: W/H change the font.
+  // A Code 128 is as wide as its bars: W changes the bar width (^BY).
   const samples = showSamples ? sampleValues : null;
   const box = elementBox(el, samples);
   const sizedByFont = el.type === 'text' && !el.block;
+  const sizedByBars = el.type === 'barcode128' && !!el.moduleWidth;
   const setSize = (patch: { width?: number; height?: number }) =>
     updateElement(el.id, sizedByFont
       ? resizeTextPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
-      : patch);
+      : sizedByBars
+        ? resizeCode128Patch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
+        : patch);
 
   // {{name}} placeholders typed inside a fixed value, e.g. "CONTÉM: {{QTD}} PEÇAS"
   const inlineVariables = el.dynamic ? [] : extractVariables(el.value ?? '');
@@ -84,6 +89,18 @@ export function PropertiesPanel() {
         </p>
       )}
     </>
+  );
+
+  const printLineControl = (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+      <input
+        type="checkbox"
+        checked={el.printLine ?? true}
+        onChange={e => updateElement(el.id, { printLine: e.target.checked })}
+        style={{ accentColor: 'var(--accent)' }}
+      />
+      <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Print digits below bars</span>
+    </label>
   );
 
   const dynamicControls = (
@@ -308,18 +325,20 @@ export function PropertiesPanel() {
                   <option value="B">Bottom-up 270°</option>
                 </select>
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={el.printLine ?? true}
-                  onChange={e => updateElement(el.id, { printLine: e.target.checked })}
-                  style={{ accentColor: 'var(--accent)' }}
-                />
-                <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Print digits below bars</span>
-              </label>
+              {printLineControl}
               <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0 }}>
                 Digits only; an odd count gets a leading zero.
               </p>
+            </>
+          )}
+          {el.type === 'barcode128' && (
+            <>
+              {printLineControl}
+              {sizedByBars && code128Value(el, samples).includes('{{') && (
+                <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, lineHeight: 1.5 }}>
+                  The width depends on the value printed; use Show sample values to see the real size.
+                </p>
+              )}
             </>
           )}
         </div>

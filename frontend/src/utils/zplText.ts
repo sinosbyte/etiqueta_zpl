@@ -1,6 +1,7 @@
 import { DesignElement, displayValue } from '../types';
 import { getZplFont } from './zplFonts';
 import { splitVariables } from './variables';
+import { code128Width } from './code128';
 
 // Lays text out the way the printer does, so the canvas matches the printed label.
 // Font 0 metrics were measured from Labelary renders (8 dpmm); other fonts are
@@ -202,6 +203,7 @@ export function canvasTextParts(el: DesignElement, samples?: Record<string, stri
 // Size of the element on the canvas: a ^FB block has its own size; other text
 // is exactly as wide as the printed text and one line high.
 export function elementBox(el: DesignElement, samples?: Record<string, string> | null): { width: number; height: number } {
+  if (el.type === 'barcode128') return { width: code128Width(el, samples), height: el.height };
   if (el.type !== 'text') return { width: el.width, height: el.height };
   const layout = layoutText(el, canvasTextParts(el, samples).map(p => p.text).join(''));
   return { width: Math.round(layout.width), height: Math.round(layout.height) };

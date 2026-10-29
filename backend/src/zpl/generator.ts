@@ -1,5 +1,6 @@
 import { Element, GenerateRequest } from './types';
 import { i2of5DigitCount, i2of5Modules } from './i2of5';
+import { CODE128_START } from './code128';
 
 // Field data emitted into ^FD. Dynamic elements emit a {{variableName}}
 // placeholder for the API caller to substitute; others emit their value.
@@ -26,6 +27,8 @@ export function generateZpl(req: GenerateRequest): string {
 
   for (const el of req.elements) {
     const fo = `^FO${el.x},${el.y}`;
+    // ^FR prints the field in reverse (white on black, black on white)
+    const fr = el.reversed ? '^FR' : '';
 
     switch (el.type) {
       case 'text': {
@@ -50,10 +53,10 @@ export function generateZpl(req: GenerateRequest): string {
             cfFontSize = fontSize;
             cfFontWidth = fontWidth;
           }
-          lines.push(`${origin}${fb}^FD${data}^FS`);
+          lines.push(`${origin}${fb}${fr}^FD${data}^FS`);
         } else {
           // Explicit ^A inline font; width defaults to the height
-          lines.push(`${origin}^A${fontName}N,${fontSize},${el.fontWidth ?? fontSize}${fb}^FD${data}^FS`);
+          lines.push(`${origin}^A${fontName}N,${fontSize},${el.fontWidth ?? fontSize}${fb}${fr}^FD${data}^FS`);
         }
         break;
       }
@@ -69,28 +72,27 @@ export function generateZpl(req: GenerateRequest): string {
         const modules = i2of5Modules(i2of5DigitCount(value), ratio, checkDigit);
         const moduleWidth = Math.max(1, Math.round(length / modules));
         lines.push(
-          `${fo}^BY${moduleWidth},${ratio}^B2${orientation},${barHeight},` +
+          `${fo}${fr}^BY${moduleWidth},${ratio}^B2${orientation},${barHeight},` +
           `${yn(el.printLine ?? true)},${yn(el.lineAbove ?? false)},${yn(checkDigit)}^FD${value}^FS`,
         );
         break;
       }
       case 'barcode128': {
         const value = fieldData(el);
-        const charCount = value.length || 8;
+        // Elements without a stored ^BY derive it from the width:
         // Code128 total modules = 11*(chars+2 start/check) + 13 stop = 11*chars + 35
-        const totalModules = 11 * charCount + 35;
-        const moduleWidth = Math.max(1, Math.floor(el.width / totalModules));
-        lines.push(`${fo}^BY${moduleWidth}^BCN,${el.height},Y,N,N^FD${value}^FS`);
+        const moduleWidth = el.moduleWidth ?? Math.max(1, Math.floor(el.width / (11 * (value.length || 8) + 35)));
+        const start = el.codeSet ? CODE128_START[el.codeSet] : '';
+        lines.push(`${fo}${fr}^BY${moduleWidth}^BCN,${el.height},${yn(el.printLine ?? true)},N,N^FD${start}${value}^FS`);
         break;
       }
       case 'qrcode': {
         const mag = Math.max(1, Math.min(10, Math.floor(el.width / 33)));
-        lines.push(`${fo}^BQN,2,${mag}^FD${el.qrErrorCorrection ?? 'M'}A,${fieldData(el)}^FS`);
+        lines.push(`${fo}${fr}^BQN,2,${mag}^FD${el.qrErrorCorrection ?? 'M'}A,${fieldData(el)}^FS`);
         break;
       }
       case 'rect': {
         const thickness = el.filled ? Math.min(el.width, el.height) : (el.thickness ?? 8);
-        const fr = el.reversed ? '^FR' : '';
         lines.push(`${fo}${fr}^GB${el.width},${el.height},${thickness}${gbExtras(el)}^FS`);
         break;
       }
@@ -101,7 +103,7 @@ export function generateZpl(req: GenerateRequest): string {
         // dragging the perpendicular edge thickens the line instead of turning
         // it into a hollow box (e.g. ^GB200,163,3).
         const t = Math.min(el.width, el.height);
-        lines.push(`${fo}^GB${el.width},${el.height},${t}${gbExtras(el)}^FS`);
+        lines.push(`${fo}${fr}^GB${el.width},${el.height},${t}${gbExtras(el)}^FS`);
         break;
       }
       case 'comment': {
