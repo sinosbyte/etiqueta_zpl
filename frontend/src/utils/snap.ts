@@ -193,7 +193,12 @@ export function snapResize(
     else { out.y += s.shift; out.height -= s.shift; }
     guides.push(...s.guides);
   }
-  return { box: out, guides };
+  // Centres can fall between two dots; the printer only takes whole dots
+  const right = Math.round(out.x + out.width);
+  const bottom = Math.round(out.y + out.height);
+  out.x = Math.round(out.x);
+  out.y = Math.round(out.y);
+  return { box: { x: out.x, y: out.y, width: right - out.x, height: bottom - out.y }, guides };
 }
 
 // Smallest box holding all the given boxes

@@ -26,7 +26,13 @@ export function generateZpl(req: GenerateRequest): string {
   let cfFontSize: number | null = null;
   let cfFontWidth: number | null = null;
 
-  for (const el of req.elements) {
+  for (const field of req.elements) {
+    // The printer works in whole dots: a position or size from the canvas may be fractional
+    const el = {
+      ...field,
+      x: Math.round(field.x), y: Math.round(field.y),
+      width: Math.round(field.width), height: Math.round(field.height),
+    };
     const fo = `^FO${el.x},${el.y}`;
     // ^FR prints the field in reverse (white on black, black on white)
     const fr = el.reversed ? '^FR' : '';

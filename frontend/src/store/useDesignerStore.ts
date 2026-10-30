@@ -301,10 +301,10 @@ export const useDesignerStore = create<DesignerStore>()(
         switch (alignment) {
           case 'left':     return [el.id, { x: minX }];
           case 'center-h': return [el.id, { x: Math.round(centerX - w(el) / 2) }];
-          case 'right':    return [el.id, { x: maxX - w(el) }];
+          case 'right':    return [el.id, { x: Math.round(maxX - w(el)) }];
           case 'top':      return [el.id, { y: minY }];
           case 'center-v': return [el.id, { y: Math.round(centerY - h(el) / 2) }];
-          case 'bottom':   return [el.id, { y: maxY - h(el) }];
+          case 'bottom':   return [el.id, { y: Math.round(maxY - h(el)) }];
           default:         return [el.id, {}];
         }
       })

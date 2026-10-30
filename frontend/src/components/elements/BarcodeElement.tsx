@@ -17,14 +17,15 @@ export function BarcodeElement({ element, scale }: Props) {
   const printLine = element.printLine ?? true;
   const band = printLine ? code128DigitsBand(moduleWidth) * scale : 0;
   const value = code128Value(element);
-  // A {{variable}} has no bars until a sample value is shown
-  const isPlaceholder = value.includes('{{');
+  // A {{variable}} has no bars until a sample value is shown, and an empty
+  // value prints only the start and stop symbols
+  const isPlaceholder = value.includes('{{') || value === '';
 
   useEffect(() => {
     if (isPlaceholder || !ref.current) return;
     try {
       // Without a start code the printer encodes in subset B
-      JsBarcode(ref.current, value || '000000', {
+      JsBarcode(ref.current, value, {
         format: CODE128_FORMAT[element.codeSet ?? 'B'],
         width: 2,
         height: barsHeight,
@@ -60,8 +61,8 @@ export function BarcodeElement({ element, scale }: Props) {
         overflow: 'hidden',
       }}
     >
-      <span style={{ fontSize: Math.max(10, barsHeight * 0.18), fontFamily: 'monospace', color: '#374151' }}>
-        {value}
+      <span style={{ fontSize: Math.max(10, barsHeight * 0.18), fontFamily: 'monospace', color: value ? '#374151' : '#dc2626' }}>
+        {value || 'No value'}
       </span>
       <span style={{ fontSize: Math.max(9, barsHeight * 0.12), color: '#9ca3af' }}>Code 128</span>
     </div>
