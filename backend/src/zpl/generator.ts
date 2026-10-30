@@ -1,7 +1,7 @@
 import { Element, GenerateRequest } from './types';
 import { i2of5DigitCount, i2of5Modules } from './i2of5';
 import { CODE128_START } from './code128';
-import { compactGraphicData } from './graphic';
+import { wrapGraphicData } from './graphic';
 
 // Field data emitted into ^FD. Dynamic elements emit a {{variableName}}
 // placeholder for the API caller to substitute; others emit their value.
@@ -124,7 +124,7 @@ export function generateZpl(req: GenerateRequest): string {
         // ^GFA bitmap: value holds the hex data (possibly compressed), one row per dot of height
         const bytesPerRow = el.bytesPerRow ?? Math.ceil(el.width / 8);
         const total = bytesPerRow * Math.round(el.height);
-        lines.push(`${fo}${fr}^GFA,${total},${total},${bytesPerRow},${compactGraphicData(el.value ?? '')}^FS`);
+        lines.push(`${fo}${fr}^GFA,${total},${total},${bytesPerRow},${wrapGraphicData(el.value ?? '')}^FS`);
         break;
       }
       case 'comment': {

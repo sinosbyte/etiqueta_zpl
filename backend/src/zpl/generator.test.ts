@@ -1,4 +1,5 @@
 import { generateZpl } from './generator';
+import { parseZpl } from './parser';
 import { GenerateRequest } from './types';
 
 const base: GenerateRequest = { labelWidth: 800, labelHeight: 1200, elements: [] };
@@ -197,4 +198,17 @@ test('rounds positions and sizes from the canvas to whole dots', () => {
     elements: [{ id: 'l', type: 'line', x: 53, y: 165.5, width: 581.6, height: 8, thickness: 8 }],
   });
   expect(zpl).toContain('^FO53,166^GB582,8,8^FS');
+});
+
+test('breaks ^GFA data into lines SAP can store and reads it back whole', () => {
+  // A logo of 16 bytes per row and 94 rows: 1504 bytes of uncompressed hex data
+  const data = '0123456789ABCDEF'.repeat(188);
+  const zpl = generateZpl({
+    ...base,
+    elements: [{ id: 'i', type: 'image', x: 570, y: 10, width: 128, height: 94, bytesPerRow: 16, value: data }],
+  });
+  const lines = zpl.split('\n');
+  expect(Math.max(...lines.map(l => l.length))).toBeLessThanOrEqual(255);
+  expect(lines.filter(l => l.startsWith('^FO570,10^GFA,1504,1504,16,'))).toHaveLength(1);
+  expect(parseZpl(zpl).elements).toEqual([expect.objectContaining({ type: 'image', bytesPerRow: 16, value: data })]);
 });
