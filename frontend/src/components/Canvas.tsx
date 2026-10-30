@@ -10,6 +10,7 @@ import { I2of5Element } from './elements/I2of5Element';
 import { QRCodeElement } from './elements/QRCodeElement';
 import { RectElement } from './elements/RectElement';
 import { LineElement } from './elements/LineElement';
+import { ImageElement } from './elements/ImageElement';
 import { usePanning } from '../hooks/usePanning';
 import { useElementResize } from '../hooks/useElementResize';
 import { extractVariables, substituteVariables } from '../utils/variables';
@@ -37,6 +38,7 @@ function ElementRenderer({ element, scale }: { element: DesignElement; scale: nu
     case 'qrcode': return <QRCodeElement element={element} scale={scale} />;
     case 'rect': return <RectElement element={element} scale={scale} />;
     case 'line': return <LineElement element={element} scale={scale} />;
+    case 'image': return <ImageElement element={element} scale={scale} />;
     case 'comment': return null;
     case 'raw': return null;
   }
@@ -219,7 +221,7 @@ export function Canvas() {
             }}
           >
             {rawCount} ZPL {rawCount === 1 ? 'field is' : 'fields are'} kept as written but not drawn on the canvas
-            (e.g. rotated text, ^FH, barcodes other than Code 128 / Interleaved 2 of 5 / QR). Edit them in the
+            (e.g. ^FH, barcodes placed with ^FT, barcodes other than Code 128 / Interleaved 2 of 5 / QR). Edit them in the
             Code tab and use Preview to see the real label.
           </div>
         )}

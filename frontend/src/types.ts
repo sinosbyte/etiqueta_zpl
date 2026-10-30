@@ -1,6 +1,6 @@
 // 'raw' holds ZPL the editor cannot represent (e.g. ^FT, ^FB, ^B2, ^CI, ~SD).
 // It is not drawn on the canvas and is emitted back verbatim.
-export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'rect' | 'line' | 'comment' | 'raw';
+export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'rect' | 'line' | 'image' | 'comment' | 'raw';
 
 export type Orientation = 'N' | 'R' | 'I' | 'B';
 
@@ -32,7 +32,7 @@ export interface DesignElement {
   qrErrorCorrection?: 'H' | 'Q' | 'M' | 'L';
   origin?: 'FT';              // text positioned with ^FT (baseline); x/y stay the top-left
   block?: FieldBlock;         // text inside a ^FB block
-  orientation?: Orientation;  // barcodeI2of5; omitted = N
+  orientation?: Orientation;  // text, barcode128 and barcodeI2of5 rotation; omitted = N
   moduleWidth?: number;       // barcode ^BY narrow bar width
   ratio?: number;             // barcodeI2of5 ^BY wide-to-narrow ratio
   printLine?: boolean;        // barcode interpretation line; omitted = true
@@ -41,6 +41,7 @@ export interface DesignElement {
   checkDigit?: boolean;
   dynamic?: boolean;
   variableName?: string;
+  bytesPerRow?: number;       // image: ^GFA bytes per row; value holds the ^GFA data
 }
 
 // Text shown on the canvas for value-bearing elements. Dynamic elements

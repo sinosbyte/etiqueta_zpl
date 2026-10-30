@@ -351,14 +351,76 @@ test('keeps ~ commands and ^FH fields verbatim (HU label style)', () => {
   }
 });
 
-test('keeps a rotated text field as raw ZPL', () => {
-  const parsed = parseZpl('^XA\n^FO10,10^A0R,30,30^FDRotated^FS\n^XZ');
-  expect(parsed.elements).toEqual([expect.objectContaining({ type: 'raw', value: '^FO10,10^A0R,30,30^FDRotated^FS' })]);
+test('parses rotated text and regenerates it with ^FO and an inline ^A', () => {
+  const zpl = '^XA\n^CF0,30\n^FO625,325^A0R,20,20^FD{{LOTE}}^FS\n^FO10,10^A0I,30,25^FDUp^FS\n^FO10,100^A0B,30,30^FDDown^FS\n^XZ';
+  const parsed = parseZpl(zpl);
+  expect(parsed.elements.filter(e => e.type === 'text').map(e => e.orientation)).toEqual(['R', 'I', 'B']);
+  expect(parsed.elements.find(e => e.orientation === 'R')).toMatchObject({ x: 625, y: 325, fontSize: 20, variableName: 'LOTE' });
+  const out = generateZpl({ labelWidth: 800, labelHeight: 560, elements: parsed.elements });
+  expect(out).toContain('^FO625,325^A0R,20,20^FD{{LOTE}}^FS');
+  expect(out).toContain('^FO10,10^A0I,30,25^FDUp^FS');
+  expect(out).toContain('^FO10,100^A0B,30,30^FDDown^FS');
+});
+
+test('a ^CF text turned on the canvas gets an inline ^A with the orientation', () => {
+  const parsed = parseZpl('^XA\n^CF0,30\n^FO10,10^FDText^FS\n^XZ');
+  const text = parsed.elements.find(e => e.type === 'text')!;
+  const out = generateZpl({ labelWidth: 800, labelHeight: 400, elements: [{ ...text, orientation: 'R' }] });
+  expect(out).toContain('^FO10,10^A0R,30,30^FDText^FS');
+});
+
+test('keeps rotated text with ^FT or ^FB as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FT10,100^A0R,30,30^FDRotated^FS\n^FO10,10^A0R,30,30^FB200,1,0,C,0^FDBlock^FS\n^XZ');
+  expect(parsed.elements.map(e => e.type)).toEqual(['raw', 'raw']);
+});
+
+test('parses a rotated Code 128 and regenerates it in every orientation', () => {
+  for (const o of ['N', 'R', 'I', 'B']) {
+    const parsed = parseZpl(`^XA\n^FO655,230^BY2^BC${o},100,N,N,N^FD{{LOTE}}^FS\n^XZ`);
+    expect(parsed.elements[0]).toMatchObject({ type: 'barcode128', x: 655, y: 230, height: 100, moduleWidth: 2 });
+    expect(parsed.elements[0].orientation).toBe(o === 'N' ? undefined : o);
+    expect(generateZpl({ labelWidth: 800, labelHeight: 560, elements: parsed.elements }))
+      .toContain(`^FO655,230^BY2^BC${o},100,N,N,N^FD{{LOTE}}^FS`);
+  }
 });
 
 test('keeps a Code 128 with non-default options as raw ZPL', () => {
-  const parsed = parseZpl('^XA\n^FO10,10^BCR,100,Y,N,N^FD123^FS\n^FO10,200^BCN,100,Y,Y,N^FD123^FS\n^XZ');
+  const parsed = parseZpl('^XA\n^FO10,10^BCN,100,Y,N,Y^FD123^FS\n^FO10,200^BCN,100,Y,Y,N^FD123^FS\n^XZ');
   expect(parsed.elements.map(e => e.type)).toEqual(['raw', 'raw']);
+});
+
+test('rounds a decimal ^BY bar width like the printer (^BY2.5 prints as ^BY3)', () => {
+  const parsed = parseZpl('^XA\n^FO50,400^BY2.5,2,80^BCN,80,Y,N,N^FD{{UC}}^FS\n^FO50,10^BY2.4^BCN,50,N,N,N^FD1^FS\n^XZ');
+  expect(parsed.elements.map(e => e.moduleWidth)).toEqual([3, 2]);
+  expect(generateZpl({ labelWidth: 800, labelHeight: 560, elements: parsed.elements }))
+    .toContain('^FO50,400^BY3^BCN,80,Y,N,N^FD{{UC}}^FS');
+});
+
+test('a box thinner than its thickness prints as thick as the thickness (^GB180,0,50)', () => {
+  const parsed = parseZpl('^XA\n^FO54,26^GB180,0,50^FS\n^FO555,135^GB185,155,185^FS\n^FO10,10^GB0,100,30^FS\n^XZ');
+  expect(parsed.elements[0]).toMatchObject({ type: 'line', width: 180, height: 50 });
+  expect(parsed.elements[1]).toMatchObject({ type: 'rect', width: 185, height: 185, filled: true });
+  expect(parsed.elements[2]).toMatchObject({ type: 'line', width: 30, height: 100 });
+  const out = generateZpl({ labelWidth: 687, labelHeight: 408, elements: parsed.elements });
+  expect(out).toContain('^FO54,26^GB180,50,50^FS');
+  expect(out).toContain('^FO555,135^GB185,185,185^FS');
+  expect(out).toContain('^FO10,10^GB30,100,30^FS');
+});
+
+test('parses a ^GFA graphic (compressed) as an image and regenerates its data', () => {
+  // 2 bytes per row, 4 rows: FFFF, the same again (:), 0F00 (H0 = two zeros), zeros (,)
+  const data = 'FFFF:\n0FH0\n,';
+  const parsed = parseZpl(`^XA\n^FO570,10^A0N,30,30^GFA,8,8,2,${data}^FS\n^XZ`);
+  expect(parsed.elements).toEqual([expect.objectContaining({
+    type: 'image', x: 570, y: 10, width: 16, height: 4, bytesPerRow: 2, value: 'FFFF:0FH0,',
+  })]);
+  expect(generateZpl({ labelWidth: 800, labelHeight: 560, elements: parsed.elements }))
+    .toContain('^FO570,10^GFA,8,8,2,FFFF:0FH0,^FS');
+});
+
+test('keeps a ^GFA graphic with missing rows, binary data or ^FT as raw ZPL', () => {
+  const parsed = parseZpl('^XA\n^FO10,10^GFA,8,8,2,FFFF:^FS\n^FO10,10^GFB,2,2,1,ab^FS\n^FT10,10^GFA,2,2,1,FF:^FS\n^XZ');
+  expect(parsed.elements.map(e => e.type)).toEqual(['raw', 'raw', 'raw']);
 });
 
 test('parses a Code 128 without the digits line and with a start code (UC label)', () => {

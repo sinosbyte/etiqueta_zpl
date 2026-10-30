@@ -2,6 +2,7 @@ import React from 'react';
 import { DesignElement } from '../../types';
 import { getZplFont } from '../../utils/zplFonts';
 import { FONT0_GLYPH, FONT0_HYPHEN, BASELINE_RATIO, canvasTextParts, fontMetrics, layoutText } from '../../utils/zplText';
+import { ROTATION_DEGREES, isQuarterTurn } from '../../utils/rotation';
 
 interface Props {
   element: DesignElement;
@@ -24,6 +25,7 @@ export function TextElement({ element, scale, samples }: Props) {
 
   const layout = layoutText(element, text);
   const { chars, offsets } = layout;
+  // ^FR: white text blended with "difference" prints black on white and white on black
   const reversed = element.reversed ?? false;
   const ink = reversed ? 'white' : 'black';
 
@@ -32,14 +34,13 @@ export function TextElement({ element, scale, samples }: Props) {
   const family = m.font0 ? FONT0_GLYPH.family : font.cssFamily;
   const weight = m.font0 ? FONT0_GLYPH.weight : font.fontWeight;
 
-  return (
+  const drawn = (
     <div
       title={layout.overflow ? 'The text does not fit in this block: the printer overprints the extra lines on the last one' : undefined}
       style={{
         position: 'relative',
         width: layout.width * scale,
         height: layout.height * scale,
-        background: reversed ? 'black' : 'transparent',
         outline: layout.overflow ? '2px dashed #ef4444' : undefined,
         outlineOffset: 1,
         userSelect: 'none',
@@ -49,7 +50,7 @@ export function TextElement({ element, scale, samples }: Props) {
         width={layout.width * scale}
         height={layout.height * scale}
         viewBox={`0 0 ${layout.width} ${layout.height}`}
-        style={{ position: 'absolute', inset: 0, overflow: 'visible' }}
+        style={{ position: 'absolute', inset: 0, overflow: 'visible', mixBlendMode: reversed ? 'difference' : undefined }}
       >
         {layout.lines.map((line, li) => {
           const xs = (i: number) => line.x + offsets[i] - offsets[line.start];
@@ -99,6 +100,29 @@ export function TextElement({ element, scale, samples }: Props) {
           );
         })}
       </svg>
+    </div>
+  );
+
+  // Rotated text (^A orientation R/I/B): ^FO is the top-left of the turned text,
+  // so the text is turned about its centre inside its turned footprint
+  const orientation = element.orientation ?? 'N';
+  if (orientation === 'N') return drawn;
+  const w = layout.width * scale;
+  const h = layout.height * scale;
+  const quarter = isQuarterTurn(orientation);
+  const boxW = quarter ? h : w;
+  const boxH = quarter ? w : h;
+  return (
+    <div style={{ position: 'relative', width: boxW, height: boxH }}>
+      <div style={{
+        position: 'absolute',
+        left: (boxW - w) / 2,
+        top: (boxH - h) / 2,
+        transform: `rotate(${ROTATION_DEGREES[orientation]}deg)`,
+        transformOrigin: 'center',
+      }}>
+        {drawn}
+      </div>
     </div>
   );
 }

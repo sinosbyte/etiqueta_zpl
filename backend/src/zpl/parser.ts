@@ -1,6 +1,7 @@
 import { Element, FieldBlock, Orientation, ParseResult } from './types';
 import { i2of5DigitCount, i2of5Modules } from './i2of5';
 import { Code128Set, code128Modules, splitCode128Start } from './code128';
+import { compactGraphicData, decodeGraphicRows } from './graphic';
 
 // A field whose entire data is {{name}} is a dynamic placeholder.
 const DYNAMIC_RE = /^\{\{([A-Za-z0-9_]+)\}\}$/;
@@ -12,12 +13,12 @@ const QR_PREFIX_RE = /^([HQML])A,/;
 
 // Commands that belong to a field (from its first command up to ^FS).
 // Barcode commands (^B0..^BZ except ^BY) are field commands as well.
-const FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FD', 'FB', 'FH', 'FR', 'FN', 'FP', 'SN', 'SF', 'GB', 'TB', 'FV']);
+const FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FD', 'FB', 'FH', 'FR', 'FN', 'FP', 'SN', 'SF', 'GB', 'GF', 'TB', 'FV']);
 
 // Field commands the canvas can represent (plus ^B2, see isEditableFieldCommand).
 // A field using any other command (e.g. ^FH, ^B3) is kept verbatim as a 'raw'
 // element so that regenerating ZPL from the canvas never drops it.
-const EDITABLE_FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FB', 'FD', 'FR', 'BY', 'BC', 'BQ', 'GB', 'FS']);
+const EDITABLE_FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FB', 'FD', 'FR', 'BY', 'BC', 'BQ', 'GB', 'GF', 'FS']);
 
 // The tokenizer reads ^B2 as cmd "B" with tail "2..." (command names are letters only)
 const isInterleaved2of5 = (cmd: string, tail: string): boolean => cmd === 'B' && tail.startsWith('2');
@@ -56,8 +57,8 @@ function params(tail: string): string[] {
   return tail.split(',');
 }
 
-// Determine whether a ^GB is a line, rect, or solid-filled rect.
-// Priority order:
+// Determine whether a ^GB is a line, rect, or solid-filled rect, from its
+// printed size (width and height are at least the thickness). Priority order:
 //   1. w==t AND h==t         → filled solid rect (e.g. ^GB100,100,100)
 //   2. w==t OR  h==t         → line (one thin dimension, e.g. ^GB700,3,3)
 //   3. t >= min(w, h)        → filled rect (nearly solid)
@@ -70,6 +71,15 @@ function gbType(w: number, h: number, t: number): 'rect' | 'line' {
 }
 
 const isYes = (v: string | undefined): boolean => (v ?? '').trim().toUpperCase() === 'Y';
+
+// ^BY bar width: the printer rounds a decimal width (^BY2.5) to the nearest dot
+const barWidth = (v: string | undefined, fallback: number): number => {
+  const w = Math.round(parseFloat(v ?? ''));
+  return w > 0 ? Math.min(10, w) : fallback;
+};
+
+// ^GF format, total bytes, total bytes again, bytes per row, data (which may contain commas)
+const GRAPHIC_RE = /^([ABC]),(\d+),(\d+),(\d+),([\s\S]*)$/;
 
 export function parseZpl(zpl: string): ParseResult {
   counter = 0;
@@ -100,8 +110,11 @@ export function parseZpl(zpl: string): ParseResult {
   let fieldFontWidth = 0;
   let fieldData = '';
   let fieldHasFont = false;
+  let fieldTextOrientation: Orientation = 'N';
+  // ^GFA graphic read in this field
+  let pendingGraphic: { bytesPerRow: number; rows: number; data: string } | null = null;
   // Pending barcode command (set between ^FO and ^FD)
-  type PendingBarcode = { kind: 'bc128'; orientation: string; height: number; printLine: boolean; moduleWidth: number } |
+  type PendingBarcode = { kind: 'bc128'; orientation: Orientation; height: number; printLine: boolean; moduleWidth: number } |
                         { kind: 'bqr';   orientation: string; model: number; mag: number } |
                         { kind: 'i2of5'; orientation: Orientation; height: number; printLine: boolean;
                           lineAbove: boolean; checkDigit: boolean; moduleWidth: number; ratio: number };
@@ -120,6 +133,8 @@ export function parseZpl(zpl: string): ParseResult {
     fieldFontWidth = 0;
     fieldData = '';
     fieldHasFont = false;
+    fieldTextOrientation = 'N';
+    pendingGraphic = null;
     pendingBarcode = null;
     fieldTokens = [];
     fieldEditable = true;
@@ -261,9 +276,7 @@ export function parseZpl(zpl: string): ParseResult {
         case 'A': {
           const p = params(tail);
           const fontRaw = p[0] ?? '';
-          // Only normal orientation can be drawn on the canvas
-          const orientation = /[NRIB]$/.test(fontRaw) && fontRaw.length > 1 ? fontRaw.slice(-1) : 'N';
-          if (orientation !== 'N') fieldEditable = false;
+          fieldTextOrientation = (/[NRIB]$/.test(fontRaw) && fontRaw.length > 1 ? fontRaw.slice(-1) : 'N') as Orientation;
           // Strip trailing orientation letter (N/R/I/B) if present
           const fontName = fontRaw.length > 1 ? fontRaw.replace(/[NRIB]$/, '') : (fontRaw || defaultFontName);
           fieldFontName = fontName;
@@ -276,7 +289,7 @@ export function parseZpl(zpl: string): ParseResult {
         // Barcode defaults inside the field (^BY moduleWidth, widthRatio, height)
         case 'BY': {
           const p = params(tail);
-          byModuleWidth = parseInt(p[0], 10) || byModuleWidth;
+          byModuleWidth = barWidth(p[0], byModuleWidth);
           byRatio = parseFloat(p[1]) || byRatio;
           if (p[2] !== undefined && p[2] !== '') byHeight = parseInt(p[2], 10) || byHeight;
           break;
@@ -285,13 +298,13 @@ export function parseZpl(zpl: string): ParseResult {
         // Code 128 barcode (^BC orientation, height, line, lineAbove, checkDigit, mode)
         case 'BC': {
           const p = params(tail);
-          const orientation = (p[0] ?? '').trim() || 'N';
+          const orientation = ((p[0] ?? '').trim().toUpperCase() || 'N') as Orientation;
           // height defaults to ^BY height if omitted
-          const height = (p[1] !== undefined && p[1] !== '') ? parseInt(p[1], 10) : byHeight;
+          const height = (p[1] !== undefined && p[1].trim() !== '') ? parseInt(p[1], 10) || byHeight : byHeight;
           const printLine = (p[2] ?? 'Y').trim().toUpperCase() !== 'N';
           const mode = (p[5] ?? '').trim().toUpperCase();
-          // The generator emits ^BCN,h,Y|N,N,N — anything else stays raw
-          if (orientation !== 'N' || isYes(p[3]) || isYes(p[4]) || (mode !== '' && mode !== 'N')) {
+          // The generator emits ^BC{orientation},h,Y|N,N,N — anything else stays raw
+          if (!ORIENTATIONS.has(orientation) || isYes(p[3]) || isYes(p[4]) || (mode !== '' && mode !== 'N')) {
             fieldEditable = false;
           }
           pendingBarcode = { kind: 'bc128', orientation, height, printLine, moduleWidth: byModuleWidth };
@@ -320,9 +333,11 @@ export function parseZpl(zpl: string): ParseResult {
           if (fieldOrigin === 'FT' || fieldBlock) fieldEditable = false;
           if (!fieldEditable) break;  // emitted as raw at ^FS
           const p = params(tail);
-          const w = parseInt(p[0], 10) || 1;
-          const h = parseInt(p[1], 10) || 1;
+          // The printer makes width and height at least the thickness:
+          // ^GB180,0,50 prints a bar 180 x 50
           const t = parseInt(p[2], 10) || 1;
+          const w = Math.max(parseInt(p[0], 10) || 0, t);
+          const h = Math.max(parseInt(p[1], 10) || 0, t);
           const color = (p[3] ?? '').trim().toUpperCase();
           const rounding = Math.min(8, Math.max(0, parseInt(p[4], 10) || 0));
           const type = gbType(w, h, t);
@@ -341,6 +356,20 @@ export function parseZpl(zpl: string): ParseResult {
           });
           // The box is complete; its trailing ^FS is a no-op
           resetField();
+          break;
+        }
+
+        // Graphic field (^GF format, total bytes, total bytes, bytes per row, data).
+        // Only ASCII hex placed with ^FO is drawable, and its rows must match its size.
+        case 'GF': {
+          const m = tail.match(GRAPHIC_RE);
+          const bytesPerRow = m ? parseInt(m[4], 10) : 0;
+          const rows = m && m[1] === 'A' && bytesPerRow > 0 ? decodeGraphicRows(m[5], bytesPerRow) : null;
+          if (!m || !rows || parseInt(m[2], 10) !== bytesPerRow * rows.length || fieldOrigin === 'FT' || fieldBlock) {
+            fieldEditable = false;
+            break;
+          }
+          pendingGraphic = { bytesPerRow, rows: rows.length, data: compactGraphicData(m[5]) };
           break;
         }
 
@@ -372,6 +401,8 @@ export function parseZpl(zpl: string): ParseResult {
 
           // ^FT and ^FB are only drawable for text
           if (pendingBarcode && (fieldOrigin === 'FT' || fieldBlock)) fieldEditable = false;
+          // Rotated text is only drawable with ^FO and without ^FB
+          if (fieldTextOrientation !== 'N' && (fieldOrigin === 'FT' || fieldBlock)) fieldEditable = false;
 
           if (!fieldEditable) {
             pushRaw(fieldTokens.join(''));
@@ -381,7 +412,20 @@ export function parseZpl(zpl: string): ParseResult {
 
           const dynMatch = fieldData.match(DYNAMIC_RE);
           const dyn = dynMatch ? { dynamic: true, variableName: dynMatch[1] } : {};
-          if (pendingBarcode) {
+          if (pendingGraphic) {
+            // The box is the bitmap: 8 dots per byte of a row, one dot per row
+            elements.push({
+              id: nextId(),
+              type: 'image',
+              x: fieldX,
+              y: fieldY,
+              width: pendingGraphic.bytesPerRow * 8,
+              height: pendingGraphic.rows,
+              value: pendingGraphic.data,
+              bytesPerRow: pendingGraphic.bytesPerRow,
+              ...(fieldReversed ? { reversed: true } : {}),
+            });
+          } else if (pendingBarcode) {
             if (pendingBarcode.kind === 'i2of5') {
               const bc = pendingBarcode;
               // Canvas box: bars length x bar height, swapped when rotated 90/270 degrees
@@ -414,6 +458,7 @@ export function parseZpl(zpl: string): ParseResult {
                 width: bc.moduleWidth * code128Modules(fieldData, code128Set),
                 height: bc.height,
                 value: fieldData,
+                ...(bc.orientation !== 'N' ? { orientation: bc.orientation } : {}),
                 moduleWidth: bc.moduleWidth,
                 ...(bc.printLine ? {} : { printLine: false }),
                 ...(code128Set ? { codeSet: code128Set } : {}),
@@ -461,6 +506,7 @@ export function parseZpl(zpl: string): ParseResult {
               ...(fontWidth > 0 && fontWidth !== fontSize ? { fontWidth } : {}),
               fontName,
               fontSource: fieldHasFont ? 'a' : 'cf',
+              ...(fieldTextOrientation !== 'N' ? { orientation: fieldTextOrientation } : {}),
               ...(fieldOrigin === 'FT' ? { origin: 'FT' as const } : {}),
               ...(block ? {
                 block: {
@@ -511,7 +557,7 @@ export function parseZpl(zpl: string): ParseResult {
       // too, since barcodes preserved as raw ZPL depend on it.
       case 'BY': {
         const p = params(tail);
-        byModuleWidth = parseInt(p[0], 10) || byModuleWidth;
+        byModuleWidth = barWidth(p[0], byModuleWidth);
         byRatio = parseFloat(p[1]) || byRatio;
         if (p[2] !== undefined && p[2] !== '') byHeight = parseInt(p[2], 10) || byHeight;
         pushRaw(token);

@@ -16,6 +16,7 @@ const DEFAULT_SIZES: Record<ElementType, { width: number; height: number }> = {
   qrcode: { width: 100, height: 100 },
   rect: { width: 200, height: 100 },
   line: { width: 200, height: 8 },
+  image: { width: 0, height: 0 },  // set from the picture
   comment: { width: 0, height: 0 },
   raw: { width: 0, height: 0 },
 };
@@ -45,7 +46,7 @@ interface DesignerStore {
   sampleValues: Record<string, string>;  // example value per {{variable}}, for Preview/Export and the canvas
   showSamples: boolean;                  // canvas shows sample values instead of {{variable}}
   setLabelSize(width: number, height: number): void;
-  addElement(type: ElementType, x?: number, y?: number): void;
+  addElement(type: ElementType, x?: number, y?: number, fields?: Partial<DesignElement>): string;
   updateElement(id: string, patch: Partial<DesignElement>): void;
   deleteElement(id: string): void;
   deleteSelected(): void;
@@ -104,7 +105,7 @@ export const useDesignerStore = create<DesignerStore>()(
     get().syncToCode();
   },
 
-  addElement(type, x = 50, y = 50) {
+  addElement(type, x = 50, y = 50, fields) {
     const el: DesignElement = {
       id: nextId(),
       type,
@@ -112,9 +113,11 @@ export const useDesignerStore = create<DesignerStore>()(
       y,
       ...DEFAULT_SIZES[type],
       ...DEFAULT_VALUES[type],
+      ...fields,
     };
-    set(s => ({ elements: [...s.elements, el], selectedId: el.id }));
+    set(s => ({ elements: [...s.elements, el], selectedId: el.id, selectedIds: [el.id] }));
     get().syncToCode();
+    return el.id;
   },
 
   updateElement(id, patch) {

@@ -1,10 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 import { DesignElement } from '../../types';
+import { ROTATION_DEGREES } from '../../utils/rotation';
 
 interface Props { element: DesignElement; scale: number; }
-
-const ROTATION = { N: 0, R: 90, I: 180, B: 270 } as const;
 
 // Interleaved 2 of 5 (^B2). The element box is the rotated footprint; the bars are
 // drawn unrotated (length x bar height) and turned with CSS to match the orientation.
@@ -54,7 +53,7 @@ export function I2of5Element({ element, scale }: Props) {
     top: (boxH - barHeight) / 2,
     width: length,
     height: barHeight,
-    transform: `rotate(${ROTATION[orientation]}deg)`,
+    transform: `rotate(${ROTATION_DEGREES[orientation]}deg)`,
     transformOrigin: 'center',
   };
 

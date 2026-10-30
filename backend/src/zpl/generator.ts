@@ -1,6 +1,7 @@
 import { Element, GenerateRequest } from './types';
 import { i2of5DigitCount, i2of5Modules } from './i2of5';
 import { CODE128_START } from './code128';
+import { compactGraphicData } from './graphic';
 
 // Field data emitted into ^FD. Dynamic elements emit a {{variableName}}
 // placeholder for the API caller to substitute; others emit their value.
@@ -38,13 +39,16 @@ export function generateZpl(req: GenerateRequest): string {
         // ^FT positions the baseline (of the last line of a ^FB block): the canvas
         // top-left plus the font height, plus the lines above the last one
         const linesAbove = el.block ? (el.block.maxLines - 1) * (fontSize + el.block.lineSpacing) : 0;
-        const origin = el.origin === 'FT' ? `^FT${el.x},${el.y + fontSize + linesAbove}` : fo;
+        // Rotated text is placed with ^FO (the top-left of the rotated text) and has no ^FB
+        const orientation = el.orientation ?? 'N';
+        const rotated = orientation !== 'N';
+        const origin = el.origin === 'FT' && !rotated ? `^FT${el.x},${el.y + fontSize + linesAbove}` : fo;
         // ^FB block width follows the element width, so resizing on the canvas resizes the block
-        const fb = el.block
+        const fb = el.block && !rotated
           ? `^FB${Math.round(el.width)},${el.block.maxLines},${el.block.lineSpacing},${el.block.justify},${el.block.hangingIndent}`
           : '';
 
-        if (el.fontSource === 'cf') {
+        if (el.fontSource === 'cf' && !rotated) {
           // Emit or reuse a ^CF context line
           const fontWidth = el.fontWidth ?? null;
           if (cfFontName !== fontName || cfFontSize !== fontSize || cfFontWidth !== fontWidth) {
@@ -55,8 +59,8 @@ export function generateZpl(req: GenerateRequest): string {
           }
           lines.push(`${origin}${fb}${fr}^FD${data}^FS`);
         } else {
-          // Explicit ^A inline font; width defaults to the height
-          lines.push(`${origin}^A${fontName}N,${fontSize},${el.fontWidth ?? fontSize}${fb}${fr}^FD${data}^FS`);
+          // Explicit ^A inline font (^CF has no orientation); width defaults to the height
+          lines.push(`${origin}^A${fontName}${orientation},${fontSize},${el.fontWidth ?? fontSize}${fb}${fr}^FD${data}^FS`);
         }
         break;
       }
@@ -83,7 +87,11 @@ export function generateZpl(req: GenerateRequest): string {
         // Code128 total modules = 11*(chars+2 start/check) + 13 stop = 11*chars + 35
         const moduleWidth = el.moduleWidth ?? Math.max(1, Math.floor(el.width / (11 * (value.length || 8) + 35)));
         const start = el.codeSet ? CODE128_START[el.codeSet] : '';
-        lines.push(`${fo}${fr}^BY${moduleWidth}^BCN,${el.height},${yn(el.printLine ?? true)},N,N^FD${start}${value}^FS`);
+        // ^FO is the top-left of the bars, also when rotated; the digits print outside them
+        lines.push(
+          `${fo}${fr}^BY${moduleWidth}^BC${el.orientation ?? 'N'},${el.height},${yn(el.printLine ?? true)},N,N` +
+          `^FD${start}${value}^FS`,
+        );
         break;
       }
       case 'qrcode': {
@@ -104,6 +112,13 @@ export function generateZpl(req: GenerateRequest): string {
         // it into a hollow box (e.g. ^GB200,163,3).
         const t = Math.min(el.width, el.height);
         lines.push(`${fo}${fr}^GB${el.width},${el.height},${t}${gbExtras(el)}^FS`);
+        break;
+      }
+      case 'image': {
+        // ^GFA bitmap: value holds the hex data (possibly compressed), one row per dot of height
+        const bytesPerRow = el.bytesPerRow ?? Math.ceil(el.width / 8);
+        const total = bytesPerRow * Math.round(el.height);
+        lines.push(`${fo}${fr}^GFA,${total},${total},${bytesPerRow},${compactGraphicData(el.value ?? '')}^FS`);
         break;
       }
       case 'comment': {

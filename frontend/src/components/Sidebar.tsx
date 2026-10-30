@@ -1,6 +1,8 @@
 import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ElementType } from '../types';
+import { toast } from '../store/useToastStore';
+import { DEFAULT_THRESHOLD, chooseImage, imagePatch, imageSources, initialImageWidth, rasterize } from '../utils/graphic';
 
 const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
   {
@@ -74,6 +76,17 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    type: 'image',
+    label: 'Image / logo',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.3"/>
+        <circle cx="5.5" cy="6.5" r="1.2" fill="currentColor"/>
+        <path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
 ];
 
 interface Props {
@@ -81,10 +94,28 @@ interface Props {
 }
 
 export function Sidebar({ onNavigateToMyDesigns }: Props) {
-  const { addElement, activeTab, elements, clearAll } = useDesignerStore();
+  const { addElement, activeTab, elements, clearAll, labelWidth, labelHeight } = useDesignerStore();
 
   const handleClearAll = () => {
     if (window.confirm('Remove all elements from the canvas?')) clearAll();
+  };
+
+  // A picture (e.g. a logo) becomes a black and white ^GFA image
+  const handleAdd = async (type: ElementType) => {
+    if (type !== 'image') {
+      addElement(type, 50, 50);
+      return;
+    }
+    try {
+      const image = await chooseImage();
+      if (!image) return;
+      const source = { image, threshold: DEFAULT_THRESHOLD };
+      const bitmap = rasterize(source, initialImageWidth(image, labelWidth, labelHeight));
+      const id = addElement('image', 50, 50, imagePatch(bitmap));
+      imageSources.set(id, source);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not open the picture');
+    }
   };
 
   return (
@@ -106,7 +137,7 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
           {PALETTE.map(({ type, label, icon }) => (
             <button
               key={type}
-              onClick={() => addElement(type, 50, 50)}
+              onClick={() => handleAdd(type)}
               title={`Add ${label}`}
               style={{
                 display: 'flex',

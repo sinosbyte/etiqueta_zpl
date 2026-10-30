@@ -6,9 +6,15 @@ import { extractVariables } from '../utils/variables';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
 import { code128Value, resizeCode128Patch } from '../utils/code128';
 import { NumberInput } from './NumberInput';
+import { Orientation } from '../types';
+import { ORIENTATION_LABELS } from '../utils/rotation';
+import {
+  DEFAULT_THRESHOLD, chooseImage, imagePatch, imageSources, initialImageWidth, rasterize, resizeImagePatch,
+} from '../utils/graphic';
+import { toast } from '../store/useToastStore';
 
 export function PropertiesPanel() {
-  const { elements, selectedId, showSamples, sampleValues, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
+  const { elements, selectedId, showSamples, sampleValues, labelWidth, labelHeight, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
   const el = elements.find(e => e.id === selectedId);
 
   const sectionStyle: React.CSSProperties = {
@@ -63,6 +69,7 @@ export function PropertiesPanel() {
   // A Code 128 is as wide as its bars: W changes the bar width (^BY).
   const samples = showSamples ? sampleValues : null;
   const box = elementBox(el, samples);
+  // An image keeps its proportions.
   const sizedByFont = el.type === 'text' && !el.block;
   const sizedByBars = el.type === 'barcode128' && !!el.moduleWidth;
   const setSize = (patch: { width?: number; height?: number }) =>
@@ -70,7 +77,59 @@ export function PropertiesPanel() {
       ? resizeTextPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
       : sizedByBars
         ? resizeCode128Patch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
-        : patch);
+        : el.type === 'image'
+          ? resizeImagePatch(el, patch.width ?? (patch.height ?? el.height) * el.width / el.height)
+          : patch);
+
+  const checkbox = (label: string, checked: boolean, onChange: (checked: boolean) => void) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={e => onChange(e.target.checked)}
+        style={{ accentColor: 'var(--accent)' }}
+      />
+      <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>{label}</span>
+    </label>
+  );
+
+  // ^FR: where the field overlaps black it prints white, e.g. white text on a black bar
+  const reverseControl = checkbox('Reverse print (white over black)', el.reversed ?? false,
+    reversed => updateElement(el.id, { reversed: reversed || undefined }));
+
+  // Text and Code 128 boxes follow the turn on their own; Interleaved 2 of 5 stores its footprint
+  const orientationControl = (onChange: (next: Orientation) => void) => (
+    <div style={{ marginBottom: 8 }}>
+      <label style={labelStyle}>Orientation</label>
+      <select
+        className="chrome-input"
+        value={el.orientation ?? 'N'}
+        onChange={e => onChange(e.target.value as Orientation)}
+      >
+        {(Object.keys(ORIENTATION_LABELS) as Orientation[]).map(o => (
+          <option key={o} value={o}>{ORIENTATION_LABELS[o]}</option>
+        ))}
+      </select>
+    </div>
+  );
+  const setOrientation = (next: Orientation) => updateElement(el.id, {
+    orientation: next === 'N' ? undefined : next,
+    // Rotated text is placed with ^FO and is not aligned in a ^FB block
+    ...(el.type === 'text' && next !== 'N' ? { block: undefined, origin: undefined } : {}),
+  });
+
+  const imageSource = el.type === 'image' ? imageSources.get(el.id) : undefined;
+  const replaceImage = async () => {
+    try {
+      const image = await chooseImage();
+      if (!image) return;
+      const source = { image, threshold: imageSource?.threshold ?? DEFAULT_THRESHOLD };
+      imageSources.set(el.id, source);
+      updateElement(el.id, imagePatch(rasterize(source, initialImageWidth(image, labelWidth, labelHeight))));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not open the picture');
+    }
+  };
 
   // {{name}} placeholders typed inside a fixed value, e.g. "CONTÉM: {{QTD}} PEÇAS"
   const inlineVariables = el.dynamic ? [] : extractVariables(el.value ?? '');
@@ -192,6 +251,8 @@ export function PropertiesPanel() {
       </div>
 
       {el.type === 'rect' && (
+        <>
+        {checkbox('Solid fill', el.filled ?? false, filled => updateElement(el.id, { filled: filled || undefined }))}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
           {!el.filled && (
             <div>
@@ -215,6 +276,43 @@ export function PropertiesPanel() {
               ))}
             </select>
           </div>
+        </div>
+        {reverseControl}
+        </>
+      )}
+
+      {el.type === 'image' && (
+        <div style={sectionStyle}>
+          <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, marginBottom: 8, lineHeight: 1.5 }}>
+            Printed in black and white, one dot per dot of the picture (^GFA). W and H keep the proportions.
+          </p>
+          {imageSource && (
+            <div style={{ marginBottom: 8 }}>
+              {/* Darker than the threshold prints black */}
+              <label style={labelStyle}>Black threshold {Math.round(imageSource.threshold / 2.55)}%</label>
+              <input
+                type="range"
+                min={10}
+                max={245}
+                step={5}
+                value={imageSource.threshold}
+                onChange={e => {
+                  const source = { ...imageSource, threshold: Number(e.target.value) };
+                  imageSources.set(el.id, source);
+                  updateElement(el.id, imagePatch(rasterize(source, el.width)));
+                }}
+                style={{ width: '100%', accentColor: 'var(--accent)' }}
+              />
+            </div>
+          )}
+          <button
+            onClick={replaceImage}
+            className="chrome-btn chrome-btn-ghost"
+            style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+          >
+            Replace picture…
+          </button>
+          {reverseControl}
         </div>
       )}
 
@@ -249,8 +347,9 @@ export function PropertiesPanel() {
               </select>
             </div>
           </div>
-          {/* ^FB: text aligned inside a fixed width (the element width) */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
+          {orientationControl(setOrientation)}
+          {/* ^FB: text aligned inside a fixed width (the element width); not for rotated text */}
+          {!el.orientation && <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={!!el.block}
@@ -261,8 +360,8 @@ export function PropertiesPanel() {
               style={{ accentColor: 'var(--accent)' }}
             />
             <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Align in a fixed width</span>
-          </label>
-          {el.block && (
+          </label>}
+          {el.block && !el.orientation && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
@@ -294,6 +393,7 @@ export function PropertiesPanel() {
               </p>
             </div>
           )}
+          {reverseControl}
           {dynamicControls}
         </div>
       )}
@@ -304,27 +404,14 @@ export function PropertiesPanel() {
           {dynamicControls}
           {el.type === 'barcodeI2of5' && (
             <>
-              <div style={{ marginBottom: 8 }}>
-                <label style={labelStyle}>Orientation</label>
-                <select
-                  className="chrome-input"
-                  value={el.orientation ?? 'N'}
-                  onChange={e => {
-                    const next = e.target.value as 'N' | 'R' | 'I' | 'B';
-                    const wasRotated = el.orientation === 'R' || el.orientation === 'B';
-                    const isRotated = next === 'R' || next === 'B';
-                    // Turning 90 degrees swaps the footprint on the canvas
-                    updateElement(el.id, wasRotated === isRotated
-                      ? { orientation: next }
-                      : { orientation: next, width: el.height, height: el.width });
-                  }}
-                >
-                  <option value="N">Normal</option>
-                  <option value="R">Rotated 90°</option>
-                  <option value="I">Inverted 180°</option>
-                  <option value="B">Bottom-up 270°</option>
-                </select>
-              </div>
+              {orientationControl(next => {
+                const wasRotated = el.orientation === 'R' || el.orientation === 'B';
+                const isRotated = next === 'R' || next === 'B';
+                // Turning 90 degrees swaps the footprint on the canvas
+                updateElement(el.id, wasRotated === isRotated
+                  ? { orientation: next }
+                  : { orientation: next, width: el.height, height: el.width });
+              })}
               {printLineControl}
               <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0 }}>
                 Digits only; an odd count gets a leading zero.
@@ -333,7 +420,9 @@ export function PropertiesPanel() {
           )}
           {el.type === 'barcode128' && (
             <>
+              {orientationControl(setOrientation)}
               {printLineControl}
+              {reverseControl}
               {sizedByBars && code128Value(el, samples).includes('{{') && (
                 <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, lineHeight: 1.5 }}>
                   The width depends on the value printed; use Show sample values to see the real size.
@@ -353,6 +442,7 @@ export function PropertiesPanel() {
           >
             {el.width >= el.height ? '↔ Horizontal' : '↕ Vertical'}
           </button>
+          <div style={{ marginTop: 8 }}>{reverseControl}</div>
         </div>
       )}
 

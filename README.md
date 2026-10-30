@@ -70,7 +70,7 @@ Source is mounted into the containers, so edits hot-reload. The frontend is on
 
 ### Canvas Designer
 
-- **Drag elements from the sidebar** onto the canvas: Text, Barcode 128, QR Code, Box (rectangle), Line
+- **Drag elements from the sidebar** onto the canvas: Text, Barcode 128, Interleaved 2 of 5, QR Code, Box (rectangle), Line, Image / logo
 - **Select and move** elements by dragging them
 - **Resize** any element with 8 directional handles (n, s, e, w, ne, nw, se, sw)
 - **Type exact values** in the Properties Panel and label size fields (mm, comma or dot as decimal separator): applied on Enter or when leaving the field; ↑/↓ step 0.1 mm (Shift: 1 mm); Esc discards
@@ -90,14 +90,24 @@ Source is mounted into the containers, so edits hot-reload. The frontend is on
 - **Align in a fixed width** (Properties Panel, text) turns the text into a `^FB` block: alignment (left / center / right / justified) and max lines; the block width is the element width
 - **Corners** (Properties Panel, box) sets the `^GB` corner rounding, from square (0) to Rounded 8
 - `^FB` blocks wrap like the printer (at spaces, `\&` forces a break, long words split between characters). Text that needs more lines than the block allows is overprinted on the last line, as the printer does, and the block gets a dashed red outline
-- `^FR` (reverse print, e.g. white text on a black box) is kept on every element when the canvas regenerates the ZPL
+- **Orientation** (Properties Panel, text) turns the text (`^A0R` 90°, `^A0I` 180°, `^A0B` 270°); `^FO` stays the top-left of the turned text. Rotated text has no `^FB` block
+- **Reverse print** (Properties Panel: text, box, line, Code 128, image) sets `^FR`: where the field overlaps black it prints white, e.g. a white title on a black bar. The canvas draws it the same way
+- **Solid fill** (Properties Panel, box) draws a black box. A box thinner than its border prints as thick as the border, as on the printer (`^GB180,0,50` is a bar 180 × 50)
 
 **Code 128 is drawn at its printed size** (`frontend/src/utils/code128.ts`):
 
 - The width is the bar width (`^BY`) times the symbol length, so resizing it (handles or W) changes the `^BY` bar width in whole dots
-- **Print digits below bars** (Properties Panel) sets the interpretation line (`^BCN,h,Y` / `N`)
+- **Print digits below bars** (Properties Panel) sets the interpretation line (`^BCN,h,Y` / `N`). The digits are drawn outside the box, below the bars (left of them when rotated 90°), where the printer adds them
+- **Orientation** (Properties Panel) turns the barcode (`^BCR`, `^BCI`, `^BCB`); `^FO` stays the top-left of the bars
+- A decimal bar width is rounded like the printer does (`^BY2.5` prints as `^BY3`)
 - A start code at the beginning of the data (`>:` subset B, `>;` subset C, `>9` subset A) is kept and drawn; without one the printer uses subset B. Data with other invocation codes (`>` inside the value) stays as raw ZPL
 - With `{{variables}}` the length is only known when printing: the canvas assumes 12 characters, and **Show sample values** shows the real size
+
+**Images / logos** (`frontend/src/utils/graphic.ts`):
+
+- **Image / logo** (sidebar) opens a picture (PNG, JPG, SVG…) and turns it into a black and white `^GFA` graphic with ZPL compression, at most half the label wide
+- Resizing it (handles or W/H) keeps its proportions and redraws it from the picture; **Black threshold** sets how dark a pixel must be to print black; **Replace picture…** swaps the picture
+- `^GFA` graphics in pasted ZPL are drawn on the canvas and kept exactly; after reopening a saved label the original picture is gone, so resizing scales the dots
 
 ### Dynamic Variables
 
@@ -201,11 +211,14 @@ All positions and sizes are stored in **ZPL dots** (203 DPI → 8.03 dots/mm). T
 
 | Type | Default size (dots) | ZPL command |
 |---|---|---|
-| `text` | 200 × 40 | `^FO{x},{y}^A{font}N,{size},{size}^FD{value}^FS` |
-| `barcode128` | 268 × 100 | `^FO{x},{y}^BY{module}^BCN,{height},{Y\|N},N,N^FD{start}{value}^FS` |
+| `text` | 200 × 40 | `^FO{x},{y}^A{font}{N\|R\|I\|B},{size},{size}^FD{value}^FS` |
+| `barcode128` | 268 × 100 | `^FO{x},{y}^BY{module}^BC{N\|R\|I\|B},{height},{Y\|N},N,N^FD{start}{value}^FS` |
 | `qrcode` | 100 × 100 | `^FO{x},{y}^BQN,2,{mag}^FDMA,{value}^FS` |
 | `rect` | 200 × 100 | `^FO{x},{y}^GB{w},{h},8^FS` |
 | `line` | 200 × 8 | `^FO{x},{y}^GB{w},{h},3^FS` |
+| `image` | from the picture | `^FO{x},{y}^GFA,{bytes},{bytes},{bytes per row},{data}^FS` |
+
+Any element can add `^FR` (reverse print) before its data.
 
 ---
 
