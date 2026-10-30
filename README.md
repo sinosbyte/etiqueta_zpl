@@ -74,11 +74,12 @@ Source is mounted into the containers, so edits hot-reload. The frontend is on
 - **Select and move** elements by dragging them
 - **Resize** any element with 8 directional handles (n, s, e, w, ne, nw, se, sw)
 - **Type exact values** in the Properties Panel and label size fields (mm, comma or dot as decimal separator): applied on Enter or when leaving the field; ↑/↓ step 0.1 mm (Shift: 1 mm); Esc discards
-- **Multi-select** with Shift+click; alignment tools appear in the toolbar when ≥2 elements are selected
+- **Multi-select** with Shift+click; alignment tools appear in the toolbar when ≥2 elements are selected, and **distribute** (equal gaps, horizontally or vertically; the outer elements stay) when ≥3 are selected
 - **Duplicate** a selected element with `Ctrl+D` or the button in the Properties Panel (16-dot offset)
 - **Z-order controls** — bring forward / backward / to front / to back in the Properties Panel
 - **Delete** a selected element with the `Delete` key or the button in the Properties Panel
 - **Snap to elements (magnetic)**, on by default (magnet button in the toolbar): while dragging or resizing, the edges and centre of the element (or of the whole selection) snap to the edges and centres of the other elements and of the label, and pink guide lines show what lines up
+- **Equal spacing** (with the magnet on): while dragging, the element also snaps to the same gap as two other elements in the same row or column (e.g. label → value, or between lines of text); pink markers show the matching gaps with their size in mm
 - **Snap to grid** toggle in the toolbar, with the grid step next to it (0.5, 1, 2 or 5 mm): elements snap to the grid while dragging and resizing when no element is close enough to snap to
 - Hold **Alt** while dragging or resizing to place freely; the snapping settings are remembered in the browser
 - **Arrow keys** move the selection 1 dot; **Shift + arrow** one grid step

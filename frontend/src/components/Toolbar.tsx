@@ -18,7 +18,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
     labelWidth, labelHeight, setLabelSize,
     elements, selectedIds, selectedId,
     snapToGrid, toggleSnapToGrid, snapToElements, toggleSnapToElements, gridSize, setGridSize,
-    alignElements,
+    alignElements, distributeElements,
     fetchPreview, closePreview, previewUrl, previewLoading, zplCode,
     sampleValues, setSampleValues,
   } = useDesignerStore();
@@ -200,6 +200,22 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
                 key={dir}
                 className="chrome-icon-btn"
                 onClick={() => alignElements(dir)}
+                title={title}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d={path} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            ))}
+            {/* Distribute — equal gaps between 3+ selected, the outer ones stay */}
+            {selectedIds.length >= 3 && [
+              { axis: 'x' as const, title: 'Distribute horizontally (equal gaps)', path: 'M1 2v10M13 2v10M5 4h4v6H5z' },
+              { axis: 'y' as const, title: 'Distribute vertically (equal gaps)',   path: 'M2 1h10M2 13h10M4 5h6v4H4z' },
+            ].map(({ axis, title, path }) => (
+              <button
+                key={axis}
+                className="chrome-icon-btn"
+                onClick={() => distributeElements(axis)}
                 title={title}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
