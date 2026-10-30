@@ -6,6 +6,7 @@ interface Props {
   direction: Direction;
   onResizeStart: () => void;
   onResize: (dx: number, dy: number, dir: Direction) => void;
+  onResizeEnd?: () => void;
 }
 
 const CURSOR_MAP: Record<Direction, string> = {
@@ -24,7 +25,7 @@ const POSITIONS: Record<Direction, React.CSSProperties> = {
   sw: { bottom: -4, left: -4 },
 };
 
-export function ResizeHandle({ direction, onResizeStart, onResize }: Props) {
+export function ResizeHandle({ direction, onResizeStart, onResize, onResizeEnd }: Props) {
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -42,10 +43,15 @@ export function ResizeHandle({ direction, onResizeStart, onResize }: Props) {
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      onResizeEnd?.();
+      // The click that ends the drag would reach the canvas and clear the selection
+      const swallow = (ce: MouseEvent) => ce.stopPropagation();
+      window.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0);
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-  }, [direction, onResizeStart, onResize]);
+  }, [direction, onResizeStart, onResize, onResizeEnd]);
 
   return (
     <div
