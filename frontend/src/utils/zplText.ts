@@ -2,6 +2,7 @@ import { DesignElement, displayValue } from '../types';
 import { getZplFont } from './zplFonts';
 import { splitVariables } from './variables';
 import { code128Width } from './code128';
+import { isQuarterTurn, turnedSize } from './rotation';
 
 // Lays text out the way the printer does, so the canvas matches the printed label.
 // Font 0 metrics were measured from Labelary renders (8 dpmm); other fonts are
@@ -200,21 +201,30 @@ export function canvasTextParts(el: DesignElement, samples?: Record<string, stri
   );
 }
 
-// Size of the element on the canvas: a ^FB block has its own size; other text
+// Size of the text before turning: a ^FB block has its own size; other text
 // is exactly as wide as the printed text and one line high.
-export function elementBox(el: DesignElement, samples?: Record<string, string> | null): { width: number; height: number } {
-  if (el.type === 'barcode128') return { width: code128Width(el, samples), height: el.height };
-  if (el.type !== 'text') return { width: el.width, height: el.height };
+function textBox(el: DesignElement, samples?: Record<string, string> | null): { width: number; height: number } {
   const layout = layoutText(el, canvasTextParts(el, samples).map(p => p.text).join(''));
   return { width: Math.round(layout.width), height: Math.round(layout.height) };
 }
 
+// Size of the element on the canvas, turned for rotated text and Code 128
+// (a Code 128 box is its bars; the digits print outside it)
+export function elementBox(el: DesignElement, samples?: Record<string, string> | null): { width: number; height: number } {
+  if (el.type === 'barcode128') return turnedSize(el.orientation, code128Width(el, samples), el.height);
+  if (el.type !== 'text') return { width: el.width, height: el.height };
+  const box = textBox(el, samples);
+  return turnedSize(el.orientation, box.width, box.height);
+}
+
 // Resizing text that is not in a ^FB block changes the font: the height is the
-// ^A height and the width stretches the ^A width.
+// ^A height and the width stretches the ^A width. Width and height are the box
+// on the canvas, which is turned for R and B.
 export function resizeTextPatch(
   el: DesignElement, width: number, height: number, samples?: Record<string, string> | null,
 ): Partial<DesignElement> {
-  const box = elementBox(el, samples);
+  if (isQuarterTurn(el.orientation)) [width, height] = [height, width];
+  const box = textBox(el, samples);
   const { width: fontWidth } = fontMetrics(el);
   const fontSize = Math.max(8, Math.round(height));
   const newWidth = Math.max(4, Math.round(fontWidth * (width / Math.max(1, box.width))));

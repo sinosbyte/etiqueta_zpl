@@ -1,7 +1,7 @@
 // 'raw' holds ZPL the editor cannot represent (e.g. ^FT, ^FB, ^B2, ^CI, ~SD).
 // It is not drawn on the canvas and is emitted back verbatim, so editing the
 // canvas never drops commands the editor does not understand.
-export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'rect' | 'line' | 'comment' | 'raw';
+export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'rect' | 'line' | 'image' | 'comment' | 'raw';
 
 export type Orientation = 'N' | 'R' | 'I' | 'B';
 
@@ -33,7 +33,7 @@ export interface Element {
   qrErrorCorrection?: 'H' | 'Q' | 'M' | 'L';  // ^FD prefix of a QR code; omitted = M
   origin?: 'FT';       // text positioned with ^FT (baseline); x/y stay the top-left on the canvas
   block?: FieldBlock;  // text inside a ^FB block; the block width is the element width
-  orientation?: Orientation;  // barcodeI2of5 orientation; omitted = N
+  orientation?: Orientation;  // text, barcode128 and barcodeI2of5 rotation; omitted = N
   moduleWidth?: number;       // barcode ^BY narrow bar width in dots
   ratio?: number;             // barcodeI2of5 ^BY wide-to-narrow ratio
   printLine?: boolean;        // barcode interpretation line below the bars; omitted = true
@@ -42,6 +42,7 @@ export interface Element {
   checkDigit?: boolean;       // barcodeI2of5 Mod 10 check digit
   dynamic?: boolean;
   variableName?: string;
+  bytesPerRow?: number;       // image: ^GFA bytes per row; value holds the ^GFA data
 }
 
 export interface LabelDimensions {

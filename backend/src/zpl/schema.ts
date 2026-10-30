@@ -6,7 +6,7 @@ import { z } from 'zod';
  */
 export const ElementSchema = z.object({
   id: z.string(),
-  type: z.enum(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'rect', 'line', 'comment', 'raw']),
+  type: z.enum(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'rect', 'line', 'image', 'comment', 'raw']),
   x: z.number(),
   y: z.number(),
   width: z.number(),
@@ -38,6 +38,7 @@ export const ElementSchema = z.object({
   checkDigit: z.boolean().optional(),
   dynamic: z.boolean().optional(),
   variableName: z.string().optional(),
+  bytesPerRow: z.number().int().positive().optional(),
 });
 
 export type ElementInput = z.infer<typeof ElementSchema>;
