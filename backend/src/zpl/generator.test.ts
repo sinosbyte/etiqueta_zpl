@@ -190,3 +190,11 @@ test('emits ^FT with the baseline (top + font height) and the ^FB block', () => 
   });
   expect(zpl).toContain('^FT220,145^A0N,34,30^FB120,1,0,R,0^FDREF.:^FS');
 });
+
+test('rounds positions and sizes from the canvas to whole dots', () => {
+  const zpl = generateZpl({
+    ...base,
+    elements: [{ id: 'l', type: 'line', x: 53, y: 165.5, width: 581.6, height: 8, thickness: 8 }],
+  });
+  expect(zpl).toContain('^FO53,166^GB582,8,8^FS');
+});
