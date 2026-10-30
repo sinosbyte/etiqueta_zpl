@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { DndContext, DragEndEvent, DragMoveEvent, DragStartEvent, Modifier, useDraggable, useDroppable } from '@dnd-kit/core';
 import { useShallow } from 'zustand/react/shallow';
 import { snapContext, useDesignerStore } from '../store/useDesignerStore';
-import { snapMove, unionBox } from '../utils/snap';
+import { Guide, snapMove, unionBox } from '../utils/snap';
+import { dotsToMm } from '../utils/units';
 import { elementBox } from '../utils/zplText';
 import { DesignElement, isRawField } from '../types';
 import { ResizeHandle } from './ResizeHandle';
@@ -16,6 +17,59 @@ import { ImageElement } from './elements/ImageElement';
 import { usePanning } from '../hooks/usePanning';
 import { useElementResize } from '../hooks/useElementResize';
 import { extractVariables, substituteVariables } from '../utils/variables';
+
+const GUIDE_COLOR = '#ec4899';
+
+// Equal-spacing marker: a line across the gap with end ticks and its size in mm
+function GapMarker({ guide: g, zoom }: { guide: Guide; zoom: number }) {
+  const horizontal = g.axis === 'x';
+  const length = (g.to - g.from) * zoom;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: horizontal ? g.from * zoom : g.at * zoom - 4,
+        top: horizontal ? g.at * zoom - 4 : g.from * zoom,
+        width: horizontal ? length : 9,
+        height: horizontal ? 9 : length,
+        pointerEvents: 'none',
+      }}
+    >
+      <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+        {horizontal ? (
+          <>
+            <line x1="0" y1="4.5" x2={length} y2="4.5" stroke={GUIDE_COLOR} />
+            <line x1="0.5" y1="0" x2="0.5" y2="9" stroke={GUIDE_COLOR} />
+            <line x1={length - 0.5} y1="0" x2={length - 0.5} y2="9" stroke={GUIDE_COLOR} />
+          </>
+        ) : (
+          <>
+            <line x1="4.5" y1="0" x2="4.5" y2={length} stroke={GUIDE_COLOR} />
+            <line x1="0" y1="0.5" x2="9" y2="0.5" stroke={GUIDE_COLOR} />
+            <line x1="0" y1={length - 0.5} x2="9" y2={length - 0.5} stroke={GUIDE_COLOR} />
+          </>
+        )}
+      </svg>
+      <span
+        style={{
+          position: 'absolute',
+          left: horizontal ? '50%' : 12,
+          top: horizontal ? -16 : '50%',
+          transform: horizontal ? 'translateX(-50%)' : 'translateY(-50%)',
+          padding: '0 4px',
+          borderRadius: 3,
+          background: GUIDE_COLOR,
+          color: 'white',
+          fontSize: 10,
+          lineHeight: '14px',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {dotsToMm(g.to - g.from).toLocaleString()} mm
+      </span>
+    </div>
+  );
+}
 
 // A barcode/QR with its sample value in place of {{variables}}, so the canvas
 // draws real bars. Variables without a sample value stay as placeholders.
@@ -286,7 +340,7 @@ export function Canvas() {
             pointerEvents: 'none',
           }} />
           {/* Alignment guides while dragging or resizing (magnetic snapping) */}
-          {guides.map((g, i) => (
+          {guides.map((g, i) => g.gap ? <GapMarker key={i} guide={g} zoom={zoom} /> : (
             <div
               key={i}
               style={{
@@ -295,7 +349,7 @@ export function Canvas() {
                 top: g.axis === 'y' ? Math.min(g.at * zoom, canvasHeight - 1) : g.from * zoom,
                 width: g.axis === 'x' ? 1 : (g.to - g.from) * zoom,
                 height: g.axis === 'y' ? 1 : (g.to - g.from) * zoom,
-                background: '#ec4899',
+                background: GUIDE_COLOR,
                 pointerEvents: 'none',
               }}
             />

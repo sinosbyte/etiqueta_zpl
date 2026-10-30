@@ -63,6 +63,7 @@ interface DesignerStore {
   toggleSelectElement(id: string): void;
   clearSelection(): void;
   alignElements(alignment: 'left' | 'center-h' | 'right' | 'top' | 'center-v' | 'bottom'): void;
+  distributeElements(axis: 'x' | 'y'): void;
   setActiveTab(tab: 'design' | 'code'): void;
   setZoom(zoom: number): void;
   toggleSnapToGrid(): void;
@@ -308,6 +309,36 @@ export const useDesignerStore = create<DesignerStore>()(
         }
       })
     );
+
+    set(s => ({ elements: s.elements.map(e => patches.has(e.id) ? { ...e, ...patches.get(e.id)! } : e) }));
+    if (syncTimeout) clearTimeout(syncTimeout);
+    get().syncToCode();
+  },
+
+  distributeElements(axis) {
+    const { elements, selectedIds } = get();
+    const selected = elements.filter(e => selectedIds.includes(e.id));
+    if (selected.length < 3) return;
+
+    // The first and last elements stay; the ones between get equal gaps
+    const samples = get().showSamples ? get().sampleValues : null;
+    const items = selected
+      .map(e => {
+        const box = elementBox(e, samples);
+        return { id: e.id, start: axis === 'x' ? e.x : e.y, size: axis === 'x' ? box.width : box.height };
+      })
+      .sort((a, b) => a.start - b.start);
+    const first = items[0];
+    const last = items[items.length - 1];
+    const used = items.reduce((sum, i) => sum + i.size, 0);
+    const gap = (last.start + last.size - first.start - used) / (items.length - 1);
+
+    const patches = new Map<string, Partial<DesignElement>>();
+    let at = first.start;
+    for (const item of items) {
+      patches.set(item.id, { [axis]: Math.round(at) });
+      at += item.size + gap;
+    }
 
     set(s => ({ elements: s.elements.map(e => patches.has(e.id) ? { ...e, ...patches.get(e.id)! } : e) }));
     if (syncTimeout) clearTimeout(syncTimeout);
