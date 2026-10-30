@@ -3,6 +3,7 @@ import { temporal } from 'zundo';
 import { DesignElement, ElementType } from '../types';
 import { generateZpl, parseZpl, previewZpl } from '../utils/zplClient';
 import { elementBox } from '../utils/zplText';
+import { Box, Guide, SNAP_DISTANCE_PX, SnapOptions, snappingSuspended } from '../utils/snap';
 
 let idCounter = 0;
 const nextId = () => `el-${Date.now()}-${++idCounter}`;
@@ -42,7 +43,9 @@ interface DesignerStore {
   previewError: string;
   zoom: number;
   snapToGrid: boolean;
-  gridSize: number;
+  snapToElements: boolean;               // magnetic: edges and centres snap to other elements and the label
+  gridSize: number;                      // grid step in dots
+  guides: Guide[];                       // alignment lines shown while dragging or resizing
   sampleValues: Record<string, string>;  // example value per {{variable}}, for Preview/Export and the canvas
   showSamples: boolean;                  // canvas shows sample values instead of {{variable}}
   setLabelSize(width: number, height: number): void;
@@ -63,6 +66,10 @@ interface DesignerStore {
   setActiveTab(tab: 'design' | 'code'): void;
   setZoom(zoom: number): void;
   toggleSnapToGrid(): void;
+  toggleSnapToElements(): void;
+  setGridSize(dots: number): void;
+  setGuides(guides: Guide[]): void;
+  moveSelected(dx: number, dy: number): void;
   setSampleValues(values: Record<string, string>): void;
   setShowSamples(show: boolean): void;
   onCodeChange(code: string): void;
@@ -80,6 +87,40 @@ let parseAbort: AbortController | null = null;
 let lastCanvasZpl = '';
 let lastPreviewZpl = '';
 
+// Snapping settings are remembered in this browser (storage may be unavailable)
+type SnapSettings = Partial<Pick<DesignerStore, 'snapToGrid' | 'snapToElements' | 'gridSize'>>;
+const SNAP_KEY = 'zpl-designer-snap';
+const savedSnap: SnapSettings = (() => {
+  try { return JSON.parse(localStorage.getItem(SNAP_KEY) ?? '{}') as SnapSettings; } catch { return {}; }
+})();
+function saveSnap({ snapToGrid, snapToElements, gridSize }: SnapSettings) {
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ snapToGrid, snapToElements, gridSize })); } catch { /* not saved */ }
+}
+
+/**
+ * What snapping needs for the elements being moved or resized: the canvas
+ * boxes of every other drawn element and the options in dots at this zoom.
+ * Null while snapping is off or suspended (Alt held).
+ */
+export function snapContext(
+  movingIds: string[],
+): { others: Box[]; label: { width: number; height: number }; opts: SnapOptions } | null {
+  const {
+    elements, showSamples, sampleValues, snapToGrid, snapToElements, gridSize, zoom, labelWidth, labelHeight,
+  } = useDesignerStore.getState();
+  if ((!snapToGrid && !snapToElements) || snappingSuspended()) return null;
+  const samples = showSamples ? sampleValues : null;
+  const moving = new Set(movingIds);
+  const others = elements
+    .filter(e => !moving.has(e.id) && e.type !== 'raw' && e.type !== 'comment')
+    .map(e => ({ x: e.x, y: e.y, ...elementBox(e, samples) }));
+  return {
+    others,
+    label: { width: labelWidth, height: labelHeight },
+    opts: { grid: snapToGrid ? gridSize : null, magnet: snapToElements, threshold: SNAP_DISTANCE_PX / zoom },
+  };
+}
+
 export const useDesignerStore = create<DesignerStore>()(
   temporal(
     (set, get) => ({
@@ -95,8 +136,10 @@ export const useDesignerStore = create<DesignerStore>()(
   previewLoading: false,
   previewError: '',
   zoom: 2,
-  snapToGrid: false,
-  gridSize: 8,
+  snapToGrid: savedSnap.snapToGrid ?? false,
+  snapToElements: savedSnap.snapToElements ?? true,
+  gridSize: savedSnap.gridSize ?? 8,
+  guides: [],
   sampleValues: {},
   showSamples: false,
 
@@ -281,6 +324,34 @@ export const useDesignerStore = create<DesignerStore>()(
 
   toggleSnapToGrid() {
     set(s => ({ snapToGrid: !s.snapToGrid }));
+    saveSnap(get());
+  },
+
+  toggleSnapToElements() {
+    set(s => ({ snapToElements: !s.snapToElements }));
+    saveSnap(get());
+  },
+
+  setGridSize(dots) {
+    set({ gridSize: dots });
+    saveSnap(get());
+  },
+
+  setGuides(guides) {
+    // Avoid re-rendering the canvas when there were and are no guides
+    if (guides.length === 0 && get().guides.length === 0) return;
+    set({ guides });
+  },
+
+  moveSelected(dx, dy) {
+    const { selectedIds, selectedId } = get();
+    const ids = new Set(selectedIds.length ? selectedIds : selectedId ? [selectedId] : []);
+    if (ids.size === 0) return;
+    set(s => ({
+      elements: s.elements.map(e => ids.has(e.id) ? { ...e, x: Math.max(0, e.x + dx), y: Math.max(0, e.y + dy) } : e),
+    }));
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => get().syncToCode(), 200);
   },
 
   setSampleValues(values) {

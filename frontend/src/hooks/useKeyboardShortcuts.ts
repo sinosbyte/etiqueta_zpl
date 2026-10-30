@@ -18,6 +18,7 @@ function isEditableTarget(el: EventTarget | null): boolean {
  *   Ctrl/Cmd+Y        — redo
  *   Delete/Backspace  — delete the current selection
  *   Ctrl/Cmd+D        — duplicate selection
+ *   Arrows            — move the selection 1 dot (Shift: one grid step)
  * All shortcuts except Ctrl+S are suppressed while typing in an input/editor.
  */
 export function useKeyboardShortcuts() {
@@ -63,6 +64,19 @@ export function useKeyboardShortcuts() {
       }
       if (e.key === 'Escape') {
         useDesignerStore.getState().clearSelection();
+        return;
+      }
+      // Arrows nudge the selection 1 dot; with Shift, one grid step
+      const ARROWS: Record<string, [number, number]> = {
+        ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+      };
+      const arrow = ARROWS[e.key];
+      if (arrow) {
+        const { selectedId, selectedIds, gridSize, moveSelected } = useDesignerStore.getState();
+        if (!selectedId && !selectedIds.length) return;
+        e.preventDefault();
+        const step = e.shiftKey ? gridSize : 1;
+        moveSelected(arrow[0] * step, arrow[1] * step);
       }
     };
 

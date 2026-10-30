@@ -3,7 +3,8 @@ import { DesignElement } from '../types';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
 import { resizeCode128Patch } from '../utils/code128';
 import { resizeImagePatch } from '../utils/graphic';
-import { useDesignerStore } from '../store/useDesignerStore';
+import { snapContext, useDesignerStore } from '../store/useDesignerStore';
+import { snapResize } from '../utils/snap';
 
 export function useElementResize(
   element: DesignElement,
@@ -40,6 +41,22 @@ export function useElementResize(
       patch.height = newHeight;
     }
 
+    // The edges being dragged snap to the grid and to other elements (magnetic)
+    const ctx = snapContext([el.id]);
+    if (ctx) {
+      const dragged = {
+        x: patch.x ?? box.x, y: patch.y ?? box.y, width: patch.width ?? box.width, height: patch.height ?? box.height,
+      };
+      const snapped = snapResize(dragged, dir, ctx.others, ctx.label, ctx.opts);
+      if (snapped.box.width >= min && snapped.box.height >= min) {
+        if (patch.x !== undefined) patch.x = snapped.box.x;
+        if (patch.y !== undefined) patch.y = snapped.box.y;
+        if (patch.width !== undefined) patch.width = snapped.box.width;
+        if (patch.height !== undefined) patch.height = snapped.box.height;
+        useDesignerStore.getState().setGuides(snapped.guides);
+      }
+    }
+
     // Text outside a ^FB block scales its font, a Code 128 sets its bar width (^BY)
     // and an image keeps its proportions: the size follows the drag in steps, and
     // a left or top handle keeps the opposite edge in place
@@ -65,5 +82,10 @@ export function useElementResize(
     });
   }, [scale, updateElement, samples]);
 
-  return { handleResizeStart, handleResize };
+  const handleResizeEnd = useCallback(() => {
+    snapshot.current = null;
+    useDesignerStore.getState().setGuides([]);
+  }, []);
+
+  return { handleResizeStart, handleResize, handleResizeEnd };
 }

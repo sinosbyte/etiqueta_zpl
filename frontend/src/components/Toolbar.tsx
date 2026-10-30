@@ -7,6 +7,7 @@ import { mmToDots, dotsToMm } from '../utils/units';
 import { NumberInput } from './NumberInput';
 import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables, substituteVariables } from '../utils/variables';
+import { GRID_STEPS } from '../utils/snap';
 
 interface Props {
   onNavigateToMyDesigns: () => void;
@@ -16,7 +17,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const {
     labelWidth, labelHeight, setLabelSize,
     elements, selectedIds, selectedId,
-    snapToGrid, toggleSnapToGrid,
+    snapToGrid, toggleSnapToGrid, snapToElements, toggleSnapToElements, gridSize, setGridSize,
     alignElements,
     fetchPreview, closePreview, previewUrl, previewLoading, zplCode,
     sampleValues, setSampleValues,
@@ -142,11 +143,24 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
 
         {divider}
 
+        {/* Magnetic snapping: edges and centres line up with other elements and the label */}
+        <button
+          className={`chrome-icon-btn${snapToElements ? ' active' : ''}`}
+          onClick={toggleSnapToElements}
+          title={`Snap to elements (magnetic): ${snapToElements ? 'on' : 'off'}. Hold Alt while dragging to place freely`}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 2v5a4 4 0 008 0V2" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M1.5 2h3M9.5 2h3" stroke="currentColor" strokeWidth="1.5"/>
+            <path d="M3 4.5h2M9 4.5h2" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+        </button>
+
         {/* Snap to grid */}
         <button
           className={`chrome-icon-btn${snapToGrid ? ' active' : ''}`}
           onClick={toggleSnapToGrid}
-          title={snapToGrid ? 'Snap to grid: on' : 'Snap to grid: off'}
+          title={`Snap to grid: ${snapToGrid ? 'on' : 'off'}. Hold Alt while dragging to place freely`}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <circle cx="2.5" cy="2.5" r="1" fill="currentColor"/>
@@ -160,6 +174,15 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
             <circle cx="11.5" cy="11.5" r="1" fill="currentColor"/>
           </svg>
         </button>
+        <select
+          className="chrome-input"
+          value={gridSize}
+          onChange={e => setGridSize(Number(e.target.value))}
+          title="Grid step: the dots on the canvas, and where elements snap when Snap to grid is on"
+          style={{ width: 72, padding: '2px 4px' }}
+        >
+          {GRID_STEPS.map(g => <option key={g.dots} value={g.dots}>{g.label}</option>)}
+        </select>
 
         {/* Align tools — only when 2+ selected */}
         {multiSelected && (

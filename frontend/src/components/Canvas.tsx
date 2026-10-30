@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { DndContext, DragEndEvent, DragMoveEvent, DragStartEvent, useDraggable, useDroppable } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragMoveEvent, DragStartEvent, Modifier, useDraggable, useDroppable } from '@dnd-kit/core';
 import { useShallow } from 'zustand/react/shallow';
-import { useDesignerStore } from '../store/useDesignerStore';
+import { snapContext, useDesignerStore } from '../store/useDesignerStore';
+import { snapMove, unionBox } from '../utils/snap';
+import { elementBox } from '../utils/zplText';
 import { DesignElement, isRawField } from '../types';
 import { ResizeHandle } from './ResizeHandle';
 import { TextElement } from './elements/TextElement';
@@ -59,7 +61,7 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
   const isInSelection = selectedIds.includes(element.id);
 
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: element.id });
-  const { handleResizeStart, handleResize } = useElementResize(element, scale, updateElement);
+  const { handleResizeStart, handleResize, handleResizeEnd } = useElementResize(element, scale, updateElement);
 
   const mergedPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button === 0) {
@@ -113,6 +115,7 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
               direction={d}
               onResizeStart={handleResizeStart}
               onResize={handleResize}
+              onResizeEnd={handleResizeEnd}
             />
           ))}
         </>
@@ -159,45 +162,74 @@ export function Canvas() {
   // Live pixel offset while a multi-selection drag is in progress, so the
   // non-active members follow the pointer too.
   const [groupOffset, setGroupOffset] = useState<{ x: number; y: number } | null>(null);
+  const guides = useDesignerStore(s => s.guides);
+  const gridSize = useDesignerStore(s => s.gridSize);
+
+  // The move in dots of the dragged element, or of the whole selection when it is
+  // part of one, snapped to the grid and to other elements (magnetic)
+  const dragSnap = useCallback((activeId: string, px: { x: number; y: number }) => {
+    const { elements, selectedIds, showSamples, sampleValues } = useDesignerStore.getState();
+    const ids = selectedIds.includes(activeId) && selectedIds.length > 0 ? selectedIds : [activeId];
+    const dx = px.x / zoom;
+    const dy = px.y / zoom;
+    const ctx = snapContext(ids);
+    const moving = elements.filter(e => ids.includes(e.id));
+    if (!ctx || moving.length === 0) return { ids, dx: Math.round(dx), dy: Math.round(dy), guides: [] };
+    const samples = showSamples ? sampleValues : null;
+    const box = unionBox(moving.map(e => ({ x: e.x, y: e.y, ...elementBox(e, samples) })));
+    return { ids, ...snapMove(box, dx, dy, ctx.others, ctx.label, ctx.opts) };
+  }, [zoom]);
+
+  // The dragged element is drawn at its snapped position
+  const snapModifier: Modifier = useCallback(({ transform, active }) => {
+    if (!active) return transform;
+    const s = dragSnap(String(active.id), transform);
+    return { ...transform, x: s.dx * zoom, y: s.dy * zoom };
+  }, [dragSnap, zoom]);
 
   const handleDragStart = useCallback((_event: DragStartEvent) => {
     setGroupOffset({ x: 0, y: 0 });
   }, []);
 
   const handleDragMove = useCallback((event: DragMoveEvent) => {
-    setGroupOffset({ x: event.delta.x, y: event.delta.y });
+    const s = dragSnap(String(event.active.id), event.delta);
+    setGroupOffset({ x: s.dx * zoom, y: s.dy * zoom });
+    useDesignerStore.getState().setGuides(s.guides);
+  }, [dragSnap, zoom]);
+
+  const handleDragCancel = useCallback(() => {
+    setGroupOffset(null);
+    useDesignerStore.getState().setGuides([]);
   }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, delta } = event;
     setGroupOffset(null);
-    const { elements, updateElement, selectedIds, snapToGrid, gridSize } = useDesignerStore.getState();
-    const dragged = elements.find(e => e.id === active.id);
-    if (!dragged) return;
+    const { elements, updateElement, setGuides } = useDesignerStore.getState();
+    setGuides([]);
+    if (!elements.some(e => e.id === active.id)) return;
 
-    // Move every selected element by the same delta; fall back to the dragged one.
-    const movingIds = selectedIds.includes(String(active.id)) && selectedIds.length > 0
-      ? selectedIds
-      : [String(active.id)];
-
-    const dotDx = Math.round(delta.x / zoom);
-    const dotDy = Math.round(delta.y / zoom);
-
-    for (const id of movingIds) {
+    // Move every selected element by the same snapped delta; fall back to the dragged one.
+    const { ids, dx, dy } = dragSnap(String(active.id), delta);
+    for (const id of ids) {
       const el = elements.find(e => e.id === id);
       if (!el) continue;
-      let x = Math.max(0, el.x + dotDx);
-      let y = Math.max(0, el.y + dotDy);
-      if (snapToGrid) {
-        x = Math.round(x / gridSize) * gridSize;
-        y = Math.round(y / gridSize) * gridSize;
-      }
-      updateElement(id, { x, y });
+      updateElement(id, { x: Math.max(0, el.x + dx), y: Math.max(0, el.y + dy) });
     }
-  }, [zoom]);
+  }, [dragSnap]);
+
+  // Grid dots: every grid step, or every 2, 4… steps when they would be too dense to see
+  let gridStep = gridSize * zoom;
+  while (gridStep < 6) gridStep *= 2;
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
+    <DndContext
+      modifiers={[snapModifier]}
+      onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <div
         ref={wrapperRef}
         className="h-full overflow-auto p-4"
@@ -249,10 +281,25 @@ export function Canvas() {
             position: 'absolute',
             inset: 0,
             backgroundImage: 'radial-gradient(circle, #aaa 1px, transparent 1px)',
-            backgroundSize: `${8 * zoom}px ${8 * zoom}px`,
+            backgroundSize: `${gridStep}px ${gridStep}px`,
             mixBlendMode: 'multiply',
             pointerEvents: 'none',
           }} />
+          {/* Alignment guides while dragging or resizing (magnetic snapping) */}
+          {guides.map((g, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: g.axis === 'x' ? Math.min(g.at * zoom, canvasWidth - 1) : g.from * zoom,
+                top: g.axis === 'y' ? Math.min(g.at * zoom, canvasHeight - 1) : g.from * zoom,
+                width: g.axis === 'x' ? 1 : (g.to - g.from) * zoom,
+                height: g.axis === 'y' ? 1 : (g.to - g.from) * zoom,
+                background: '#ec4899',
+                pointerEvents: 'none',
+              }}
+            />
+          ))}
         </div>
       </div>
     </DndContext>
