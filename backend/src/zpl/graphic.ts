@@ -1,7 +1,15 @@
 // ^GFA graphic field data (ASCII hex, optionally with ZPL compression).
 
-// ^GFA data without line breaks, as emitted back into the ZPL
+// ^GFA data without line breaks
 export const compactGraphicData = (data: string): string => data.replace(/\s+/g, '');
+
+// Characters of ^GFA data per line in the generated ZPL. SAP keeps the ZPL in
+// lines of at most 255 characters; the printer ignores the line breaks.
+const GRAPHIC_LINE = 200;
+
+// ^GFA data broken into lines, as emitted back into the ZPL
+export const wrapGraphicData = (data: string): string =>
+  (compactGraphicData(data).match(new RegExp(`.{1,${GRAPHIC_LINE}}`, 'g')) ?? []).join('\n');
 
 // Repeat counts: G..Y = 1..19, g..z = 20..400 in steps of 20
 const COUNTS: Record<string, number> = {};
