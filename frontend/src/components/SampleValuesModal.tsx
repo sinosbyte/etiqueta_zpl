@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useT } from '../i18n';
 
 interface Props {
   variables: string[];
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function SampleValuesModal({ variables, initialValues = {}, confirmLabel, onConfirm, onClose }: Props) {
+  const t = useT();
   const [values, setValues] = useState<Record<string, string>>(
     () => Object.fromEntries(variables.map(v => [v, initialValues[v] ?? '']))
   );
@@ -20,12 +22,12 @@ export function SampleValuesModal({ variables, initialValues = {}, confirmLabel,
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ width: 300 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', margin: 0 }}>Sample values</h2>
+          <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', margin: 0 }}>{t('samples.title')}</h2>
           <button onClick={onClose} className="chrome-icon-btn" style={{ fontSize: 18 }}>×</button>
         </div>
 
         <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)', marginBottom: 12, lineHeight: 1.5 }}>
-          Enter example values to render a preview. Leave blank to use the variable name.
+          {t('samples.help')}
         </p>
 
         <div className="chrome-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', marginBottom: 16 }}>
@@ -59,7 +61,7 @@ export function SampleValuesModal({ variables, initialValues = {}, confirmLabel,
           >
             {confirmLabel}
           </button>
-          <button onClick={onClose} className="chrome-btn chrome-btn-ghost">Cancel</button>
+          <button onClick={onClose} className="chrome-btn chrome-btn-ghost">{t('common.cancel')}</button>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import JsBarcode from 'jsbarcode';
 import { DesignElement } from '../../types';
 import { CODE128_FORMAT, code128DigitsBand, code128Value, code128Width } from '../../utils/code128';
 import { ROTATION_DEGREES } from '../../utils/rotation';
+import { useT } from '../../i18n';
 
 interface Props { element: DesignElement; scale: number; }
 
@@ -10,6 +11,7 @@ interface Props { element: DesignElement; scale: number; }
 // The element box is the bars, as ^FO places them; the digits print outside the box,
 // below the bars of the unturned symbol, like on the printer.
 export function BarcodeElement({ element, scale }: Props) {
+  const t = useT();
   const ref = useRef<SVGSVGElement>(null);
   const moduleWidth = element.moduleWidth ?? 2;
   const length = code128Width(element) * scale;
@@ -62,7 +64,7 @@ export function BarcodeElement({ element, scale }: Props) {
       }}
     >
       <span style={{ fontSize: Math.max(10, barsHeight * 0.18), fontFamily: 'monospace', color: value ? '#374151' : '#dc2626' }}>
-        {value || 'No value'}
+        {value || t('barcode.noValue')}
       </span>
       <span style={{ fontSize: Math.max(9, barsHeight * 0.12), color: '#9ca3af' }}>Code 128</span>
     </div>

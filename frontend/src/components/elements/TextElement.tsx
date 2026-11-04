@@ -3,6 +3,7 @@ import { DesignElement } from '../../types';
 import { getZplFont } from '../../utils/zplFonts';
 import { FONT0_GLYPH, FONT0_HYPHEN, BASELINE_RATIO, canvasTextParts, fontMetrics, layoutText } from '../../utils/zplText';
 import { ROTATION_DEGREES, isQuarterTurn } from '../../utils/rotation';
+import { useT } from '../../i18n';
 
 interface Props {
   element: DesignElement;
@@ -15,6 +16,7 @@ const VARIABLE_TINT = 'rgba(59, 130, 246, 0.22)';
 // Text drawn where the printer puts it: each character at its printed position
 // (see utils/zplText), in an SVG whose units are printer dots.
 export function TextElement({ element, scale, samples }: Props) {
+  const t = useT();
   const m = fontMetrics(element);
   const font = getZplFont(element.fontName);
 
@@ -36,7 +38,7 @@ export function TextElement({ element, scale, samples }: Props) {
 
   const drawn = (
     <div
-      title={layout.overflow ? 'The text does not fit in this block: the printer overprints the extra lines on the last one' : undefined}
+      title={layout.overflow ? t('text.overflow') : undefined}
       style={{
         position: 'relative',
         width: layout.width * scale,

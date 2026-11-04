@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useT } from '../i18n';
 
 interface Props {
   value: number;
@@ -24,6 +25,7 @@ const parse = (text: string): number | null => {
 // (A controlled <input type="number"> rewrote the value on every keystroke, so
 // clearing the field or typing a decimal separator made it jump.)
 export function NumberInput({ value, onCommit, min = -Infinity, max = Infinity, decimals = 1, step, className = 'chrome-input', style, title }: Props) {
+  const t = useT();
   const [draft, setDraft] = useState<string | null>(null);
   // Commit to the element that was being edited when the field got focus,
   // even if the selection changes before the field loses it
@@ -83,7 +85,7 @@ export function NumberInput({ value, onCommit, min = -Infinity, max = Infinity, 
             key={direction}
             type="button"
             tabIndex={-1}
-            aria-label={direction === 1 ? 'Increase' : 'Decrease'}
+            aria-label={t(direction === 1 ? 'common.increase' : 'common.decrease')}
             // Keep the focus (and the typed text) in the field
             onMouseDown={e => e.preventDefault()}
             onClick={e => nudge(direction, e.shiftKey)}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useDesignsStore } from '../store/useDesignsStore';
+import { useT } from '../i18n';
 
 type Mode = 'overwrite' | 'version' | 'new';
 
@@ -9,6 +10,7 @@ export function SaveDesignModal() {
     closeSaveModal, saveNewDesign, saveVersion, overwriteVersion, error, setError,
   } = useDesignsStore();
 
+  const t = useT();
   const defaultMode: Mode = activeDesignId
     ? (activeVersionNumber !== null ? 'overwrite' : 'version')
     : 'new';
@@ -30,22 +32,22 @@ export function SaveDesignModal() {
         await saveNewDesign(name.trim());
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed');
+      setError(err instanceof Error ? err.message : t('save.failed'));
     } finally {
       setLoading(false);
     }
   };
 
-  const tabs = [
-    ...(activeVersionNumber !== null ? [{ id: 'overwrite' as Mode, label: `Overwrite v${activeVersionNumber}` }] : []),
-    { id: 'version' as Mode, label: 'New version' },
-    { id: 'new' as Mode, label: 'New design' },
+  const modeTabs = [
+    ...(activeVersionNumber !== null ? [{ id: 'overwrite' as Mode, label: t('save.overwriteTab', { n: activeVersionNumber }) }] : []),
+    { id: 'version' as Mode, label: t('save.versionTab') },
+    { id: 'new' as Mode, label: t('save.newTab') },
   ];
 
   return (
     <div className="modal-overlay" onClick={closeSaveModal}>
       <div className="modal-card" style={{ width: 360 }} onClick={e => e.stopPropagation()}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', marginBottom: 16 }}>Save design</h2>
+        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', marginBottom: 16 }}>{t('save.title')}</h2>
 
         {activeDesignId && (
           <div style={{
@@ -56,10 +58,10 @@ export function SaveDesignModal() {
             gap: 2,
             marginBottom: 16,
           }}>
-            {tabs.map(t => (
+            {modeTabs.map(tab => (
               <button
-                key={t.id}
-                onClick={() => setMode(t.id)}
+                key={tab.id}
+                onClick={() => setMode(tab.id)}
                 style={{
                   flex: 1,
                   padding: '4px 8px',
@@ -69,14 +71,14 @@ export function SaveDesignModal() {
                   fontWeight: 500,
                   fontFamily: 'inherit',
                   cursor: 'pointer',
-                  background: mode === t.id ? 'var(--chrome-surface)' : 'transparent',
-                  color: mode === t.id ? 'var(--chrome-text)' : 'var(--chrome-text-muted)',
-                  boxShadow: mode === t.id ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
+                  background: mode === tab.id ? 'var(--chrome-surface)' : 'transparent',
+                  color: mode === tab.id ? 'var(--chrome-text)' : 'var(--chrome-text-muted)',
+                  boxShadow: mode === tab.id ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
                   transition: 'background 0.1s, color 0.1s',
                   whiteSpace: 'nowrap',
                 }}
               >
-                {t.label}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -85,14 +87,14 @@ export function SaveDesignModal() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {mode === 'overwrite' && (
             <p style={{ fontSize: 12, color: 'var(--chrome-text-muted)', lineHeight: 1.5 }}>
-              This will replace <strong style={{ color: 'var(--chrome-text)' }}>v{activeVersionNumber}</strong> of "{activeDesignName}" with the current canvas.
+              {t('save.replacePre')}<strong style={{ color: 'var(--chrome-text)' }}>v{activeVersionNumber}</strong>{t('save.replacePost', { name: activeDesignName })}
             </p>
           )}
 
           {mode === 'new' && (
             <div>
               <label style={{ display: 'block', fontSize: 10, color: 'var(--chrome-text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-                Design name
+                {t('save.designName')}
               </label>
               <input
                 autoFocus
@@ -101,7 +103,7 @@ export function SaveDesignModal() {
                 onChange={e => setName(e.target.value)}
                 required
                 className="chrome-input"
-                placeholder="e.g. Shipping Label 4×6"
+                placeholder={t('save.placeholder')}
               />
             </div>
           )}
@@ -121,7 +123,7 @@ export function SaveDesignModal() {
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button type="button" onClick={closeSaveModal} className="chrome-btn chrome-btn-ghost">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -129,7 +131,7 @@ export function SaveDesignModal() {
               className="chrome-btn chrome-btn-primary"
               style={{ opacity: loading ? 0.6 : 1 }}
             >
-              {loading ? 'Saving…' : mode === 'overwrite' ? 'Overwrite' : mode === 'version' ? 'Save version' : 'Create'}
+              {loading ? t('save.saving') : mode === 'overwrite' ? t('save.overwrite') : mode === 'version' ? t('save.saveVersion') : t('save.create')}
             </button>
           </div>
         </form>

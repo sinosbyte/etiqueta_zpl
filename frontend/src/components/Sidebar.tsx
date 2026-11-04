@@ -2,12 +2,13 @@ import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ElementType } from '../types';
 import { toast } from '../store/useToastStore';
+import { t as translate, useT, MessageKey } from '../i18n';
 import { DEFAULT_THRESHOLD, chooseImage, imagePatch, imageSources, initialImageWidth, rasterize } from '../utils/graphic';
 
-const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
+const PALETTE: { type: ElementType; label: MessageKey; icon: React.ReactNode }[] = [
   {
     type: 'text',
-    label: 'Text',
+    label: 'element.text',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <path d="M3 3h10M8 3v10M5 13h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -16,7 +17,7 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
   },
   {
     type: 'barcode128',
-    label: 'Barcode 128',
+    label: 'element.barcode128',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="3" width="1.5" height="10" fill="currentColor"/>
@@ -29,7 +30,7 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
   },
   {
     type: 'barcodeI2of5',
-    label: 'Interleaved 2 of 5',
+    label: 'element.barcodeI2of5',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="3" width="1" height="10" fill="currentColor"/>
@@ -42,7 +43,7 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
   },
   {
     type: 'qrcode',
-    label: 'QR Code',
+    label: 'element.qrcode',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="2" width="5" height="5" rx="0.5" stroke="currentColor" strokeWidth="1.3"/>
@@ -60,7 +61,7 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
   },
   {
     type: 'rect',
-    label: 'Box',
+    label: 'element.rect',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="4" width="12" height="8" rx="0.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -69,7 +70,7 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
   },
   {
     type: 'line',
-    label: 'Line',
+    label: 'element.line',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <path d="M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -78,7 +79,7 @@ const PALETTE: { type: ElementType; label: string; icon: React.ReactNode }[] = [
   },
   {
     type: 'image',
-    label: 'Image / logo',
+    label: 'element.image',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.3"/>
@@ -95,9 +96,10 @@ interface Props {
 
 export function Sidebar({ onNavigateToMyDesigns }: Props) {
   const { addElement, activeTab, elements, clearAll, labelWidth, labelHeight } = useDesignerStore();
+  const t = useT();
 
   const handleClearAll = () => {
-    if (window.confirm('Remove all elements from the canvas?')) clearAll();
+    if (window.confirm(t('sidebar.clearConfirm'))) clearAll();
   };
 
   // A picture (e.g. a logo) becomes a black and white ^GFA image
@@ -114,7 +116,7 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
       const id = addElement('image', 50, 50, imagePatch(bitmap));
       imageSources.set(id, source);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not open the picture');
+      toast.error(e instanceof Error ? e.message : translate('sidebar.pictureError'));
     }
   };
 
@@ -132,13 +134,13 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
     }}>
       {activeTab === 'design' && (
         <>
-          <span className="panel-label" style={{ padding: '0 6px', marginBottom: 6 }}>Elements</span>
+          <span className="panel-label" style={{ padding: '0 6px', marginBottom: 6 }}>{t('sidebar.elements')}</span>
 
           {PALETTE.map(({ type, label, icon }) => (
             <button
               key={type}
               onClick={() => handleAdd(type)}
-              title={`Add ${label}`}
+              title={t('sidebar.add', { name: t(label) })}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -170,7 +172,7 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
               <span style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {icon}
               </span>
-              {label}
+              {t(label)}
             </button>
           ))}
 
@@ -179,7 +181,7 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
               <div style={{ height: 1, background: 'var(--chrome-border)', margin: '8px 6px 4px' }} />
               <button
                 onClick={handleClearAll}
-                title="Remove all elements"
+                title={t('sidebar.clearTitle')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -209,7 +211,7 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <path d="M2 3.5h10M5.5 3.5V2h3v1.5M5.5 6v5M8.5 6v5M3.5 3.5l.5 8h6l.5-8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Clear canvas
+                {t('sidebar.clear')}
               </button>
             </>
           )}
@@ -249,7 +251,7 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M2 5a1 1 0 011-1h3.5l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V5z" stroke="currentColor" strokeWidth="1.3"/>
         </svg>
-        My Designs
+        {t('sidebar.myDesigns')}
       </button>
     </div>
   );

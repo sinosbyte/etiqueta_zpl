@@ -2,9 +2,11 @@ import React from 'react';
 import Editor from '@monaco-editor/react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { registerZplLanguage, ZPL_LANGUAGE_ID } from '../utils/zplLanguage';
+import { useT } from '../i18n';
 
 export function CodeEditor() {
   const { zplCode, zplError, onCodeChange } = useDesignerStore();
+  const t = useT();
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden h-full">
@@ -18,7 +20,7 @@ export function CodeEditor() {
         flexShrink: 0,
       }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--chrome-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>ZPL</span>
-        <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>Changes sync automatically</span>
+        <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{t('code.sync')}</span>
       </div>
 
       {zplError && (
