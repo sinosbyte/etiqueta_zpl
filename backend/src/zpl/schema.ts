@@ -31,6 +31,7 @@ export const ElementSchema = z.object({
   }).optional(),
   orientation: z.enum(['N', 'R', 'I', 'B']).optional(),
   moduleWidth: z.number().positive().optional(),
+  expectedChars: z.number().int().positive().optional(),
   ratio: z.number().positive().optional(),
   printLine: z.boolean().optional(),
   codeSet: z.enum(['A', 'B', 'C']).optional(),

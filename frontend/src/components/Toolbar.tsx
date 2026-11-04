@@ -233,7 +233,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)', whiteSpace: 'nowrap' }}>W</span>
           <NumberInput
             min={10}
-            style={{ width: 58, textAlign: 'center' }}
+            style={{ width: 68, textAlign: 'center' }}
             value={dotsToMm(labelWidth)}
             onCommit={mm => setLabelSize(mmToDots(mm), labelHeight)}
             title="Label width (mm)"
@@ -243,7 +243,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)', whiteSpace: 'nowrap' }}>H</span>
           <NumberInput
             min={10}
-            style={{ width: 58, textAlign: 'center' }}
+            style={{ width: 68, textAlign: 'center' }}
             value={dotsToMm(labelHeight)}
             onCommit={mm => setLabelSize(labelWidth, mmToDots(mm))}
             title="Label height (mm)"

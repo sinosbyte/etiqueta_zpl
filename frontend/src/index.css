@@ -64,6 +64,50 @@
   color: var(--chrome-text-faint);
 }
 
+/* Numeric field: text box with ▲▼ buttons on the right (NumberInput) */
+.number-field {
+  position: relative;
+}
+
+.number-field .chrome-input {
+  padding-right: 22px;
+}
+
+.number-stepper {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 1px;
+  width: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.number-stepper button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--chrome-text-faint);
+  cursor: pointer;
+}
+
+.number-stepper button:hover {
+  color: var(--chrome-text);
+  background: var(--chrome-border);
+}
+
+.number-stepper button:first-child {
+  border-radius: 0 3px 0 0;
+}
+
+.number-stepper button:last-child {
+  border-radius: 0 0 3px 0;
+}
+
 /* Chrome button variants */
 .chrome-btn {
   display: inline-flex;

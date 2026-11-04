@@ -4,7 +4,7 @@ import { ZPL_FONTS } from '../utils/zplFonts';
 import { mmToDots, dotsToMm } from '../utils/units';
 import { extractVariables } from '../utils/variables';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
-import { code128Value, resizeCode128Patch } from '../utils/code128';
+import { CODE128_PLACEHOLDER_CHARS, barWidthPatch, code128Value, expectedCharsPatch, resizeCode128Patch } from '../utils/code128';
 import { NumberInput } from './NumberInput';
 import { Orientation } from '../types';
 import { ORIENTATION_LABELS } from '../utils/rotation';
@@ -423,10 +423,33 @@ export function PropertiesPanel() {
               {orientationControl(setOrientation)}
               {printLineControl}
               {reverseControl}
-              {sizedByBars && code128Value(el, samples).includes('{{') && (
-                <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, lineHeight: 1.5 }}>
-                  The width depends on the value printed; use Show sample values to see the real size.
-                </p>
+              {sizedByBars && (
+                <>
+                  {/* The length is bar width x symbol length: W follows from these two */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <label style={labelStyle} title="Narrow bar width in dots (^BY)">Bar width</label>
+                      <NumberInput min={1} max={10} decimals={0} value={el.moduleWidth!}
+                        onCommit={moduleWidth => updateElement(el.id, barWidthPatch(el, moduleWidth, samples))}
+                      />
+                    </div>
+                    {code128Value(el, samples).includes('{{') && (
+                      <div>
+                        <label style={labelStyle} title="Characters of the value printed">Characters</label>
+                        <NumberInput min={1} max={60} decimals={0}
+                          value={el.expectedChars ?? CODE128_PLACEHOLDER_CHARS}
+                          onCommit={chars => updateElement(el.id, expectedCharsPatch(el, chars, samples))}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  {code128Value(el, samples).includes('{{') && (
+                    <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, lineHeight: 1.5 }}>
+                      The width depends on the value printed: set Characters to its real length
+                      (e.g. 20 for a 20-digit UC) and W follows. W snaps to whole bar widths.
+                    </p>
+                  )}
+                </>
               )}
             </>
           )}
