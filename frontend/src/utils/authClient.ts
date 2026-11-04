@@ -1,3 +1,5 @@
+import { apiMessage } from '../i18n';
+
 const TOKEN_KEY = 'zpl_token';
 
 export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
@@ -48,7 +50,7 @@ export async function apiRegister(username: string, password: string): Promise<v
   });
   if (!res.ok) {
     const data = await res.json();
-    throw new Error(data.error ?? 'Registration failed');
+    throw new Error(apiMessage(data.error, 'api.registrationFailed'));
   }
 }
 
@@ -60,7 +62,7 @@ export async function apiLogin(username: string, password: string): Promise<stri
     body: JSON.stringify({ username, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? 'Login failed');
+  if (!res.ok) throw new Error(apiMessage(data.error, 'api.loginFailed'));
   return data.token as string;
 }
 

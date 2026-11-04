@@ -54,6 +54,36 @@ export function translate(lang: Lang, key: MessageKey, params?: Params): string 
   return params ? text.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m)) : text;
 }
 
+// Messages the API sends in English (the SAP integration reads them as they are, so
+// the backend is not translated): shown in the language on screen
+const API_MESSAGES: Record<string, MessageKey> = {
+  'Missing or invalid Authorization header': 'api.missingAuth',
+  'Invalid or expired token': 'api.invalidToken',
+  'Too many failed attempts, please try again later': 'api.tooManyFailed',
+  'Too many attempts, please try again later': 'api.tooManyAttempts',
+  'Too many refresh attempts, please try again later': 'api.tooManyRefresh',
+  'Too many requests, please slow down': 'api.tooManyRequests',
+  'Username already taken': 'api.usernameTaken',
+  'Invalid username or password': 'api.badCredentials',
+  'No refresh token': 'api.noRefreshToken',
+  'Invalid or expired refresh token': 'api.invalidRefreshToken',
+  'Design name already taken': 'api.designNameTaken',
+  'Invalid pagination parameters': 'api.badPagination',
+  'Invalid design ID': 'api.badDesignId',
+  'Invalid version number': 'api.badVersion',
+  'Design not found': 'api.designNotFound',
+  'Version not found': 'api.versionNotFound',
+  'Labelary API error': 'api.labelaryError',
+  'Could not reach Labelary API': 'api.labelaryUnreachable',
+};
+
+/** The error text of an API response: known messages translated, validation objects as a generic text. */
+export function apiMessage(error: unknown, fallback: MessageKey): string {
+  if (typeof error !== 'string' || !error) return t(error ? 'api.invalidData' : fallback);
+  const key = API_MESSAGES[error];
+  return key ? t(key) : error;
+}
+
 /** Outside React (toasts, store actions): the message in the language on screen now. */
 export const t = (key: MessageKey, params?: Params): string => translate(useLangStore.getState().lang, key, params);
 
