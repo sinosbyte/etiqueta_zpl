@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
+import { useT } from '../i18n';
+import { LanguageSelect } from '../components/LanguageSelect';
 
 export function LoginPage() {
   const { login, register } = useAuthStore();
+  const t = useT();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -20,7 +23,7 @@ export function LoginPage() {
         await register(username, password);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setError(err instanceof Error ? err.message : t('error.title'));
     } finally {
       setLoading(false);
     }
@@ -34,7 +37,9 @@ export function LoginPage() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: 24,
+      position: 'relative',
     }}>
+      <LanguageSelect style={{ position: 'absolute', top: 16, right: 16 }} />
       <div style={{ width: '100%', maxWidth: 340 }}>
         {/* Mark + wordmark */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
@@ -61,7 +66,7 @@ export function LoginPage() {
             ZPL Designer
           </h1>
           <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', margin: 0 }}>
-            Zebra label design tool
+            {t('login.tagline')}
           </p>
         </div>
 
@@ -99,7 +104,7 @@ export function LoginPage() {
                   transition: 'background 0.12s, color 0.12s',
                 }}
               >
-                {m === 'login' ? 'Sign in' : 'Create account'}
+                {m === 'login' ? t('login.signIn') : t('login.createAccount')}
               </button>
             ))}
           </div>
@@ -107,7 +112,7 @@ export function LoginPage() {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--chrome-text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
-                Username
+                {t('login.username')}
               </label>
               <input
                 className="chrome-input"
@@ -118,13 +123,13 @@ export function LoginPage() {
                 minLength={3}
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="At least 3 characters"
+                placeholder={t('login.usernamePlaceholder')}
               />
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--chrome-text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
-                Password
+                {t('login.password')}
               </label>
               <input
                 className="chrome-input"
@@ -134,7 +139,7 @@ export function LoginPage() {
                 minLength={6}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder={t('login.passwordPlaceholder')}
               />
             </div>
 
@@ -157,7 +162,7 @@ export function LoginPage() {
               className="chrome-btn chrome-btn-primary"
               style={{ justifyContent: 'center', padding: '9px 0', fontSize: 13, opacity: loading ? 0.7 : 1 }}
             >
-              {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+              {loading ? t('login.wait') : mode === 'login' ? t('login.signIn') : t('login.createAccount')}
             </button>
           </form>
         </div>

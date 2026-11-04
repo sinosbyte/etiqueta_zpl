@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { t } from '../i18n';
 import { temporal } from 'zundo';
 import { DesignElement, ElementType } from '../types';
 import { generateZpl, parseZpl, previewZpl } from '../utils/zplClient';
@@ -423,7 +424,7 @@ export const useDesignerStore = create<DesignerStore>()(
         }
       } catch (e) {
         if (signal.aborted) return;
-        set({ zplError: e instanceof Error ? e.message : 'Invalid ZPL' });
+        set({ zplError: e instanceof Error ? e.message : t('zpl.invalid') });
       }
     }, 600);
   },
@@ -444,7 +445,7 @@ export const useDesignerStore = create<DesignerStore>()(
       set({ zplCode: zpl, zplError: '' });
     } catch (e) {
       if (signal.aborted) return;
-      set({ zplError: `Canvas sync failed: ${e instanceof Error ? e.message : 'unknown error'}` });
+      set({ zplError: t('zpl.syncFailed', { message: e instanceof Error ? e.message : t('zpl.unknownError') }) });
     }
   },
 
@@ -468,7 +469,7 @@ export const useDesignerStore = create<DesignerStore>()(
     } catch (e) {
       set({
         previewLoading: false,
-        previewError: e instanceof Error ? e.message : 'Preview failed',
+        previewError: e instanceof Error ? e.message : t('preview.failed'),
       });
     }
   },

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { apiListVersions, DesignSummary, VersionSummary } from '../utils/designsClient';
+import { t, useT } from '../i18n';
+import { LanguageSelect } from '../components/LanguageSelect';
 
 interface Props {
   onBack: () => void;
@@ -8,9 +10,9 @@ interface Props {
 
 function relativeDate(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (diff === 0) return 'today';
-  if (diff === 1) return 'yesterday';
-  return `${diff} days ago`;
+  if (diff === 0) return t('designs.today');
+  if (diff === 1) return t('designs.yesterday');
+  return t('designs.daysAgo', { n: diff });
 }
 
 function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
@@ -20,6 +22,7 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
   onLoadVersion: (versionNumber: number) => void;
   onRename: (newName: string) => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
@@ -86,7 +89,7 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}
-            title="Click to rename"
+            title={t('designs.clickRename')}
             onClick={() => setEditing(true)}
           >
             {design.name}
@@ -105,7 +108,7 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
               fontFamily: 'inherit',
             }}
           >
-            {design.versionCount} version{design.versionCount !== 1 ? 's' : ''} {expanded ? '▲' : '▼'}
+            {t(design.versionCount === 1 ? 'designs.versionOne' : 'designs.versionMany', { n: design.versionCount })} {expanded ? '▲' : '▼'}
           </button>
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>
             {relativeDate(design.updatedAt)}
@@ -121,7 +124,7 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
           flexDirection: 'column',
           gap: 4,
         }}>
-          {versionsLoading && <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>Loading…</p>}
+          {versionsLoading && <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{t('designs.loading')}</p>}
           {versions.map(v => (
             <div key={v.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11, color: 'var(--chrome-text-muted)' }}>
@@ -139,7 +142,7 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
                   padding: 0,
                 }}
               >
-                Load
+                {t('designs.load')}
               </button>
             </div>
           ))}
@@ -152,14 +155,14 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
           className="chrome-btn chrome-btn-primary"
           style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
         >
-          Open latest
+          {t('designs.openLatest')}
         </button>
         <button
           onClick={onDelete}
           className="chrome-btn chrome-btn-danger"
           style={{ fontSize: 12, padding: '4px 10px' }}
         >
-          Delete
+          {t('panel.delete')}
         </button>
       </div>
     </div>
@@ -167,6 +170,7 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
 }
 
 export function MyDesignsPage({ onBack }: Props) {
+  const t = useT();
   const { designs, designsTotal, fetchDesigns, loadMoreDesigns, deleteDesign, renameDesign, loadVersion, error } = useDesignsStore();
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -200,7 +204,7 @@ export function MyDesignsPage({ onBack }: Props) {
   };
 
   const handleDelete = async (design: DesignSummary) => {
-    if (!window.confirm(`Delete "${design.name}" and all its versions? This cannot be undone.`)) return;
+    if (!window.confirm(t('designs.deleteConfirm', { name: design.name }))) return;
     await deleteDesign(design.id);
   };
 
@@ -229,12 +233,12 @@ export function MyDesignsPage({ onBack }: Props) {
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M9 2L4 7l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          Editor
+          {t('designs.editor')}
         </button>
 
         <div style={{ width: 1, height: 18, background: 'var(--chrome-border)' }} />
 
-        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--chrome-text)' }}>My Designs</span>
+        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--chrome-text)' }}>{t('sidebar.myDesigns')}</span>
 
         <div style={{ flex: 1 }} />
 
@@ -248,19 +252,21 @@ export function MyDesignsPage({ onBack }: Props) {
           </svg>
           <input
             type="text"
-            placeholder="Search designs"
+            placeholder={t('designs.search')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="chrome-input"
             style={{ paddingLeft: 26, width: 200 }}
           />
         </div>
+
+        <LanguageSelect />
       </div>
 
       {/* Content */}
       <div className="chrome-scroll" style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
         {loading && (
-          <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>Loading…</p>
+          <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>{t('designs.loading')}</p>
         )}
 
         {!loading && error && (
@@ -270,18 +276,18 @@ export function MyDesignsPage({ onBack }: Props) {
         {!loading && !error && designs.length === 0 && (
           <div style={{ textAlign: 'center', marginTop: 80 }}>
             <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', lineHeight: 1.8 }}>
-              No saved designs yet.<br />
-              Go back to the editor to create your first one.
+              {t('designs.empty1')}<br />
+              {t('designs.empty2')}
             </p>
             <button onClick={onBack} className="chrome-btn chrome-btn-primary" style={{ marginTop: 16, justifyContent: 'center' }}>
-              Go to editor
+              {t('designs.goEditor')}
             </button>
           </div>
         )}
 
         {!loading && designs.length > 0 && filtered.length === 0 && (
           <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>
-            No designs match "{search}"
+            {t('designs.noMatch', { search })}
           </p>
         )}
 
@@ -307,7 +313,7 @@ export function MyDesignsPage({ onBack }: Props) {
             {!search && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 24 }}>
                 <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>
-                  Showing {designs.length} of {designsTotal}
+                  {t('designs.showing', { n: designs.length, total: designsTotal })}
                 </p>
                 {designs.length < designsTotal && (
                   <button
@@ -316,7 +322,7 @@ export function MyDesignsPage({ onBack }: Props) {
                     className="chrome-btn chrome-btn-ghost"
                     style={{ opacity: loadingMore ? 0.5 : 1 }}
                   >
-                    {loadingMore ? 'Loading…' : 'Load more'}
+                    {loadingMore ? t('designs.loading') : t('designs.loadMore')}
                   </button>
                 )}
               </div>
@@ -328,7 +334,7 @@ export function MyDesignsPage({ onBack }: Props) {
       {openingId !== null && (
         <div className="modal-overlay">
           <p style={{ fontSize: 13, color: 'var(--chrome-text)', background: 'var(--chrome-elevated)', padding: '10px 20px', borderRadius: 8, border: '1px solid var(--chrome-border)' }}>
-            Opening design…
+            {t('designs.opening')}
           </p>
         </div>
       )}

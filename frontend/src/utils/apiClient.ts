@@ -1,4 +1,5 @@
 import { API_BASE, getToken, triggerOn401, refreshAccessToken } from './authClient';
+import { apiMessage, t } from '../i18n';
 
 export function authHeaders(): Record<string, string> {
   const token = getToken();
@@ -23,15 +24,15 @@ export async function apiFetch<T>(path: string, opts?: RequestInit, _retry = fal
       return apiFetch<T>(path, opts, true);
     }
     triggerOn401();
-    throw new Error('Session expired. Please log in again.');
+    throw new Error(t('api.sessionExpired'));
   }
   if (res.status === 204) {
-    if (!res.ok) throw new Error('Request failed');
+    if (!res.ok) throw new Error(t('api.requestFailed'));
     return undefined as T;
   }
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error ?? 'Request failed');
+  if (!res.ok) throw new Error(apiMessage(data?.error, 'api.requestFailed'));
   return data as T;
 }
 
@@ -50,11 +51,11 @@ export async function apiFetchBlob(path: string, opts?: RequestInit, _retry = fa
       return apiFetchBlob(path, opts, true);
     }
     triggerOn401();
-    throw new Error('Session expired. Please log in again.');
+    throw new Error(t('api.sessionExpired'));
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
-    throw new Error(err.error ?? `Request failed (${res.status})`);
+    const err = await res.json().catch(() => ({ error: `${t('api.requestFailed')} (${res.status})` }));
+    throw new Error(apiMessage(err.error, 'api.requestFailed'));
   }
   return res.blob();
 }

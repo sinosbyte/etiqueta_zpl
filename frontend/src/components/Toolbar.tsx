@@ -8,7 +8,8 @@ import { NumberInput } from './NumberInput';
 import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables, substituteVariables } from '../utils/variables';
 import { GRID_STEPS } from '../utils/snap';
-import { LANGUAGES, useLangStore, useT } from '../i18n';
+import { useLangStore, useT } from '../i18n';
+import { LanguageSelect } from './LanguageSelect';
 
 interface Props {
   onNavigateToMyDesigns: () => void;
@@ -26,7 +27,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
   const { logout } = useAuthStore();
   const t = useT();
-  const { lang, setLang } = useLangStore();
+  const lang = useLangStore(s => s.lang);
   const { undo, redo, canUndo, canRedo } = useHistory();
   const [showExport, setShowExport] = React.useState(false);
   const [exportZplOverride, setExportZplOverride] = React.useState<string | undefined>(undefined);
@@ -296,15 +297,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
 
         {divider}
 
-        <select
-          className="chrome-input"
-          value={lang}
-          onChange={e => setLang(e.target.value as typeof lang)}
-          title={t('toolbar.language')}
-          style={{ width: 92, padding: '2px 4px' }}
-        >
-          {LANGUAGES.map(l => <option key={l.lang} value={l.lang}>{l.label}</option>)}
-        </select>
+        <LanguageSelect />
 
         <button
           className="chrome-icon-btn"
