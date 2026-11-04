@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { exportZpl, ExportFormat } from '../utils/zplClient';
+import { useT, MessageKey } from '../i18n';
 
 interface Props { onClose(): void; zplOverride?: string; }
 
-const FORMATS: { value: ExportFormat; label: string; description: string; ext: string }[] = [
-  { value: 'png', label: 'PNG',  description: 'Image — preview & sharing', ext: '.png' },
-  { value: 'pdf', label: 'PDF',  description: 'Print-ready document',      ext: '.pdf' },
-  { value: 'epl', label: 'EPL',  description: 'Eltron printer language',   ext: '.epl' },
-  { value: 'zpl', label: 'ZPL',  description: 'Transformed ZPL output',    ext: '.zpl' },
+const FORMATS: { value: ExportFormat; label: string; description: MessageKey; ext: string }[] = [
+  { value: 'png', label: 'PNG',  description: 'export.png', ext: '.png' },
+  { value: 'pdf', label: 'PDF',  description: 'export.pdf', ext: '.pdf' },
+  { value: 'epl', label: 'EPL',  description: 'export.epl', ext: '.epl' },
+  { value: 'zpl', label: 'ZPL',  description: 'export.zpl', ext: '.zpl' },
 ];
 
 export function ExportModal({ onClose, zplOverride }: Props) {
   const { zplCode, labelWidth, labelHeight } = useDesignerStore();
+  const t = useT();
   const [format, setFormat] = useState<ExportFormat>('png');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +34,7 @@ export function ExportModal({ onClose, zplOverride }: Props) {
       URL.revokeObjectURL(url);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Export failed');
+      setError(e instanceof Error ? e.message : t('export.failed'));
     } finally {
       setLoading(false);
     }
@@ -42,7 +44,7 @@ export function ExportModal({ onClose, zplOverride }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ width: 320 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', margin: 0 }}>Export label</h2>
+          <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', margin: 0 }}>{t('export.title')}</h2>
           <button
             onClick={onClose}
             className="chrome-icon-btn"
@@ -76,7 +78,7 @@ export function ExportModal({ onClose, zplOverride }: Props) {
               />
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--chrome-text)' }}>{f.label}</span>
-                <span style={{ fontSize: 11, color: 'var(--chrome-text-muted)', marginLeft: 8 }}>{f.description}</span>
+                <span style={{ fontSize: 11, color: 'var(--chrome-text-muted)', marginLeft: 8 }}>{t(f.description)}</span>
               </div>
               <span style={{ fontSize: 10, color: 'var(--chrome-text-faint)', fontFamily: 'monospace' }}>{f.ext}</span>
             </label>
@@ -94,9 +96,9 @@ export function ExportModal({ onClose, zplOverride }: Props) {
             className="chrome-btn chrome-btn-success"
             style={{ flex: 1, justifyContent: 'center', opacity: loading ? 0.6 : 1 }}
           >
-            {loading ? 'Exporting…' : 'Download'}
+            {loading ? t('export.exporting') : t('export.download')}
           </button>
-          <button onClick={onClose} className="chrome-btn chrome-btn-ghost">Cancel</button>
+          <button onClick={onClose} className="chrome-btn chrome-btn-ghost">{t('common.cancel')}</button>
         </div>
       </div>
     </div>

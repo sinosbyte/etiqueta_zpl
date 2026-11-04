@@ -8,6 +8,7 @@ import { NumberInput } from './NumberInput';
 import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables, substituteVariables } from '../utils/variables';
 import { GRID_STEPS } from '../utils/snap';
+import { LANGUAGES, useLangStore, useT } from '../i18n';
 
 interface Props {
   onNavigateToMyDesigns: () => void;
@@ -24,6 +25,8 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
   const { logout } = useAuthStore();
+  const t = useT();
+  const { lang, setLang } = useLangStore();
   const { undo, redo, canUndo, canRedo } = useHistory();
   const [showExport, setShowExport] = React.useState(false);
   const [exportZplOverride, setExportZplOverride] = React.useState<string | undefined>(undefined);
@@ -100,7 +103,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
             <rect x="11" y="9" width="4" height="1.5" fill="var(--chrome-text-muted)"/>
             <rect x="4" y="16" width="12" height="1.5" rx="0.75" fill="var(--chrome-text-faint)"/>
           </svg>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--chrome-text)', letterSpacing: '-0.01em' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--chrome-text)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
             ZPL Designer
           </span>
           {activeDesignName && (
@@ -120,7 +123,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           className="chrome-icon-btn"
           onClick={undo}
           disabled={!canUndo}
-          title="Undo (Ctrl+Z)"
+          title={t('toolbar.undo')}
           style={{ opacity: canUndo ? 1 : 0.3 }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -132,7 +135,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           className="chrome-icon-btn"
           onClick={redo}
           disabled={!canRedo}
-          title="Redo (Ctrl+Shift+Z)"
+          title={t('toolbar.redo')}
           style={{ opacity: canRedo ? 1 : 0.3 }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -147,7 +150,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         <button
           className={`chrome-icon-btn${snapToElements ? ' active' : ''}`}
           onClick={toggleSnapToElements}
-          title={`Snap to elements (magnetic): ${snapToElements ? 'on' : 'off'}. Hold Alt while dragging to place freely`}
+          title={t('toolbar.snapElements', { state: t(snapToElements ? 'common.on' : 'common.off') })}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M3 2v5a4 4 0 008 0V2" stroke="currentColor" strokeWidth="1.5"/>
@@ -160,7 +163,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         <button
           className={`chrome-icon-btn${snapToGrid ? ' active' : ''}`}
           onClick={toggleSnapToGrid}
-          title={`Snap to grid: ${snapToGrid ? 'on' : 'off'}. Hold Alt while dragging to place freely`}
+          title={t('toolbar.snapGrid', { state: t(snapToGrid ? 'common.on' : 'common.off') })}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <circle cx="2.5" cy="2.5" r="1" fill="currentColor"/>
@@ -178,10 +181,10 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           className="chrome-input"
           value={gridSize}
           onChange={e => setGridSize(Number(e.target.value))}
-          title="Grid step: the dots on the canvas, and where elements snap when Snap to grid is on"
+          title={t('toolbar.gridStep')}
           style={{ width: 72, padding: '2px 4px' }}
         >
-          {GRID_STEPS.map(g => <option key={g.dots} value={g.dots}>{g.label}</option>)}
+          {GRID_STEPS.map(g => <option key={g.dots} value={g.dots}>{lang === 'en' ? g.label : g.label.replace('.', ',')}</option>)}
         </select>
 
         {/* Align tools — only when 2+ selected */}
@@ -189,12 +192,12 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           <>
             {divider}
             {[
-              { dir: 'left' as const,     title: 'Align left',      path: 'M2 2v10M5 5h7M5 9h5' },
-              { dir: 'center-h' as const, title: 'Align center H',  path: 'M7 2v10M4 5h6M5 9h4' },
-              { dir: 'right' as const,    title: 'Align right',     path: 'M12 2v10M2 5h7M4 9h5' },
-              { dir: 'top' as const,      title: 'Align top',       path: 'M2 2h10M5 5v7M9 5v5' },
-              { dir: 'center-v' as const, title: 'Align center V',  path: 'M2 7h10M5 4v6M9 5v4' },
-              { dir: 'bottom' as const,   title: 'Align bottom',    path: 'M2 12h10M5 2v7M9 4v5' },
+              { dir: 'left' as const,     title: t('toolbar.alignLeft'),      path: 'M2 2v10M5 5h7M5 9h5' },
+              { dir: 'center-h' as const, title: t('toolbar.alignCenterH'),  path: 'M7 2v10M4 5h6M5 9h4' },
+              { dir: 'right' as const,    title: t('toolbar.alignRight'),     path: 'M12 2v10M2 5h7M4 9h5' },
+              { dir: 'top' as const,      title: t('toolbar.alignTop'),       path: 'M2 2h10M5 5v7M9 5v5' },
+              { dir: 'center-v' as const, title: t('toolbar.alignCenterV'),  path: 'M2 7h10M5 4v6M9 5v4' },
+              { dir: 'bottom' as const,   title: t('toolbar.alignBottom'),    path: 'M2 12h10M5 2v7M9 4v5' },
             ].map(({ dir, title, path }) => (
               <button
                 key={dir}
@@ -209,8 +212,8 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
             ))}
             {/* Distribute — equal gaps between 3+ selected, the outer ones stay */}
             {selectedIds.length >= 3 && [
-              { axis: 'x' as const, title: 'Distribute horizontally (equal gaps)', path: 'M1 2v10M13 2v10M5 4h4v6H5z' },
-              { axis: 'y' as const, title: 'Distribute vertically (equal gaps)',   path: 'M2 1h10M2 13h10M4 5h6v4H4z' },
+              { axis: 'x' as const, title: t('toolbar.distributeH'), path: 'M1 2v10M13 2v10M5 4h4v6H5z' },
+              { axis: 'y' as const, title: t('toolbar.distributeV'),   path: 'M2 1h10M2 13h10M4 5h6v4H4z' },
             ].map(({ axis, title, path }) => (
               <button
                 key={axis}
@@ -236,7 +239,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
             style={{ width: 68, textAlign: 'center' }}
             value={dotsToMm(labelWidth)}
             onCommit={mm => setLabelSize(mmToDots(mm), labelHeight)}
-            title="Label width (mm)"
+            title={t('toolbar.labelWidth')}
           />
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>mm</span>
           <span style={{ fontSize: 11, color: 'var(--chrome-border)', padding: '0 2px' }}>×</span>
@@ -246,7 +249,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
             style={{ width: 68, textAlign: 'center' }}
             value={dotsToMm(labelHeight)}
             onCommit={mm => setLabelSize(labelWidth, mmToDots(mm))}
-            title="Label height (mm)"
+            title={t('toolbar.labelHeight')}
           />
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>mm</span>
         </div>
@@ -258,45 +261,55 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         <button
           className="chrome-btn chrome-btn-ghost"
           onClick={() => openSaveModal()}
-          title="Save design"
+          title={t('toolbar.saveTitle')}
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
             <path d="M2 11V3.5L4.5 1h5.5a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1z" stroke="currentColor" strokeWidth="1.3"/>
             <path d="M4 1v3h5V1M4 7h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
           </svg>
-          Save
+          {t('toolbar.save')}
         </button>
 
         <button
           className={`chrome-btn ${previewActive ? 'chrome-btn-primary' : 'chrome-btn-ghost'}`}
           onClick={handlePreview}
-          title="Preview label (Labelary render)"
+          title={t('toolbar.previewTitle')}
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
             <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.3"/>
             <circle cx="6.5" cy="6.5" r="2" fill="currentColor"/>
           </svg>
-          {previewActive ? 'Close' : 'Preview'}
+          {previewActive ? t('common.close') : t('toolbar.preview')}
         </button>
 
         <button
           className="chrome-btn chrome-btn-success"
           onClick={handleExport}
-          title="Export label"
+          title={t('toolbar.exportTitle')}
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
             <path d="M6.5 1v8M3.5 6l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M1 10h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
           </svg>
-          Export
+          {t('toolbar.export')}
         </button>
 
         {divider}
 
+        <select
+          className="chrome-input"
+          value={lang}
+          onChange={e => setLang(e.target.value as typeof lang)}
+          title={t('toolbar.language')}
+          style={{ width: 92, padding: '2px 4px' }}
+        >
+          {LANGUAGES.map(l => <option key={l.lang} value={l.lang}>{l.label}</option>)}
+        </select>
+
         <button
           className="chrome-icon-btn"
           onClick={logout}
-          title="Log out"
+          title={t('toolbar.logout')}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M5 2H3a1 1 0 00-1 1v8a1 1 0 001 1h2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
@@ -312,7 +325,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         <SampleValuesModal
           variables={variables}
           initialValues={sampleValues}
-          confirmLabel={samplesFor === 'preview' ? 'Preview' : 'Continue'}
+          confirmLabel={samplesFor === 'preview' ? t('toolbar.preview') : t('toolbar.continue')}
           onConfirm={handleSamplesConfirm}
           onClose={() => setSamplesFor(null)}
         />

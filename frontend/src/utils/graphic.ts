@@ -1,4 +1,5 @@
 import { DesignElement } from '../types';
+import { t } from '../i18n';
 
 // ^GFA images: a 1-bit bitmap (1 = black dot) stored as ASCII hex with ZPL
 // compression, matching backend/src/zpl/graphic.ts.
@@ -193,11 +194,11 @@ export function loadImageFile(file: File): Promise<HTMLImageElement> {
       // An SVG without width/height has no size to draw at
       image.onload = () => image.naturalWidth && image.naturalHeight
         ? resolve(image)
-        : reject(new Error('This picture has no size; save it as PNG and try again'));
-      image.onerror = () => reject(new Error('This file is not a picture the browser can open'));
+        : reject(new Error(t('picture.noSize')));
+      image.onerror = () => reject(new Error(t('picture.notPicture')));
       image.src = reader.result as string;
     };
-    reader.onerror = () => reject(new Error('Could not read the file'));
+    reader.onerror = () => reject(new Error(t('picture.unreadable')));
     reader.readAsDataURL(file);
   });
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useDesignerStore } from './useDesignerStore';
 import { toast } from './useToastStore';
+import { t } from '../i18n';
 import {
   apiCreateDesign, apiListDesigns, apiDeleteDesign, apiRenameDesign,
   apiCreateVersion, apiListVersions, apiGetVersion, apiUpdateVersion,
@@ -68,7 +69,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     const result = await apiCreateDesign(name, { zpl, elements, labelWidth, labelHeight });
     set({ activeDesignId: result.designId, activeDesignName: name, activeVersionNumber: 1, showSaveModal: false });
     await get().fetchDesigns();
-    toast.success(`Design "${name}" saved`);
+    toast.success(t('toast.designSaved', { name }));
   },
 
   async saveVersion() {
@@ -79,7 +80,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     set({ activeVersionNumber: version.versionNumber });
     await get().fetchDesigns();
     await get().fetchVersions(activeDesignId);
-    toast.success(`Version ${version.versionNumber} saved`);
+    toast.success(t('toast.versionSaved', { n: version.versionNumber }));
   },
 
   async overwriteVersion() {
@@ -91,7 +92,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     });
     await get().fetchDesigns();
     set({ showSaveModal: false });
-    toast.success(`Version ${activeVersionNumber} updated`);
+    toast.success(t('toast.versionUpdated', { n: activeVersionNumber }));
   },
 
   async loadVersion(designId: number, versionNumber: number) {
@@ -114,9 +115,9 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
         designs: s.designs.map(d => d.id === id ? { ...d, name: updated.name } : d),
         activeDesignName: s.activeDesignId === id ? updated.name : s.activeDesignName,
       }));
-      toast.success(`Renamed to "${updated.name}"`);
+      toast.success(t('toast.renamed', { name: updated.name }));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to rename design');
+      toast.error(e instanceof Error ? e.message : t('toast.renameFailed'));
     }
   },
 
@@ -125,12 +126,12 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     try {
       await apiDeleteDesign(id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete design');
+      toast.error(e instanceof Error ? e.message : t('toast.deleteFailed'));
       return;
     }
     if (get().activeDesignId === id) set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [] });
     await get().fetchDesigns();
-    toast.success(`"${name}" deleted`);
+    toast.success(t('toast.deleted', { name }));
   },
 
   async fetchVersions(designId: number) {

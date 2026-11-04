@@ -7,13 +7,14 @@ import { elementBox, resizeTextPatch } from '../utils/zplText';
 import { CODE128_PLACEHOLDER_CHARS, barWidthPatch, code128Value, expectedCharsPatch, resizeCode128Patch } from '../utils/code128';
 import { NumberInput } from './NumberInput';
 import { Orientation } from '../types';
-import { ORIENTATION_LABELS } from '../utils/rotation';
 import {
   DEFAULT_THRESHOLD, chooseImage, imagePatch, imageSources, initialImageWidth, rasterize, resizeImagePatch,
 } from '../utils/graphic';
 import { toast } from '../store/useToastStore';
+import { t as translate, useT, MessageKey } from '../i18n';
 
 export function PropertiesPanel() {
+  const t = useT();
   const { elements, selectedId, showSamples, sampleValues, labelWidth, labelHeight, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
   const el = elements.find(e => e.id === selectedId);
 
@@ -46,7 +47,7 @@ export function PropertiesPanel() {
         padding: 16,
       }}>
         <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)', textAlign: 'center', lineHeight: 1.5 }}>
-          Select an element<br />to edit properties
+          {t('panel.select1')}<br />{t('panel.select2')}
         </p>
       </div>
     );
@@ -94,20 +95,20 @@ export function PropertiesPanel() {
   );
 
   // ^FR: where the field overlaps black it prints white, e.g. white text on a black bar
-  const reverseControl = checkbox('Reverse print (white over black)', el.reversed ?? false,
+  const reverseControl = checkbox(t('panel.reverse'), el.reversed ?? false,
     reversed => updateElement(el.id, { reversed: reversed || undefined }));
 
   // Text and Code 128 boxes follow the turn on their own; Interleaved 2 of 5 stores its footprint
   const orientationControl = (onChange: (next: Orientation) => void) => (
     <div style={{ marginBottom: 8 }}>
-      <label style={labelStyle}>Orientation</label>
+      <label style={labelStyle}>{t('panel.orientation')}</label>
       <select
         className="chrome-input"
         value={el.orientation ?? 'N'}
         onChange={e => onChange(e.target.value as Orientation)}
       >
-        {(Object.keys(ORIENTATION_LABELS) as Orientation[]).map(o => (
-          <option key={o} value={o}>{ORIENTATION_LABELS[o]}</option>
+        {(['N', 'R', 'I', 'B'] as Orientation[]).map(o => (
+          <option key={o} value={o}>{t(`orientation.${o}` as MessageKey)}</option>
         ))}
       </select>
     </div>
@@ -127,7 +128,7 @@ export function PropertiesPanel() {
       imageSources.set(el.id, source);
       updateElement(el.id, imagePatch(rasterize(source, initialImageWidth(image, labelWidth, labelHeight))));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not open the picture');
+      toast.error(e instanceof Error ? e.message : translate('sidebar.pictureError'));
     }
   };
 
@@ -136,15 +137,15 @@ export function PropertiesPanel() {
 
   const valueControls = !el.dynamic && (
     <>
-      {field('Value', el.value ?? '', 'value')}
+      {field(t('panel.value'), el.value ?? '', 'value')}
       {inlineVariables.length > 0 && (
         <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: -4, marginBottom: 8, lineHeight: 1.5 }}>
-          Variables in this value:{' '}
+          {t('panel.varsIn')}{' '}
           <span style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
             {inlineVariables.map(v => `{{${v}}}`).join(' ')}
           </span>
           <br />
-          Filled in when the label is printed; Preview asks for sample values.
+          {t('panel.varsFilled')}
         </p>
       )}
     </>
@@ -158,7 +159,7 @@ export function PropertiesPanel() {
         onChange={e => updateElement(el.id, { printLine: e.target.checked })}
         style={{ accentColor: 'var(--accent)' }}
       />
-      <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Print digits below bars</span>
+      <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>{t('panel.printDigits')}</span>
     </label>
   );
 
@@ -171,22 +172,22 @@ export function PropertiesPanel() {
           onChange={e => updateElement(el.id, { dynamic: e.target.checked })}
           style={{ accentColor: 'var(--accent)' }}
         />
-        <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Dynamic variable</span>
+        <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>{t('panel.dynamic')}</span>
       </label>
       {el.dynamic && (
         <div style={{ marginBottom: 8 }}>
-          <label style={labelStyle}>Variable name</label>
+          <label style={labelStyle}>{t('panel.varName')}</label>
           <input
             className="chrome-input"
             type="text"
             value={el.variableName ?? ''}
-            placeholder="e.g. company"
+            placeholder={t('panel.varPlaceholder')}
             onChange={e =>
               updateElement(el.id, { variableName: e.target.value.replace(/[^A-Za-z0-9_]/g, '') })
             }
           />
           <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 3 }}>
-            Emits {`{{${el.variableName || 'name'}}}`} in ZPL
+            {t('panel.emits', { marker: `{{${el.variableName || 'name'}}}` })}
           </p>
         </div>
       )}
@@ -219,7 +220,7 @@ export function PropertiesPanel() {
         letterSpacing: '0.08em',
         marginBottom: 14,
       }}>
-        {el.type}
+        {t(`element.${el.type}` as MessageKey)}
       </div>
 
       {/* Position & size */}
@@ -252,11 +253,11 @@ export function PropertiesPanel() {
 
       {el.type === 'rect' && (
         <>
-        {checkbox('Solid fill', el.filled ?? false, filled => updateElement(el.id, { filled: filled || undefined }))}
+        {checkbox(t('panel.solidFill'), el.filled ?? false, filled => updateElement(el.id, { filled: filled || undefined }))}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
           {!el.filled && (
             <div>
-              <label style={labelStyle}>Border mm</label>
+              <label style={labelStyle}>{t('panel.border')}</label>
               <NumberInput min={0.1} value={dotsToMm(el.thickness ?? 8)}
                 onCommit={mm => updateElement(el.id, { thickness: Math.max(1, mmToDots(mm)) })}
               />
@@ -264,15 +265,15 @@ export function PropertiesPanel() {
           )}
           <div>
             {/* ^GB corner rounding: 0 (square) to 8 (heaviest) */}
-            <label style={labelStyle}>Corners</label>
+            <label style={labelStyle}>{t('panel.corners')}</label>
             <select
               className="chrome-input"
               value={el.rounding ?? 0}
               onChange={e => updateElement(el.id, { rounding: Number(e.target.value) || undefined })}
             >
-              <option value={0}>Square</option>
+              <option value={0}>{t('panel.square')}</option>
               {[1, 2, 3, 4, 5, 6, 7, 8].map(r => (
-                <option key={r} value={r}>Rounded {r}</option>
+                <option key={r} value={r}>{t('panel.rounded', { n: r })}</option>
               ))}
             </select>
           </div>
@@ -284,12 +285,12 @@ export function PropertiesPanel() {
       {el.type === 'image' && (
         <div style={sectionStyle}>
           <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, marginBottom: 8, lineHeight: 1.5 }}>
-            Printed in black and white, one dot per dot of the picture (^GFA). W and H keep the proportions.
+            {t('panel.imageNote')}
           </p>
           {imageSource && (
             <div style={{ marginBottom: 8 }}>
               {/* Darker than the threshold prints black */}
-              <label style={labelStyle}>Black threshold {Math.round(imageSource.threshold / 2.55)}%</label>
+              <label style={labelStyle}>{t('panel.threshold', { pct: Math.round(imageSource.threshold / 2.55) })}</label>
               <input
                 type="range"
                 min={10}
@@ -310,7 +311,7 @@ export function PropertiesPanel() {
             className="chrome-btn chrome-btn-ghost"
             style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
           >
-            Replace picture…
+            {t('panel.replacePicture')}
           </button>
           {reverseControl}
         </div>
@@ -321,7 +322,7 @@ export function PropertiesPanel() {
           {valueControls}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <div>
-              <label style={labelStyle}>Font size</label>
+              <label style={labelStyle}>{t('panel.fontSize')}</label>
               <NumberInput min={1} max={999} decimals={0}
                 value={el.fontSize ?? 30}
                 onCommit={fontSize => {
@@ -334,7 +335,7 @@ export function PropertiesPanel() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Font</label>
+              <label style={labelStyle}>{t('panel.font')}</label>
               <select
                 className="chrome-input"
                 value={el.fontName ?? '0'}
@@ -342,7 +343,7 @@ export function PropertiesPanel() {
                 style={{ paddingRight: 4 }}
               >
                 {ZPL_FONTS.map(f => (
-                  <option key={f.name} value={f.name}>{f.label}</option>
+                  <option key={f.name} value={f.name}>{t(f.name === '0' ? 'font.default' : 'font.zebra', { name: f.name })}</option>
                 ))}
               </select>
             </div>
@@ -359,13 +360,13 @@ export function PropertiesPanel() {
                 : { block: undefined })}
               style={{ accentColor: 'var(--accent)' }}
             />
-            <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>Align in a fixed width</span>
+            <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)' }}>{t('panel.fixedWidth')}</span>
           </label>}
           {el.block && !el.orientation && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
-                  <label style={labelStyle}>Alignment</label>
+                  <label style={labelStyle}>{t('panel.alignment')}</label>
                   <select
                     className="chrome-input"
                     value={el.block.justify}
@@ -373,14 +374,14 @@ export function PropertiesPanel() {
                       block: { ...el.block!, justify: e.target.value as 'L' | 'C' | 'R' | 'J' },
                     })}
                   >
-                    <option value="L">Left</option>
-                    <option value="C">Center</option>
-                    <option value="R">Right</option>
-                    <option value="J">Justified</option>
+                    <option value="L">{t('panel.left')}</option>
+                    <option value="C">{t('panel.center')}</option>
+                    <option value="R">{t('panel.right')}</option>
+                    <option value="J">{t('panel.justified')}</option>
                   </select>
                 </div>
                 <div>
-                  <label style={labelStyle}>Max lines</label>
+                  <label style={labelStyle}>{t('panel.maxLines')}</label>
                   <NumberInput min={1} max={9} decimals={0}
                     value={el.block.maxLines}
                     onCommit={maxLines => updateElement(el.id, { block: { ...el.block!, maxLines } })}
@@ -388,8 +389,7 @@ export function PropertiesPanel() {
                 </div>
               </div>
               <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 3, lineHeight: 1.5 }}>
-                The text is aligned inside the box width (^FB). Drag the side handles to set the width;
-                a red outline means the text does not fit.
+                {t('panel.blockNote')}
               </p>
             </div>
           )}
@@ -414,7 +414,7 @@ export function PropertiesPanel() {
               })}
               {printLineControl}
               <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0 }}>
-                Digits only; an odd count gets a leading zero.
+                {t('panel.i2of5Note')}
               </p>
             </>
           )}
@@ -428,14 +428,14 @@ export function PropertiesPanel() {
                   {/* The length is bar width x symbol length: W follows from these two */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <div>
-                      <label style={labelStyle} title="Narrow bar width in dots (^BY)">Bar width</label>
+                      <label style={labelStyle} title={t('panel.barWidthTitle')}>{t('panel.barWidth')}</label>
                       <NumberInput min={1} max={10} decimals={0} value={el.moduleWidth!}
                         onCommit={moduleWidth => updateElement(el.id, barWidthPatch(el, moduleWidth, samples))}
                       />
                     </div>
                     {code128Value(el, samples).includes('{{') && (
                       <div>
-                        <label style={labelStyle} title="Characters of the value printed">Characters</label>
+                        <label style={labelStyle} title={t('panel.charactersTitle')}>{t('panel.characters')}</label>
                         <NumberInput min={1} max={60} decimals={0}
                           value={el.expectedChars ?? CODE128_PLACEHOLDER_CHARS}
                           onCommit={chars => updateElement(el.id, expectedCharsPatch(el, chars, samples))}
@@ -445,8 +445,7 @@ export function PropertiesPanel() {
                   </div>
                   {code128Value(el, samples).includes('{{') && (
                     <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, lineHeight: 1.5 }}>
-                      The width depends on the value printed: set Characters to its real length
-                      (e.g. 20 for a 20-digit UC) and W follows. W snaps to whole bar widths.
+                      {t('panel.widthNote')}
                     </p>
                   )}
                 </>
@@ -463,7 +462,7 @@ export function PropertiesPanel() {
             className="chrome-btn chrome-btn-ghost"
             style={{ width: '100%', justifyContent: 'center' }}
           >
-            {el.width >= el.height ? '↔ Horizontal' : '↕ Vertical'}
+            {el.width >= el.height ? t('panel.horizontal') : t('panel.vertical')}
           </button>
           <div style={{ marginTop: 8 }}>{reverseControl}</div>
         </div>
@@ -471,13 +470,13 @@ export function PropertiesPanel() {
 
       {/* Layer order */}
       <div style={sectionStyle}>
-        <span className="panel-label" style={{ display: 'block', marginBottom: 8 }}>Layer order</span>
+        <span className="panel-label" style={{ display: 'block', marginBottom: 8 }}>{t('panel.layerOrder')}</span>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
           {[
-            { label: '↑↑ Front', action: bringToFront },
-            { label: '↓↓ Back', action: sendToBack },
-            { label: '↑ Forward', action: bringForward },
-            { label: '↓ Backward', action: sendBackward },
+            { label: t('panel.front'), action: bringToFront },
+            { label: t('panel.back'), action: sendToBack },
+            { label: t('panel.forward'), action: bringForward },
+            { label: t('panel.backward'), action: sendBackward },
           ].map(({ label, action }) => (
             <button
               key={label}
@@ -502,7 +501,7 @@ export function PropertiesPanel() {
             <rect x="1" y="3" width="7" height="7" rx="0.75" stroke="currentColor" strokeWidth="1.2"/>
             <path d="M4 3V2a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H9" stroke="currentColor" strokeWidth="1.2"/>
           </svg>
-          Duplicate
+          {t('panel.duplicate')}
         </button>
         <button
           onClick={() => deleteElement(el.id)}
@@ -512,7 +511,7 @@ export function PropertiesPanel() {
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M1.5 3h9M4.5 3V2h3v1M4.5 5.5v4M7.5 5.5v4M2.5 3l.5 7h6l.5-7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
           </svg>
-          Delete
+          {t('panel.delete')}
         </button>
       </div>
     </div>

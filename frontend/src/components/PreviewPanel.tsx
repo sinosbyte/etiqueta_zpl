@@ -1,8 +1,10 @@
 import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
+import { useT } from '../i18n';
 
 export function PreviewPanel() {
   const { previewUrl, previewLoading, previewError, closePreview, labelWidth, zoom } = useDesignerStore();
+  const t = useT();
 
   if (!previewUrl && !previewError && !previewLoading) return null;
 
@@ -28,19 +30,19 @@ export function PreviewPanel() {
         borderBottom: '1px solid var(--chrome-border)',
         flexShrink: 0,
       }}>
-        <span className="panel-label">Preview</span>
+        <span className="panel-label">{t('preview.title')}</span>
         <button
           onClick={closePreview}
           className="chrome-btn chrome-btn-ghost"
           style={{ fontSize: 11, padding: '2px 8px' }}
         >
-          Close
+          {t('common.close')}
         </button>
       </div>
 
       <div className="chrome-scroll" style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
         {previewLoading && (
-          <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>Rendering…</p>
+          <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{t('preview.rendering')}</p>
         )}
         {previewError && (
           <div style={{
@@ -57,7 +59,7 @@ export function PreviewPanel() {
         {previewUrl && (
           <img
             src={previewUrl}
-            alt="Label preview"
+            alt={t('preview.alt')}
             style={{
               imageRendering: 'pixelated',
               width: colWidth - 24,

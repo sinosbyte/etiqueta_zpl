@@ -17,6 +17,7 @@ import { ImageElement } from './elements/ImageElement';
 import { usePanning } from '../hooks/usePanning';
 import { useElementResize } from '../hooks/useElementResize';
 import { extractVariables, substituteVariables } from '../utils/variables';
+import { useT } from '../i18n';
 
 const GUIDE_COLOR = '#ec4899';
 
@@ -179,6 +180,7 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
 }
 
 export function Canvas() {
+  const t = useT();
   const { labelWidth, labelHeight, elements, clearSelection, zoom } =
     useDesignerStore(useShallow(s => ({
       labelWidth: s.labelWidth,
@@ -306,9 +308,7 @@ export function Canvas() {
               boxSizing: 'border-box',
             }}
           >
-            {rawCount} ZPL {rawCount === 1 ? 'field is' : 'fields are'} kept as written but not drawn on the canvas
-            (e.g. ^FH, barcodes placed with ^FT, barcodes other than Code 128 / Interleaved 2 of 5 / QR). Edit them in the
-            Code tab and use Preview to see the real label.
+            {t(rawCount === 1 ? 'canvas.rawOne' : 'canvas.rawMany', { n: rawCount })} {t('canvas.rawHelp')}
           </div>
         )}
         <div
