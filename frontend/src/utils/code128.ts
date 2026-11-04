@@ -5,7 +5,8 @@ import { isQuarterTurn } from './rotation';
 // Code 128 (^BC) size on the canvas, matching backend/src/zpl/code128.ts.
 
 // Characters assumed for a value with {{variables}} and no sample value: the
-// real length is only known when the label is printed.
+// real length is only known when the label is printed. The element can say
+// better (expectedChars).
 export const CODE128_PLACEHOLDER_CHARS = 12;
 
 // JsBarcode format for the start code; without one the printer uses subset B
@@ -23,8 +24,10 @@ export function code128Value(el: DesignElement, samples?: Record<string, string>
  * Symbol length in modules: 11 per symbol plus start (11), check (11) and
  * stop (13). Subset C packs two digits per symbol.
  */
-export function code128Modules(value: string, codeSet?: DesignElement['codeSet']): number {
-  const chars = value.includes('{{') ? CODE128_PLACEHOLDER_CHARS : value.length || 8;
+export function code128Modules(
+  value: string, codeSet?: DesignElement['codeSet'], placeholderChars = CODE128_PLACEHOLDER_CHARS,
+): number {
+  const chars = value.includes('{{') ? placeholderChars : value.length || 8;
   const symbols = codeSet === 'C' ? Math.ceil(chars / 2) : chars;
   return 11 * symbols + 35;
 }
@@ -33,7 +36,7 @@ export function code128Modules(value: string, codeSet?: DesignElement['codeSet']
 // bar width keep their box width.
 export function code128Width(el: DesignElement, samples?: Record<string, string> | null): number {
   if (!el.moduleWidth) return el.width;
-  return el.moduleWidth * code128Modules(code128Value(el, samples), el.codeSet);
+  return el.moduleWidth * code128Modules(code128Value(el, samples), el.codeSet, el.expectedChars);
 }
 
 /**
@@ -52,7 +55,23 @@ export function resizeCode128Patch(
   const quarter = isQuarterTurn(el.orientation);
   const length = quarter ? height : width;
   const barsHeight = quarter ? width : height;
-  const modules = code128Modules(code128Value(el, samples), el.codeSet);
+  const modules = code128Modules(code128Value(el, samples), el.codeSet, el.expectedChars);
   const moduleWidth = Math.max(1, Math.min(10, Math.round(length / modules)));
   return { moduleWidth, width: moduleWidth * modules, height: Math.max(1, Math.round(barsHeight)) };
+}
+
+/** Sets the bar width (^BY) directly: the length follows from it. */
+export function barWidthPatch(
+  el: DesignElement, moduleWidth: number, samples?: Record<string, string> | null,
+): Partial<DesignElement> {
+  const modules = code128Modules(code128Value(el, samples), el.codeSet, el.expectedChars);
+  return { moduleWidth, width: moduleWidth * modules };
+}
+
+/** Sets how many characters a {{variable}} value is expected to have: the length follows from it. */
+export function expectedCharsPatch(
+  el: DesignElement, expectedChars: number, samples?: Record<string, string> | null,
+): Partial<DesignElement> {
+  const modules = code128Modules(code128Value(el, samples), el.codeSet, expectedChars);
+  return { expectedChars, ...(el.moduleWidth ? { width: el.moduleWidth * modules } : {}) };
 }
