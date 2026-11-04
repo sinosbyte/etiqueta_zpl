@@ -238,7 +238,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           <NumberInput
             min={10}
             style={{ width: 68, textAlign: 'center' }}
-            value={dotsToMm(labelWidth)}
+            decimals={3} step={0.5} value={dotsToMm(labelWidth)}
             onCommit={mm => setLabelSize(mmToDots(mm), labelHeight)}
             title={t('toolbar.labelWidth')}
           />
@@ -248,7 +248,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           <NumberInput
             min={10}
             style={{ width: 68, textAlign: 'center' }}
-            value={dotsToMm(labelHeight)}
+            decimals={3} step={0.5} value={dotsToMm(labelHeight)}
             onCommit={mm => setLabelSize(labelWidth, mmToDots(mm))}
             title={t('toolbar.labelHeight')}
           />

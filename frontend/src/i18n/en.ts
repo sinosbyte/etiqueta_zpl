@@ -50,6 +50,7 @@ export const en = {
 
   'tab.design': 'Design',
   'tab.code': '</> Code',
+  'tab.split': 'Side by side',
   'samples.show': 'Show sample values',
   'samples.showing': 'Showing sample values',
   'samples.hideTitle': 'Show the {{variables}} on the canvas',
@@ -65,6 +66,9 @@ export const en = {
 
   'preview.title': 'Preview',
   'preview.rendering': 'Rendering…',
+  'preview.refresh': 'Refresh',
+  'preview.refreshTitle': 'Render the preview again with the current design',
+  'preview.outdated': 'Out of date',
   'preview.alt': 'Label preview',
 
   'export.title': 'Export label',
@@ -191,6 +195,7 @@ export const en = {
   'designs.loadMore': 'Load more',
   'designs.opening': 'Opening design…',
   'designs.deleteConfirm': 'Delete "{name}" and all its versions? This cannot be undone.',
+  'api.retryIn': 'Try again in about {n} min.',
   'api.sessionExpired': 'Session expired. Please log in again.',
   'api.requestFailed': 'Request failed',
   'api.registrationFailed': 'Registration failed',

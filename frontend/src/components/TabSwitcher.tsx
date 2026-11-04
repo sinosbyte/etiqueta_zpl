@@ -3,6 +3,7 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables } from '../utils/variables';
 import { useT } from '../i18n';
+import { ZOOM_100, zoomToPercent } from '../utils/units';
 
 export function TabSwitcher() {
   const {
@@ -10,7 +11,7 @@ export function TabSwitcher() {
     sampleValues, setSampleValues, showSamples, setShowSamples,
   } = useDesignerStore();
   const t = useT();
-  const displayPct = Math.round(zoom * 50);
+  const displayPct = zoomToPercent(zoom);
   const [askSamples, setAskSamples] = React.useState(false);
   const variables = extractVariables(zplCode);
 
@@ -41,7 +42,7 @@ export function TabSwitcher() {
         padding: 2,
         gap: 1,
       }}>
-        {(['design', 'code'] as const).map(tab => (
+        {(['design', 'split', 'code'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -59,13 +60,13 @@ export function TabSwitcher() {
               boxShadow: activeTab === tab ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
             }}
           >
-            {tab === 'design' ? t('tab.design') : t('tab.code')}
+            {tab === 'design' ? t('tab.design') : tab === 'split' ? t('tab.split') : t('tab.code')}
           </button>
         ))}
       </div>
 
       {/* Sample values + zoom controls */}
-      {activeTab === 'design' && (
+      {activeTab !== 'code' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {variables.length > 0 && (
             <button
@@ -79,12 +80,12 @@ export function TabSwitcher() {
           )}
           <button
             className="chrome-icon-btn"
-            onClick={() => setZoom(zoom - 0.25)}
+            onClick={() => setZoom(zoom - ZOOM_100 * 0.25)}
             style={{ width: 24, height: 24, fontSize: 16 }}
             title={t('zoom.out')}
           >−</button>
           <button
-            onClick={() => setZoom(2)}
+            onClick={() => setZoom(ZOOM_100)}
             style={{
               minWidth: 44,
               height: 24,
@@ -107,7 +108,7 @@ export function TabSwitcher() {
           </button>
           <button
             className="chrome-icon-btn"
-            onClick={() => setZoom(zoom + 0.25)}
+            onClick={() => setZoom(zoom + ZOOM_100 * 0.25)}
             style={{ width: 24, height: 24, fontSize: 16 }}
             title={t('zoom.in')}
           >+</button>

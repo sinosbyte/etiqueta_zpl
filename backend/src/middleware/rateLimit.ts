@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { isTest } from '../config';
 
 /**
@@ -7,13 +7,33 @@ import { isTest } from '../config';
  */
 
 /**
- * Login limiter against credential brute-force: 10 failed logins / 15 min / IP.
- * Successful logins are not counted, so users sharing an IP (the SAP
- * integration, people on the same VM) are never locked out by normal use.
+ * Login limiter against credential brute-force. Failed logins are counted per
+ * IP + username, so someone mistyping their own password never locks out
+ * the other people behind the same IP (a client's network, the VM, the SAP
+ * integration). Successful logins are not counted.
+ * 10 failed attempts / 15 min / IP + username.
  */
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true,
+  keyGenerator: req => {
+    const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
+    return `${ipKeyGenerator(req.ip ?? '')}|${username}`;
+  },
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many failed attempts, please try again later' },
+  skip: () => isTest,
+});
+
+/**
+ * Wider net per IP for the same endpoint, so guessing many usernames from one
+ * place is still stopped. 100 failed logins / 15 min / IP.
+ */
+export const loginIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
   skipSuccessfulRequests: true,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
@@ -22,11 +42,12 @@ export const loginLimiter = rateLimit({
 });
 
 /**
- * Tight limiter for account creation. 10 requests / 15 min / IP.
+ * Limiter for account creation. Users behind one IP create accounts too, so it
+ * is wider than the login one: 30 requests / 15 min / IP.
  */
 export const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 10,
+  limit: 30,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many attempts, please try again later' },

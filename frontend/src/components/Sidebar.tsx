@@ -132,7 +132,7 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
       flexShrink: 0,
       userSelect: 'none',
     }}>
-      {activeTab === 'design' && (
+      {activeTab !== 'code' && (
         <>
           <span className="panel-label" style={{ padding: '0 6px', marginBottom: 6 }}>{t('sidebar.elements')}</span>
 

@@ -227,25 +227,25 @@ export function PropertiesPanel() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
         <div>
           <label style={labelStyle}>X mm</label>
-          <NumberInput min={0} value={dotsToMm(el.x)}
+          <NumberInput min={0} decimals={3} step={0.5} value={dotsToMm(el.x)}
             onCommit={mm => updateElement(el.id, { x: mmToDots(mm) })}
           />
         </div>
         <div>
           <label style={labelStyle}>Y mm</label>
-          <NumberInput min={0} value={dotsToMm(el.y)}
+          <NumberInput min={0} decimals={3} step={0.5} value={dotsToMm(el.y)}
             onCommit={mm => updateElement(el.id, { y: mmToDots(mm) })}
           />
         </div>
         <div>
           <label style={labelStyle}>W mm</label>
-          <NumberInput min={0.1} value={dotsToMm(box.width)}
+          <NumberInput min={0.1} decimals={3} step={0.5} value={dotsToMm(box.width)}
             onCommit={mm => setSize({ width: Math.max(1, mmToDots(mm)) })}
           />
         </div>
         <div>
           <label style={labelStyle}>H mm</label>
-          <NumberInput min={0.1} value={dotsToMm(box.height)}
+          <NumberInput min={0.1} decimals={3} step={0.5} value={dotsToMm(box.height)}
             onCommit={mm => setSize({ height: Math.max(1, mmToDots(mm)) })}
           />
         </div>
@@ -258,7 +258,7 @@ export function PropertiesPanel() {
           {!el.filled && (
             <div>
               <label style={labelStyle}>{t('panel.border')}</label>
-              <NumberInput min={0.1} value={dotsToMm(el.thickness ?? 8)}
+              <NumberInput min={0.1} decimals={3} step={0.5} value={dotsToMm(el.thickness ?? 8)}
                 onCommit={mm => updateElement(el.id, { thickness: Math.max(1, mmToDots(mm)) })}
               />
             </div>

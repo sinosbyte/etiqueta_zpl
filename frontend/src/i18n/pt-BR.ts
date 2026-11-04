@@ -52,6 +52,7 @@ export const ptBR: Record<keyof typeof en, string> = {
 
   'tab.design': 'Design',
   'tab.code': '</> Código',
+  'tab.split': 'Lado a lado',
   'samples.show': 'Mostrar valores de exemplo',
   'samples.showing': 'Mostrando valores de exemplo',
   'samples.hideTitle': 'Mostrar as {{variáveis}} na etiqueta',
@@ -67,6 +68,9 @@ export const ptBR: Record<keyof typeof en, string> = {
 
   'preview.title': 'Pré-visualização',
   'preview.rendering': 'Gerando…',
+  'preview.refresh': 'Atualizar',
+  'preview.refreshTitle': 'Gerar o preview de novo com o design atual',
+  'preview.outdated': 'Desatualizado',
   'preview.alt': 'Pré-visualização da etiqueta',
 
   'export.title': 'Exportar a etiqueta',
@@ -193,6 +197,7 @@ export const ptBR: Record<keyof typeof en, string> = {
   'designs.loadMore': 'Carregar mais',
   'designs.opening': 'Abrindo o design…',
   'designs.deleteConfirm': 'Excluir "{name}" e todas as suas versões? Isso não pode ser desfeito.',
+  'api.retryIn': 'Tente novamente em cerca de {n} min.',
   'api.sessionExpired': 'Sessão expirada. Entre novamente.',
   'api.requestFailed': 'A requisição falhou',
   'api.registrationFailed': 'Falha ao criar a conta',

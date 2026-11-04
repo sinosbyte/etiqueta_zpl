@@ -1,4 +1,4 @@
-import { apiMessage } from '../i18n';
+import { apiMessage, t } from '../i18n';
 
 const TOKEN_KEY = 'zpl_token';
 
@@ -41,6 +41,14 @@ export function triggerOn401() {
   on401?.();
 }
 
+// "Too many attempts" plus how long to wait, when the server says so
+function limitMessage(res: Response, error: unknown, fallback: Parameters<typeof apiMessage>[1]): string {
+  const message = apiMessage(error, fallback);
+  const seconds = Number(res.headers.get('Retry-After'));
+  if (res.status !== 429 || !seconds) return message;
+  return `${message} ${t('api.retryIn', { n: Math.max(1, Math.ceil(seconds / 60)) })}`;
+}
+
 export async function apiRegister(username: string, password: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/auth/register`, {
     method: 'POST',
@@ -50,7 +58,7 @@ export async function apiRegister(username: string, password: string): Promise<v
   });
   if (!res.ok) {
     const data = await res.json();
-    throw new Error(apiMessage(data.error, 'api.registrationFailed'));
+    throw new Error(limitMessage(res, data.error, 'api.registrationFailed'));
   }
 }
 
@@ -62,7 +70,7 @@ export async function apiLogin(username: string, password: string): Promise<stri
     body: JSON.stringify({ username, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(apiMessage(data.error, 'api.loginFailed'));
+  if (!res.ok) throw new Error(limitMessage(res, data.error, 'api.loginFailed'));
   return data.token as string;
 }
 
