@@ -3,12 +3,14 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { useT } from '../i18n';
 
 export function PreviewPanel() {
-  const { previewUrl, previewLoading, previewError, closePreview, labelWidth, zoom } = useDesignerStore();
+  const { previewUrl, previewLoading, previewError, closePreview, refreshPreview, previewSource, zplCode, labelWidth, zoom } = useDesignerStore();
   const t = useT();
 
   if (!previewUrl && !previewError && !previewLoading) return null;
 
   const colWidth = labelWidth * zoom;
+  // The design was edited after this preview was rendered
+  const stale = !!previewUrl && previewSource !== zplCode;
 
   return (
     <div
@@ -31,6 +33,19 @@ export function PreviewPanel() {
         flexShrink: 0,
       }}>
         <span className="panel-label">{t('preview.title')}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {stale && !previewLoading && (
+          <span style={{ fontSize: 10, color: 'var(--status-warning, #d9a441)' }}>{t('preview.outdated')}</span>
+        )}
+        <button
+          onClick={refreshPreview}
+          disabled={previewLoading}
+          className={`chrome-btn ${stale ? 'chrome-btn-primary' : 'chrome-btn-ghost'}`}
+          style={{ fontSize: 11, padding: '2px 8px' }}
+          title={t('preview.refreshTitle')}
+        >
+          ↻ {t('preview.refresh')}
+        </button>
         <button
           onClick={closePreview}
           className="chrome-btn chrome-btn-ghost"
@@ -38,6 +53,7 @@ export function PreviewPanel() {
         >
           {t('common.close')}
         </button>
+        </div>
       </div>
 
       <div className="chrome-scroll" style={{ flex: 1, overflowY: 'auto', padding: 12 }}>

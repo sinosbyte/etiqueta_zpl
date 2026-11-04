@@ -97,6 +97,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
 
   async loadVersion(designId: number, versionNumber: number) {
     const version = await apiGetVersion(designId, versionNumber);
+    useDesignerStore.getState().closePreview();  // it shows the previous design
     useDesignerStore.setState({
       elements: version.elements,
       zplCode: version.zpl,

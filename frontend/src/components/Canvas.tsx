@@ -3,7 +3,7 @@ import { DndContext, DragEndEvent, DragMoveEvent, DragStartEvent, Modifier, useD
 import { useShallow } from 'zustand/react/shallow';
 import { snapContext, useDesignerStore } from '../store/useDesignerStore';
 import { Guide, snapMove, unionBox } from '../utils/snap';
-import { dotsToMm } from '../utils/units';
+import { dotsToMm, ZOOM_100 } from '../utils/units';
 import { elementBox } from '../utils/zplText';
 import { DesignElement, isRawField } from '../types';
 import { ResizeHandle } from './ResizeHandle';
@@ -201,8 +201,8 @@ export function Canvas() {
       if (!e.ctrlKey) return;
       e.preventDefault();
       const { zoom: current, setZoom: sz } = useDesignerStore.getState();
-      const delta = e.deltaY < 0 ? 0.1 : -0.1;
-      sz(Math.round((current + delta) * 100) / 100);
+      const delta = (e.deltaY < 0 ? 0.1 : -0.1) * ZOOM_100;
+      sz(Math.round((current + delta) * 1000) / 1000);
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);

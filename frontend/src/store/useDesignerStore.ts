@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { t } from '../i18n';
+import { ZOOM_100 } from '../utils/units';
+import { substituteVariables } from '../utils/variables';
 import { temporal } from 'zundo';
 import { DesignElement, ElementType } from '../types';
 import { generateZpl, parseZpl, previewZpl } from '../utils/zplClient';
@@ -36,12 +38,13 @@ interface DesignerStore {
   elements: DesignElement[];
   selectedId: string | null;
   selectedIds: string[];
-  activeTab: 'design' | 'code';
+  activeTab: 'design' | 'code' | 'split';
   zplCode: string;
   zplError: string;
   previewUrl: string | null;
   previewLoading: boolean;
   previewError: string;
+  previewSource: string;                 // ZPL the open preview was rendered from (to tell when it is out of date)
   zoom: number;
   snapToGrid: boolean;
   snapToElements: boolean;               // magnetic: edges and centres snap to other elements and the label
@@ -65,7 +68,7 @@ interface DesignerStore {
   clearSelection(): void;
   alignElements(alignment: 'left' | 'center-h' | 'right' | 'top' | 'center-v' | 'bottom'): void;
   distributeElements(axis: 'x' | 'y'): void;
-  setActiveTab(tab: 'design' | 'code'): void;
+  setActiveTab(tab: 'design' | 'code' | 'split'): void;
   setZoom(zoom: number): void;
   toggleSnapToGrid(): void;
   toggleSnapToElements(): void;
@@ -78,6 +81,7 @@ interface DesignerStore {
   syncToCode(): Promise<void>;
   setPreviewUrl(url: string | null): void;
   fetchPreview(zplOverride?: string): Promise<void>;
+  refreshPreview(): Promise<void>;
   closePreview(): void;
 }
 
@@ -137,7 +141,8 @@ export const useDesignerStore = create<DesignerStore>()(
   previewUrl: null,
   previewLoading: false,
   previewError: '',
-  zoom: 2,
+  previewSource: '',
+  zoom: ZOOM_100,
   snapToGrid: savedSnap.snapToGrid ?? false,
   snapToElements: savedSnap.snapToElements ?? true,
   gridSize: savedSnap.gridSize ?? 8,
@@ -351,7 +356,7 @@ export const useDesignerStore = create<DesignerStore>()(
   },
 
   setZoom(zoom) {
-    set({ zoom: Math.min(6, Math.max(0.5, zoom)) });
+    set({ zoom: Math.min(6, Math.max(ZOOM_100 * 0.1, zoom)) });
   },
 
   toggleSnapToGrid() {
@@ -465,13 +470,19 @@ export const useDesignerStore = create<DesignerStore>()(
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       const url = await previewZpl(zpl, labelWidth, labelHeight);
       lastPreviewZpl = zpl;
-      set({ previewUrl: url, previewLoading: false });
+      set({ previewUrl: url, previewLoading: false, previewSource: get().zplCode });
     } catch (e) {
       set({
         previewLoading: false,
         previewError: e instanceof Error ? e.message : t('preview.failed'),
       });
     }
+  },
+
+  // Render the preview again from the current ZPL, with the example values filled in
+  async refreshPreview() {
+    const { zplCode, sampleValues } = get();
+    await get().fetchPreview(substituteVariables(zplCode, sampleValues));
   },
 
   closePreview() {

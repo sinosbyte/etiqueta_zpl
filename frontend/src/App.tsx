@@ -40,19 +40,23 @@ export default function App() {
           <div className="flex flex-col flex-1 overflow-hidden">
             <TabSwitcher />
             <div className="flex flex-1 overflow-hidden">
-              {activeTab === 'design' ? (
+              {activeTab !== 'code' && (
                 <>
                   <div className="flex-1 overflow-hidden">
                     <Canvas />
                   </div>
                   <PreviewPanel />
                 </>
-              ) : (
-                <CodeEditor />
               )}
+              {activeTab === 'split' && (
+                <div style={{ width: '40%', minWidth: 320, borderLeft: '1px solid var(--chrome-border)' }}>
+                  <CodeEditor />
+                </div>
+              )}
+              {activeTab === 'code' && <CodeEditor />}
             </div>
           </div>
-          {activeTab === 'design' && !previewActive && <PropertiesPanel />}
+          {activeTab !== 'code' && !previewActive && <PropertiesPanel />}
         </div>
         {showSaveModal && <SaveDesignModal />}
       </div>
