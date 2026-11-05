@@ -83,12 +83,11 @@ export const proxyLimiter = rateLimit({
 
 /**
  * Limiter for the templates endpoints, which read and write the database.
- * 120 requests / min / user (falls back to the IP), generous for browsing the page.
+ * 300 requests / min / IP: generous, since people share a client IP.
  */
 export const templatesLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 120,
-  keyGenerator: req => (req.user ? `user:${req.user.userId}` : ipKeyGenerator(req.ip ?? '')),
+  limit: 300,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many requests, please slow down' },
