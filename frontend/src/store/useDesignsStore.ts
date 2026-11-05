@@ -7,6 +7,7 @@ import {
   apiCreateVersion, apiListVersions, apiGetVersion, apiUpdateVersion,
   DesignSummary, VersionSummary,
 } from '../utils/designsClient';
+import type { TemplateDetail } from '../utils/templatesClient';
 
 interface DesignsStore {
   designs: DesignSummary[];
@@ -24,6 +25,7 @@ interface DesignsStore {
   saveVersion(): Promise<void>;
   overwriteVersion(): Promise<void>;
   loadVersion(designId: number, versionNumber: number): Promise<void>;
+  openTemplate(template: TemplateDetail): void;
   deleteDesign(id: number): Promise<void>;
   renameDesign(id: number, newName: string): Promise<void>;
   fetchVersions(designId: number): Promise<void>;
@@ -107,6 +109,20 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     });
     const designName = get().designs.find(d => d.id === designId)?.name ?? '';
     set({ activeDesignId: designId, activeDesignName: designName, activeVersionNumber: versionNumber });
+  },
+
+  // A template opens as a new design: nothing is saved until the user saves it under their own name
+  openTemplate(template: TemplateDetail) {
+    useDesignerStore.getState().closePreview();
+    useDesignerStore.setState({
+      elements: template.elements,
+      zplCode: template.zpl,
+      labelWidth: template.labelWidth,
+      labelHeight: template.labelHeight,
+      selectedId: null,
+      selectedIds: [],
+    });
+    set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [] });
   },
 
   async renameDesign(id: number, newName: string) {

@@ -9,6 +9,7 @@ import { proxyLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 import { zplRouter } from './routes/zpl';
 import { designsRouter } from './routes/designs';
+import { templatesRouter } from './routes/templates';
 import { healthRouter } from './routes/health';
 import logger from './logger';
 import { FRONTEND_URL, isProduction, MAX_BODY_SIZE } from './config';
@@ -46,6 +47,7 @@ app.use(cookieParser());
 app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);                         // public; limiters applied per-route
 app.use('/api/designs', authenticate, designsRouter);     // protected
+app.use('/api/templates', authenticate, templatesRouter); // protected; changes need is_admin
 app.use('/api', authenticate, proxyLimiter, zplRouter);   // protected, rate-limited
 
 if (isProduction) {

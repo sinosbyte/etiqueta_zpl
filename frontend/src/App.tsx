@@ -14,8 +14,9 @@ import { useAuthStore } from './store/useAuthStore';
 import { useDesignsStore } from './store/useDesignsStore';
 import { LoginPage } from './pages/LoginPage';
 import { MyDesignsPage } from './pages/MyDesignsPage';
+import { TemplatesPage } from './pages/TemplatesPage';
 
-type View = 'designer' | 'my-designs';
+type View = 'designer' | 'my-designs' | 'templates';
 
 export default function App() {
   const { activeTab, previewUrl, previewLoading, previewError } = useDesignerStore();
@@ -30,13 +31,15 @@ export default function App() {
     content = <LoginPage />;
   } else if (currentView === 'my-designs') {
     content = <MyDesignsPage onBack={() => setCurrentView('designer')} />;
+  } else if (currentView === 'templates') {
+    content = <TemplatesPage onBack={() => setCurrentView('designer')} />;
   } else {
     content = (
       <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--chrome-bg)' }}>
         <KeyboardShortcuts />
         <Toolbar onNavigateToMyDesigns={() => setCurrentView('my-designs')} />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar onNavigateToMyDesigns={() => setCurrentView('my-designs')} />
+          <Sidebar onNavigateToMyDesigns={() => setCurrentView('my-designs')} onNavigateToTemplates={() => setCurrentView('templates')} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <TabSwitcher />
             <div className="flex flex-1 overflow-hidden">
