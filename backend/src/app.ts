@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { authRouter } from './routes/auth';
 import { authenticate } from './middleware/authenticate';
-import { proxyLimiter } from './middleware/rateLimit';
+import { proxyLimiter, templatesLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 import { zplRouter } from './routes/zpl';
 import { designsRouter } from './routes/designs';
@@ -47,7 +47,7 @@ app.use(cookieParser());
 app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);                         // public; limiters applied per-route
 app.use('/api/designs', authenticate, designsRouter);     // protected
-app.use('/api/templates', authenticate, templatesRouter); // protected; changes need is_admin
+app.use('/api/templates', authenticate, templatesLimiter, templatesRouter); // protected; changes need is_admin
 app.use('/api', authenticate, proxyLimiter, zplRouter);   // protected, rate-limited
 
 if (isProduction) {
