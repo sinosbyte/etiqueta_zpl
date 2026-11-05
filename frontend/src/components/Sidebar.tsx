@@ -92,9 +92,10 @@ const PALETTE: { type: ElementType; label: MessageKey; icon: React.ReactNode }[]
 
 interface Props {
   onNavigateToMyDesigns(): void;
+  onNavigateToTemplates(): void;
 }
 
-export function Sidebar({ onNavigateToMyDesigns }: Props) {
+export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates }: Props) {
   const { addElement, activeTab, elements, clearAll, labelWidth, labelHeight } = useDesignerStore();
   const t = useT();
 
@@ -221,6 +222,41 @@ export function Sidebar({ onNavigateToMyDesigns }: Props) {
       <div style={{ flex: 1 }} />
 
       <div style={{ height: 1, background: 'var(--chrome-border)', margin: '4px 6px 8px' }} />
+      <button
+        onClick={onNavigateToTemplates}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '7px 10px',
+          borderRadius: 6,
+          border: '1px solid transparent',
+          background: 'transparent',
+          color: 'var(--chrome-text-muted)',
+          fontSize: 12,
+          fontWeight: 500,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          width: '100%',
+          transition: 'background 0.1s, color 0.1s',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--chrome-elevated)';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text)';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text-muted)';
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/>
+          <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/>
+          <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/>
+          <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/>
+        </svg>
+        {t('sidebar.templates')}
+      </button>
       <button
         onClick={onNavigateToMyDesigns}
         style={{

@@ -1,9 +1,10 @@
-import { pgTable, serial, text, integer, timestamp, unique, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, timestamp, unique, jsonb, index, boolean } from 'drizzle-orm/pg-core';
 
 export const usersTable = pgTable('users', {
   id: serial('id').primaryKey(),
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  isAdmin: boolean('is_admin').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -34,3 +35,16 @@ export const designVersionsTable = pgTable('design_versions', {
   labelHeight: integer('label_height').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [unique().on(t.designId, t.versionNumber)]);
+
+export const templatesTable = pgTable('templates', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  description: text('description').notNull().default(''),
+  zpl: text('zpl').notNull(),
+  elementsJson: jsonb('elements_json').notNull().$type<object[]>(),
+  labelWidth: integer('label_width').notNull(),
+  labelHeight: integer('label_height').notNull(),
+  createdBy: integer('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
