@@ -9,6 +9,8 @@ import { JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRES_IN, REFRESH_TOKEN_TTL_MS } from 
 export interface JwtPayload {
   userId: number;
   username: string;
+  /** Set only when the request was authenticated with an integration token (read-only). Never part of a JWT. */
+  viaToken?: boolean;
 }
 
 export interface TokenPair {

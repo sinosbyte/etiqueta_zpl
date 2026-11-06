@@ -93,3 +93,16 @@ export const templatesLimiter = rateLimit({
   message: { error: 'Too many requests, please slow down' },
   skip: () => isTest,
 });
+
+/**
+ * Limiter for the token-management endpoints (create, list, revoke). 60 requests / min / IP.
+ * Placed before authenticate, which is where CodeQL looks for it.
+ */
+export const tokensLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
+  skip: () => isTest,
+});

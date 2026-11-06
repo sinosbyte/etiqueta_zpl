@@ -48,3 +48,16 @@ export const templatesTable = pgTable('templates', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+export const apiTokensTable = pgTable('api_tokens', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  // Keyed hash (HMAC-SHA256, hex) of the raw token: the raw token is shown once at creation and never stored.
+  tokenHash: text('token_hash').notNull().unique(),
+  prefix: text('prefix').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at'),
+  expiresAt: timestamp('expires_at'),
+  revokedAt: timestamp('revoked_at'),
+}, (t) => [index('idx_api_tokens_user_id').on(t.userId)]);

@@ -27,6 +27,10 @@ const UpdateSchema = z.object({
 
 /** Only Sinosbyte administrators may change the templates. */
 async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.user!.viaToken) {
+    res.status(403).json({ error: 'API tokens are read-only' });
+    return;
+  }
   try {
     if (await isAdmin(req.user!.userId)) { next(); return; }
     res.status(403).json({ error: 'Administrator access required' });

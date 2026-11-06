@@ -5,11 +5,12 @@ import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { authRouter } from './routes/auth';
 import { authenticate } from './middleware/authenticate';
-import { proxyLimiter, templatesLimiter } from './middleware/rateLimit';
+import { proxyLimiter, templatesLimiter, tokensLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 import { zplRouter } from './routes/zpl';
 import { designsRouter } from './routes/designs';
 import { templatesRouter } from './routes/templates';
+import { tokensRouter } from './routes/tokens';
 import { healthRouter } from './routes/health';
 import logger from './logger';
 import { FRONTEND_URL, isProduction, MAX_BODY_SIZE } from './config';
@@ -48,6 +49,7 @@ app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);                         // public; limiters applied per-route
 app.use('/api/designs', authenticate, designsRouter);     // protected
 app.use('/api/templates', templatesLimiter, authenticate, templatesRouter); // protected; changes need is_admin
+app.use('/api/tokens', tokensLimiter, authenticate, tokensRouter); // integration tokens: signed-in session only
 app.use('/api', authenticate, proxyLimiter, zplRouter);   // protected, rate-limited
 
 if (isProduction) {
