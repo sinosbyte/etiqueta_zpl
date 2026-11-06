@@ -3,7 +3,8 @@ import { DndContext, DragEndEvent, DragMoveEvent, DragStartEvent, Modifier, useD
 import { useShallow } from 'zustand/react/shallow';
 import { snapContext, useDesignerStore } from '../store/useDesignerStore';
 import { Guide, snapMove, unionBox } from '../utils/snap';
-import { dotsToMm, ZOOM_100 } from '../utils/units';
+import { ZOOM_100 } from '../utils/units';
+import { useMeasure } from '../store/useUnitStore';
 import { elementBox } from '../utils/zplText';
 import { DesignElement, isRawField } from '../types';
 import { ResizeHandle } from './ResizeHandle';
@@ -23,6 +24,7 @@ const GUIDE_COLOR = '#ec4899';
 
 // Equal-spacing marker: a line across the gap with end ticks and its size in mm
 function GapMarker({ guide: g, zoom }: { guide: Guide; zoom: number }) {
+  const m = useMeasure();
   const horizontal = g.axis === 'x';
   const length = (g.to - g.from) * zoom;
   return (
@@ -66,7 +68,7 @@ function GapMarker({ guide: g, zoom }: { guide: Guide; zoom: number }) {
           whiteSpace: 'nowrap',
         }}
       >
-        {dotsToMm(g.to - g.from).toLocaleString()} mm
+        {m.show(g.to - g.from).toLocaleString()} {m.short}
       </span>
     </div>
   );

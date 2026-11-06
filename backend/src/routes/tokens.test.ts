@@ -105,11 +105,33 @@ describe('managing tokens', () => {
     await request(app).get('/api/designs').set(bearer(aliceToken)).expect(200);   // still valid
   });
 
+  test('deletes a token for good, active or revoked; only its owner can', async () => {
+    const token = await newToken(guest, 'to delete');
+    const guestTokenId = guest.tokenId!;
+    // someone else cannot, and it still works
+    await request(app).delete(`/api/tokens/${guestTokenId}/permanent`).set(bearer(owner.jwt)).expect(404);
+    await request(app).get('/api/designs').set(bearer(token)).expect(200);
+    // the owner can: it leaves the list and stops working
+    await request(app).delete(`/api/tokens/${guestTokenId}/permanent`).set(bearer(guest.jwt)).expect(204);
+    const list = await request(app).get('/api/tokens').set(bearer(guest.jwt)).expect(200);
+    expect(list.body.items).toHaveLength(0);
+    await request(app).get('/api/designs').set(bearer(token)).expect(401);
+    await request(app).delete(`/api/tokens/${guestTokenId}/permanent`).set(bearer(guest.jwt)).expect(404);
+
+    // a revoked token can be deleted as well
+    await newToken(guest, 'revoked one');
+    await request(app).delete(`/api/tokens/${guest.tokenId}`).set(bearer(guest.jwt)).expect(204);
+    await request(app).delete(`/api/tokens/${guest.tokenId}/permanent`).set(bearer(guest.jwt)).expect(204);
+    await request(app).delete('/api/tokens/abc/permanent').set(bearer(guest.jwt)).expect(400);
+    await request(app).delete('/api/tokens/1/permanent').expect(401);
+  });
+
   test('a token cannot manage tokens', async () => {
     const token = await newToken(guest);
     await request(app).get('/api/tokens').set(bearer(token)).expect(403);
     await request(app).post('/api/tokens').set(bearer(token)).send({ name: 'minted' }).expect(403);
     await request(app).delete(`/api/tokens/${guest.tokenId}`).set(bearer(token)).expect(403);
+    await request(app).delete(`/api/tokens/${guest.tokenId}/permanent`).set(bearer(token)).expect(403);
   });
 });
 

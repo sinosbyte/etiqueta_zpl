@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ZPL_FONTS } from '../utils/zplFonts';
-import { mmToDots, dotsToMm } from '../utils/units';
+import { useMeasure } from '../store/useUnitStore';
 import { extractVariables } from '../utils/variables';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
 import { CODE128_PLACEHOLDER_CHARS, barWidthPatch, code128Value, expectedCharsPatch, resizeCode128Patch } from '../utils/code128';
@@ -15,6 +15,7 @@ import { t as translate, useT, MessageKey } from '../i18n';
 
 export function PropertiesPanel() {
   const t = useT();
+  const m = useMeasure();
   const { elements, selectedId, showSamples, sampleValues, labelWidth, labelHeight, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
   const el = elements.find(e => e.id === selectedId);
 
@@ -226,27 +227,27 @@ export function PropertiesPanel() {
       {/* Position & size */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
         <div>
-          <label style={labelStyle}>X mm</label>
-          <NumberInput min={0} decimals={3} step={0.5} value={dotsToMm(el.x)}
-            onCommit={mm => updateElement(el.id, { x: mmToDots(mm) })}
+          <label style={labelStyle}>{`X ${m.label}`}</label>
+          <NumberInput key={m.unit} min={0} decimals={m.decimals} step={m.step} value={m.show(el.x)}
+            onCommit={v => updateElement(el.id, { x: m.read(v) })}
           />
         </div>
         <div>
-          <label style={labelStyle}>Y mm</label>
-          <NumberInput min={0} decimals={3} step={0.5} value={dotsToMm(el.y)}
-            onCommit={mm => updateElement(el.id, { y: mmToDots(mm) })}
+          <label style={labelStyle}>{`Y ${m.label}`}</label>
+          <NumberInput key={m.unit} min={0} decimals={m.decimals} step={m.step} value={m.show(el.y)}
+            onCommit={v => updateElement(el.id, { y: m.read(v) })}
           />
         </div>
         <div>
-          <label style={labelStyle}>W mm</label>
-          <NumberInput min={0.1} decimals={3} step={0.5} value={dotsToMm(box.width)}
-            onCommit={mm => setSize({ width: Math.max(1, mmToDots(mm)) })}
+          <label style={labelStyle}>{`W ${m.label}`}</label>
+          <NumberInput key={m.unit} min={m.min} decimals={m.decimals} step={m.step} value={m.show(box.width)}
+            onCommit={v => setSize({ width: Math.max(1, m.read(v)) })}
           />
         </div>
         <div>
-          <label style={labelStyle}>H mm</label>
-          <NumberInput min={0.1} decimals={3} step={0.5} value={dotsToMm(box.height)}
-            onCommit={mm => setSize({ height: Math.max(1, mmToDots(mm)) })}
+          <label style={labelStyle}>{`H ${m.label}`}</label>
+          <NumberInput key={m.unit} min={m.min} decimals={m.decimals} step={m.step} value={m.show(box.height)}
+            onCommit={v => setSize({ height: Math.max(1, m.read(v)) })}
           />
         </div>
       </div>
@@ -257,9 +258,9 @@ export function PropertiesPanel() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
           {!el.filled && (
             <div>
-              <label style={labelStyle}>{t('panel.border')}</label>
-              <NumberInput min={0.1} decimals={3} step={0.5} value={dotsToMm(el.thickness ?? 8)}
-                onCommit={mm => updateElement(el.id, { thickness: Math.max(1, mmToDots(mm)) })}
+              <label style={labelStyle}>{`${t('panel.border')} ${m.label}`}</label>
+              <NumberInput key={m.unit} min={m.min} decimals={m.decimals} step={m.step} value={m.show(el.thickness ?? 8)}
+                onCommit={v => updateElement(el.id, { thickness: Math.max(1, m.read(v)) })}
               />
             </div>
           )}

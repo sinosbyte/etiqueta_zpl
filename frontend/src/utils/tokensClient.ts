@@ -22,3 +22,5 @@ export const apiCreateToken = (name: string, expiresInDays?: number): Promise<Cr
   apiFetch('/api/tokens', { method: 'POST', body: JSON.stringify({ name, ...(expiresInDays ? { expiresInDays } : {}) }) });
 
 export const apiRevokeToken = (id: number): Promise<void> => apiFetch(`/api/tokens/${id}`, { method: 'DELETE' });
+
+export const apiDeleteToken = (id: number): Promise<void> => apiFetch(`/api/tokens/${id}/permanent`, { method: 'DELETE' });
