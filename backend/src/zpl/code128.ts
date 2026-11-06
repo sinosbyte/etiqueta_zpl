@@ -25,11 +25,36 @@ export function splitCode128Start(data: string): { codeSet?: Code128Set; value: 
 export const CODE128_PLACEHOLDER_CHARS = 12;
 
 /**
- * Symbol length in modules: 11 per symbol plus start (11), check (11) and
- * stop (13). Subset C packs two digits per symbol.
+ * Symbols printed in mode A (automatic): a run of digits is packed in subset C,
+ * two digits per symbol, when it has 4 or more at the start or end of the data
+ * and 6 or more in the middle. Entering and leaving subset C costs one symbol
+ * each, and an odd digit left over costs a switch and a symbol. An estimate:
+ * the printer decides the final packing.
  */
-export function code128Modules(value: string, codeSet?: Code128Set): number {
-  const chars = value.includes('{{') ? CODE128_PLACEHOLDER_CHARS : value.length || 8;
+export function code128AutoSymbols(value: string): number {
+  const parts = value.match(/\d+|\D/g) ?? [];
+  let symbols = 0;
+  parts.forEach((part, i) => {
+    if (!/^\d/.test(part)) { symbols += 1; return; }
+    const first = i === 0;
+    const last = i === parts.length - 1;
+    if (part.length < (first || last ? 4 : 6)) { symbols += part.length; return; }
+    symbols += Math.floor(part.length / 2) + (part.length % 2) * 2 + (first ? 0 : 1) + (last ? 0 : 1);
+  });
+  return symbols;
+}
+
+/**
+ * Symbol length in modules: 11 per symbol plus start (11), check (11) and
+ * stop (13). Subset C packs two digits per symbol. In mode A a {{variable}}
+ * is assumed to be digits, the case where the packing matters.
+ */
+export function code128Modules(
+  value: string, codeSet?: Code128Set, placeholderChars = CODE128_PLACEHOLDER_CHARS, auto = false,
+): number {
+  const placeholder = value.includes('{{');
+  const chars = placeholder ? placeholderChars : value.length || 8;
+  if (auto) return 11 * code128AutoSymbols(placeholder || !value ? '0'.repeat(chars) : value) + 35;
   const symbols = codeSet === 'C' ? Math.ceil(chars / 2) : chars;
   return 11 * symbols + 35;
 }

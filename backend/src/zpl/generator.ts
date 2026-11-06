@@ -92,10 +92,12 @@ export function generateZpl(req: GenerateRequest): string {
         // Elements without a stored ^BY derive it from the width:
         // Code128 total modules = 11*(chars+2 start/check) + 13 stop = 11*chars + 35
         const moduleWidth = el.moduleWidth ?? Math.max(1, Math.floor(el.width / (11 * (value.length || 8) + 35)));
-        const start = el.codeSet ? CODE128_START[el.codeSet] : '';
+        // Mode A packs digits in subset C by itself; the start codes are for mode N
+        const start = !el.codeAuto && el.codeSet ? CODE128_START[el.codeSet] : '';
+        const mode = el.codeAuto ? ',A' : '';
         // ^FO is the top-left of the bars, also when rotated; the digits print outside them
         lines.push(
-          `${fo}${fr}^BY${moduleWidth}^BC${el.orientation ?? 'N'},${el.height},${yn(el.printLine ?? true)},N,N` +
+          `${fo}${fr}^BY${moduleWidth}^BC${el.orientation ?? 'N'},${el.height},${yn(el.printLine ?? true)},N,N${mode}` +
           `^FD${start}${value}^FS`,
         );
         break;

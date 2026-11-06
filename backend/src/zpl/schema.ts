@@ -35,6 +35,7 @@ export const ElementSchema = z.object({
   ratio: z.number().positive().optional(),
   printLine: z.boolean().optional(),
   codeSet: z.enum(['A', 'B', 'C']).optional(),
+  codeAuto: z.boolean().optional(),
   lineAbove: z.boolean().optional(),
   checkDigit: z.boolean().optional(),
   dynamic: z.boolean().optional(),
