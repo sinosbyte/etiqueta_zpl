@@ -1,6 +1,7 @@
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://localhost/etiqueta_test';
 process.env.JWT_SECRET = 'test-secret';
 
+import crypto from 'crypto';
 import { sql } from 'drizzle-orm';
 import { initDb, _resetDb, getDb } from '../db/database';
 import { apiTokensTable, designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
@@ -35,7 +36,7 @@ afterAll(async () => {
 });
 
 describe('createToken', () => {
-  test('returns a zpd_ token and stores only its SHA-256 hash', async () => {
+  test('returns a zpd_ token and stores only its keyed hash', async () => {
     const { token, summary } = await createToken(aliceId, 'SAP A4H');
     expect(token.startsWith(TOKEN_PREFIX)).toBe(true);
     expect(token.length).toBeGreaterThan(40);
@@ -47,6 +48,15 @@ describe('createToken', () => {
     expect(rows[0].tokenHash).toMatch(/^[0-9a-f]{64}$/);
     // the raw token is nowhere in the table
     expect(JSON.stringify(rows)).not.toContain(token);
+  });
+
+  test('the stored hash is keyed: it is not the plain SHA-256 of the token', async () => {
+    const { token } = await createToken(aliceId, 'sap');
+    const [row] = await getDb().select().from(apiTokensTable);
+    const plain = crypto.createHash('sha256').update(token).digest('hex');
+    expect(row.tokenHash).not.toBe(plain);
+    // and it is stable: the same token still authenticates
+    await expect(authenticateToken(token)).resolves.toEqual({ userId: aliceId, username: 'alice' });
   });
 
   test('two tokens are never equal', async () => {

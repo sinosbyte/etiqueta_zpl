@@ -327,7 +327,7 @@ The app uses a **dual-token scheme**:
 | `POST` | `/api/tokens` | Create an integration token. Body: `{ name, expiresInDays? }`. The response is the only time the token is shown |
 | `DELETE` | `/api/tokens/:id` | Revoke one of the caller's tokens |
 
-**Integration tokens** (`zpd_…`) are personal, read-only credentials for other systems such as the SAP: sent as `Authorization: Bearer zpd_…` or as the password of an HTTP Basic header, they can only `GET /api/designs*` and `GET /api/templates*`; anything else returns 403, and they never grant owner permissions. Only the SHA-256 hash is stored.
+**Integration tokens** (`zpd_…`) are personal, read-only credentials for other systems such as the SAP: sent as `Authorization: Bearer zpd_…` or as the password of an HTTP Basic header, they can only `GET /api/designs*` and `GET /api/templates*`; anything else returns 403, and they never grant owner permissions. Only a keyed hash (HMAC-SHA256 with a key derived from `JWT_SECRET`) is stored; changing `JWT_SECRET` invalidates the tokens.
 
 ---
 

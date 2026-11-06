@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/database';
 import { apiTokensTable, usersTable } from '../db/schema';
+import { JWT_SECRET } from '../config';
 
 /** Every integration token starts with this, so it is easy to recognise (and to scan for in leaks). */
 export const TOKEN_PREFIX = 'zpd_';
@@ -31,13 +32,18 @@ export interface TokenOwner {
   username: string;
 }
 
-const hashToken = (raw: string): string => crypto.createHash('sha256').update(raw).digest('hex');
+// Tokens are 256 random bits, so a fast keyed hash is the right tool (a slow password hash adds nothing).
+// HMAC-SHA256 with a key derived from the server secret: a leaked database alone cannot be used to check
+// guesses, and the key is separate from the one that signs JWTs. Changing JWT_SECRET invalidates the tokens.
+const HASH_KEY = Buffer.from(crypto.hkdfSync('sha256', JWT_SECRET, '', 'zpl-api-token-hash', 32));
+
+const hashToken = (raw: string): string => crypto.createHmac('sha256', HASH_KEY).update(raw).digest('hex');
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 
 /**
  * Creates a token for the user and returns it. This is the ONLY time the raw token exists:
- * the database keeps its SHA-256 hash. Throws TOKEN_LIMIT past MAX_ACTIVE_TOKENS.
+ * the database keeps only its keyed hash (HMAC-SHA256). Throws TOKEN_LIMIT past MAX_ACTIVE_TOKENS.
  */
 export async function createToken(
   userId: number,

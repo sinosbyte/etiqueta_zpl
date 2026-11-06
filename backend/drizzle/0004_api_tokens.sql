@@ -1,4 +1,4 @@
--- Personal integration tokens (SAP and other clients). Only the SHA-256 hash is stored.
+-- Personal integration tokens (SAP and other clients). Only a keyed hash (HMAC-SHA256) is stored.
 CREATE TABLE IF NOT EXISTS "api_tokens" (
   "id" serial PRIMARY KEY NOT NULL,
   "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
