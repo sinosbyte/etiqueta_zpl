@@ -10,6 +10,38 @@ interface Props {
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
 
+/**
+ * Copies text to the clipboard. Pages served over plain HTTP (as the app is on the internal network)
+ * have no navigator.clipboard, so fall back to selecting a hidden field and the old copy command.
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // falls through to the old way
+  }
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.setAttribute('readonly', '');
+  field.style.position = 'fixed';
+  field.style.top = '0';
+  field.style.left = '0';
+  field.style.opacity = '0';
+  document.body.appendChild(field);
+  field.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(field);
+  return ok;
+}
+
 export function TokensPage({ onBack }: Props) {
   const t = useT();
   const [tokens, setTokens] = useState<TokenSummary[]>([]);
@@ -35,6 +67,12 @@ export function TokensPage({ onBack }: Props) {
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Coming back to the page (e.g. from the SAP window) shows the latest "last used"
+  useEffect(() => {
+    window.addEventListener('focus', load);
+    return () => window.removeEventListener('focus', load);
+  }, [load]);
+
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -53,12 +91,8 @@ export function TokensPage({ onBack }: Props) {
 
   const copy = async () => {
     if (!created) return;
-    try {
-      await navigator.clipboard.writeText(created.token);
-      setCopied(true);
-    } catch {
-      toast.error(t('tokens.copyFailed'));
-    }
+    if (await copyText(created.token)) setCopied(true);
+    else toast.error(t('tokens.copyFailed'));
   };
 
   const revoke = async (token: TokenSummary) => {
@@ -143,8 +177,8 @@ export function TokensPage({ onBack }: Props) {
             <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--chrome-text)', marginBottom: 6 }}>{t('tokens.copyNow')}</p>
             <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)', marginBottom: 10 }}>{t('tokens.copyNowHelp')}</p>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <code style={{
-                flex: 1, fontSize: 12, padding: '8px 10px', borderRadius: 6, wordBreak: 'break-all',
+              <code onClick={e => window.getSelection()?.selectAllChildren(e.currentTarget)} style={{
+                flex: 1, fontSize: 12, padding: '8px 10px', borderRadius: 6, wordBreak: 'break-all', userSelect: 'all',
                 background: 'var(--chrome-bg)', border: '1px solid var(--chrome-border)', color: 'var(--chrome-text)',
               }}>{created.token}</code>
               <button onClick={copy} className="chrome-btn chrome-btn-primary" style={{ fontSize: 12 }}>
