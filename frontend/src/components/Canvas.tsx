@@ -18,7 +18,9 @@ import { ImageElement } from './elements/ImageElement';
 import { usePanning } from '../hooks/usePanning';
 import { useElementResize } from '../hooks/useElementResize';
 import { extractVariables, substituteVariables } from '../utils/variables';
-import { useT } from '../i18n';
+import { useT, t as translate } from '../i18n';
+import { barcodeFit } from '../utils/barcodeFit';
+import { turnedSize } from '../utils/rotation';
 
 const GUIDE_COLOR = '#ec4899';
 
@@ -117,6 +119,13 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
   const isSelected = selectedId === element.id;
   const isInSelection = selectedIds.includes(element.id);
 
+  // A Code 128 with a {{variable}} that could print over something or past the label:
+  // its printed length (0 = no problem), drawn as a dashed red box
+  const misfitLength = useDesignerStore(s => {
+    const fit = barcodeFit(element, s.elements, s.sampleValues, s.showSamples, s.labelWidth, s.labelHeight);
+    return fit && (fit.overlaps.length > 0 || fit.outside) ? fit.length : 0;
+  });
+
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: element.id });
   const { handleResizeStart, handleResize, handleResizeEnd } = useElementResize(element, scale, updateElement);
 
@@ -164,6 +173,16 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
       onKeyDown={e => { if (e.key === 'Delete' && isSelected) deleteElement(element.id); }}
     >
       <ElementRenderer element={element} scale={scale} />
+      {misfitLength > 0 && (
+        <div
+          title={translate('canvas.barcodeMisfit')}
+          style={{
+            position: 'absolute', left: 0, top: 0, pointerEvents: 'none', boxSizing: 'border-box',
+            border: '2px dashed #dc2626', background: 'rgba(220, 38, 38, 0.08)',
+            ...(() => { const s = turnedSize(element.orientation, misfitLength, element.height); return { width: s.width * scale, height: s.height * scale }; })(),
+          }}
+        />
+      )}
       {isSelected && (
         <>
           {(['n','s','e','w','ne','nw','se','sw'] as const).map(d => (

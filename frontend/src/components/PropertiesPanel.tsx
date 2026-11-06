@@ -4,7 +4,10 @@ import { ZPL_FONTS } from '../utils/zplFonts';
 import { useMeasure } from '../store/useUnitStore';
 import { extractVariables } from '../utils/variables';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
-import { CODE128_PLACEHOLDER_CHARS, barWidthPatch, code128Value, expectedCharsPatch, resizeCode128Patch } from '../utils/code128';
+import {
+  CODE128_PLACEHOLDER_CHARS, Code128Mode, barWidthPatch, code128ModePatch, code128Value, expectedCharsPatch, resizeCode128Patch,
+} from '../utils/code128';
+import { barcodeFit } from '../utils/barcodeFit';
 import { NumberInput } from './NumberInput';
 import { Orientation } from '../types';
 import {
@@ -71,6 +74,8 @@ export function PropertiesPanel() {
   // A Code 128 is as wide as its bars: W changes the bar width (^BY).
   const samples = showSamples ? sampleValues : null;
   const box = elementBox(el, samples);
+  // Where a Code 128 with a {{variable}} would print, for the warning
+  const fit = barcodeFit(el, elements, sampleValues, showSamples, labelWidth, labelHeight);
   // An image keeps its proportions.
   const sizedByFont = el.type === 'text' && !el.block;
   const sizedByBars = el.type === 'barcode128' && !!el.moduleWidth;
@@ -426,6 +431,23 @@ export function PropertiesPanel() {
               {reverseControl}
               {sizedByBars && (
                 <>
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={labelStyle} title={t('panel.codeModeTitle')}>{t('panel.codeMode')}</label>
+                    <select
+                      className="chrome-input"
+                      value={el.codeAuto ? 'A' : el.codeSet ? 'M' : 'N'}
+                      onChange={e => updateElement(el.id, code128ModePatch(el, e.target.value as Code128Mode, samples))}
+                    >
+                      <option value="N">{t('panel.codeModeN')}</option>
+                      <option value="A">{t('panel.codeModeA')}</option>
+                      {el.codeSet && !el.codeAuto && <option value="M" disabled>{t('panel.codeModeManual')}</option>}
+                    </select>
+                    {el.codeAuto && (
+                      <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', margin: '4px 0 0', lineHeight: 1.5 }}>
+                        {t('panel.codeModeNote')}
+                      </p>
+                    )}
+                  </div>
                   {/* The length is bar width x symbol length: W follows from these two */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                     <div>
@@ -434,7 +456,7 @@ export function PropertiesPanel() {
                         onCommit={moduleWidth => updateElement(el.id, barWidthPatch(el, moduleWidth, samples))}
                       />
                     </div>
-                    {code128Value(el, samples).includes('{{') && (
+                    {code128Value(el).includes('{{') && (
                       <div>
                         <label style={labelStyle} title={t('panel.charactersTitle')}>{t('panel.characters')}</label>
                         <NumberInput min={1} max={60} decimals={0}
@@ -444,7 +466,33 @@ export function PropertiesPanel() {
                       </div>
                     )}
                   </div>
-                  {code128Value(el, samples).includes('{{') && (
+                  {fit && fit.sampleChars > 0 && Math.min(60, fit.sampleChars) !== (el.expectedChars ?? CODE128_PLACEHOLDER_CHARS) && (
+                    <button
+                      className="chrome-btn chrome-btn-ghost"
+                      style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                      title={t('panel.charsUseSampleTitle')}
+                      onClick={() => updateElement(el.id, expectedCharsPatch(el, Math.min(60, fit.sampleChars), samples))}
+                    >
+                      {t('panel.charsUseSample', { n: Math.min(60, fit.sampleChars) })}
+                    </button>
+                  )}
+                  {fit && (fit.overlaps.length > 0 || fit.outside) && (
+                    <div
+                      role="alert"
+                      style={{
+                        fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 6, marginBottom: 8,
+                        background: 'rgba(220, 38, 38, 0.12)', border: '1px solid rgba(220, 38, 38, 0.45)',
+                        color: 'var(--chrome-text)',
+                      }}
+                    >
+                      {t(fit.overlaps.length > 0 ? 'panel.fitOverlap' : 'panel.fitOutside', {
+                        n: fit.chars,
+                        size: `${m.show(fit.length).toLocaleString()} ${m.short}`,
+                      })}{' '}
+                      {t(el.codeAuto ? 'panel.fitHintA' : 'panel.fitHintN')}
+                    </div>
+                  )}
+                  {code128Value(el).includes('{{') && (
                     <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, lineHeight: 1.5 }}>
                       {t('panel.widthNote')}
                     </p>

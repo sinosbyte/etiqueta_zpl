@@ -38,6 +38,7 @@ export interface DesignElement {
   ratio?: number;             // barcodeI2of5 ^BY wide-to-narrow ratio
   printLine?: boolean;        // barcode interpretation line; omitted = true
   codeSet?: 'A' | 'B' | 'C';  // barcode128 start code in ^FD (>9, >:, >;); omitted = none
+  codeAuto?: boolean;         // barcode128 mode A (^BC ...,A): the printer packs digit runs in subset C; omitted = mode N
   lineAbove?: boolean;
   checkDigit?: boolean;
   dynamic?: boolean;

@@ -39,6 +39,7 @@ export interface Element {
   ratio?: number;             // barcodeI2of5 ^BY wide-to-narrow ratio
   printLine?: boolean;        // barcode interpretation line below the bars; omitted = true
   codeSet?: 'A' | 'B' | 'C';  // barcode128 start code in ^FD (>9, >:, >;); omitted = none
+  codeAuto?: boolean;         // barcode128 mode A (^BC ...,A): the printer packs digit runs in subset C; omitted = mode N
   lineAbove?: boolean;        // barcodeI2of5 interpretation line above the bars
   checkDigit?: boolean;       // barcodeI2of5 Mod 10 check digit
   dynamic?: boolean;

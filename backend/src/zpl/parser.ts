@@ -114,7 +114,7 @@ export function parseZpl(zpl: string): ParseResult {
   // ^GFA graphic read in this field
   let pendingGraphic: { bytesPerRow: number; rows: number; data: string } | null = null;
   // Pending barcode command (set between ^FO and ^FD)
-  type PendingBarcode = { kind: 'bc128'; orientation: Orientation; height: number; printLine: boolean; moduleWidth: number } |
+  type PendingBarcode = { kind: 'bc128'; orientation: Orientation; height: number; printLine: boolean; moduleWidth: number; codeAuto: boolean } |
                         { kind: 'bqr';   orientation: string; model: number; mag: number } |
                         { kind: 'i2of5'; orientation: Orientation; height: number; printLine: boolean;
                           lineAbove: boolean; checkDigit: boolean; moduleWidth: number; ratio: number };
@@ -303,11 +303,11 @@ export function parseZpl(zpl: string): ParseResult {
           const height = (p[1] !== undefined && p[1].trim() !== '') ? parseInt(p[1], 10) || byHeight : byHeight;
           const printLine = (p[2] ?? 'Y').trim().toUpperCase() !== 'N';
           const mode = (p[5] ?? '').trim().toUpperCase();
-          // The generator emits ^BC{orientation},h,Y|N,N,N — anything else stays raw
-          if (!ORIENTATIONS.has(orientation) || isYes(p[3]) || isYes(p[4]) || (mode !== '' && mode !== 'N')) {
+          // The generator emits ^BC{orientation},h,Y|N,N,N[,A] — anything else stays raw
+          if (!ORIENTATIONS.has(orientation) || isYes(p[3]) || isYes(p[4]) || (mode !== '' && mode !== 'N' && mode !== 'A')) {
             fieldEditable = false;
           }
-          pendingBarcode = { kind: 'bc128', orientation, height, printLine, moduleWidth: byModuleWidth };
+          pendingBarcode = { kind: 'bc128', orientation, height, printLine, moduleWidth: byModuleWidth, codeAuto: mode === 'A' };
           break;
         }
 
@@ -389,7 +389,10 @@ export function parseZpl(zpl: string): ParseResult {
 
           // Code 128 data may start with a start code (>: etc.); other invocation codes stay raw
           let code128Set: Code128Set | undefined;
-          if (fieldEditable && pendingBarcode?.kind === 'bc128') {
+          if (fieldEditable && pendingBarcode?.kind === 'bc128' && pendingBarcode.codeAuto) {
+            // Mode A takes plain data: invocation codes belong to mode N
+            if (fieldData.includes('>')) fieldEditable = false;
+          } else if (fieldEditable && pendingBarcode?.kind === 'bc128') {
             const split = splitCode128Start(fieldData);
             if (split) {
               code128Set = split.codeSet;
@@ -455,13 +458,14 @@ export function parseZpl(zpl: string): ParseResult {
                 type: 'barcode128',
                 x: fieldX,
                 y: fieldY,
-                width: bc.moduleWidth * code128Modules(fieldData, code128Set),
+                width: bc.moduleWidth * code128Modules(fieldData, code128Set, undefined, bc.codeAuto),
                 height: bc.height,
                 value: fieldData,
                 ...(bc.orientation !== 'N' ? { orientation: bc.orientation } : {}),
                 moduleWidth: bc.moduleWidth,
                 ...(bc.printLine ? {} : { printLine: false }),
                 ...(code128Set ? { codeSet: code128Set } : {}),
+                ...(bc.codeAuto ? { codeAuto: true } : {}),
                 ...dyn,
                 ...(fieldReversed ? { reversed: true } : {}),
               });

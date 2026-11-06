@@ -28,7 +28,8 @@ export function BarcodeElement({ element, scale }: Props) {
     try {
       // Without a start code the printer encodes in subset B
       JsBarcode(ref.current, value, {
-        format: CODE128_FORMAT[element.codeSet ?? 'B'],
+        // Mode A: the printer (and JsBarcode's CODE128) pick the subsets by themselves
+        format: element.codeAuto ? 'CODE128' : CODE128_FORMAT[element.codeSet ?? 'B'],
         width: 2,
         height: barsHeight,
         displayValue: false,
@@ -46,7 +47,7 @@ export function BarcodeElement({ element, scale }: Props) {
     } catch (e) {
       // invalid barcode value
     }
-  }, [value, element.codeSet, length, barsHeight, isPlaceholder]);
+  }, [value, element.codeSet, element.codeAuto, length, barsHeight, isPlaceholder]);
 
   const bars = isPlaceholder ? (
     <div
