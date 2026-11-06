@@ -19,6 +19,13 @@
     {
       "idx": 2,
       "version": "7",
+      "when": 1790000000000,
+      "tag": "0002_indexes_and_jsonb",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
       "when": 1793900000000,
       "tag": "0003_templates",
       "breakpoints": true
