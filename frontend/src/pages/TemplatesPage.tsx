@@ -10,6 +10,7 @@ import { DOTS_PER_MM } from '../utils/units';
 import { useT, MessageKey } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { TemplatePreview } from '../components/TemplatePreview';
+import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import { CategoryFilter, TEMPLATE_CATEGORIES } from '../utils/templateCategories';
 
 interface Props {
@@ -64,6 +65,7 @@ export function TemplatesPage({ onBack }: Props) {
   useEffect(() => { if (!tabs.includes(category)) setCategory('all'); }); // eslint-disable-line react-hooks/exhaustive-deps
 
   const use = async (template: TemplateSummary) => {
+    if (!confirmDiscardChanges()) return;
     setBusyId(template.id);
     try {
       openTemplate(await apiGetTemplate(template.id));

@@ -17,11 +17,16 @@ const PaginationSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+// Example value per {{variable}}: names as in the ZPL, a bounded number of short values
+const SampleValuesSchema = z.record(z.string().regex(/^[A-Za-z0-9_]{1,60}$/), z.string().max(255))
+  .refine(values => Object.keys(values).length <= 200, 'Too many sample values');
+
 const VersionPayloadSchema = z.object({
   zpl: z.string().min(1),
   elements: z.array(ElementSchema),
   labelWidth: z.number().positive(),
   labelHeight: z.number().positive(),
+  sampleValues: SampleValuesSchema.optional(),
 });
 
 const CreateDesignSchema = VersionPayloadSchema.extend({

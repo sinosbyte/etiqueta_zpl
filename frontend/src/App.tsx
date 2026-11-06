@@ -12,6 +12,7 @@ import { Toasts } from './components/Toasts';
 import { useDesignerStore } from './store/useDesignerStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useDesignsStore } from './store/useDesignsStore';
+import { useWarnBeforeUnload } from './hooks/useUnsavedChanges';
 import { LoginPage } from './pages/LoginPage';
 import { MyDesignsPage } from './pages/MyDesignsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
@@ -24,6 +25,7 @@ export default function App() {
   const { token } = useAuthStore();
   const { showSaveModal } = useDesignsStore();
   const [currentView, setCurrentView] = useState<View>('designer');
+  useWarnBeforeUnload();
 
   const previewActive = !!(previewUrl || previewLoading || previewError);
 

@@ -8,6 +8,7 @@ import { UnitToggle } from './UnitToggle';
 import { NumberInput } from './NumberInput';
 import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables, substituteVariables } from '../utils/variables';
+import { useIsDirty } from '../hooks/useUnsavedChanges';
 import { GRID_STEPS } from '../utils/snap';
 import { useLangStore, useT } from '../i18n';
 import { LanguageSelect } from './LanguageSelect';
@@ -27,6 +28,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
   const { logout } = useAuthStore();
+  const dirty = useIsDirty();
   const t = useT();
   const lang = useLangStore(s => s.lang);
   const m = useMeasure();
@@ -116,6 +118,18 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
                 {activeDesignName}
               </span>
             </>
+          )}
+          {dirty && (
+            <span
+              title={t('unsaved.title')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+                color: 'var(--status-warning)', border: '1px solid var(--status-warning)', borderRadius: 999, padding: '1px 8px',
+              }}
+            >
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--status-warning)' }} />
+              {t('unsaved.badge')}
+            </span>
           )}
         </div>
 
