@@ -33,6 +33,8 @@ export const designVersionsTable = pgTable('design_versions', {
   elementsJson: jsonb('elements_json').notNull().$type<object[]>(),
   labelWidth: integer('label_width').notNull(),
   labelHeight: integer('label_height').notNull(),
+  // Example value per {{variable}}, for the preview; null when none was saved
+  sampleValues: jsonb('sample_values').$type<Record<string, string>>(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [unique().on(t.designId, t.versionNumber)]);
 

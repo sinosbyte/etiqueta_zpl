@@ -8,6 +8,7 @@ export interface DesignPayload {
   elements: Element[];
   labelWidth: number;
   labelHeight: number;
+  sampleValues?: Record<string, string>;  // example value per {{variable}}; omitted = none
 }
 
 export interface DesignSummary {
@@ -44,6 +45,7 @@ export interface VersionDetail {
   elements: Element[];
   labelWidth: number;
   labelHeight: number;
+  sampleValues: Record<string, string>;
   createdAt: string;
 }
 
@@ -180,6 +182,7 @@ async function insertVersion(designId: number, payload: DesignPayload): Promise<
     elementsJson: payload.elements as object[],
     labelWidth: payload.labelWidth,
     labelHeight: payload.labelHeight,
+    sampleValues: payload.sampleValues ?? null,
   }).returning({ id: designVersionsTable.id });
   await db.update(designsTable).set({ updatedAt: new Date() }).where(eq(designsTable.id, designId));
   return rows[0].id;
@@ -240,6 +243,7 @@ function toVersionDetail(r: typeof designVersionsTable.$inferSelect): VersionDet
     elements: r.elementsJson as unknown as Element[],
     labelWidth: r.labelWidth,
     labelHeight: r.labelHeight,
+    sampleValues: r.sampleValues ?? {},
     createdAt: toIso(r.createdAt),
   };
 }
@@ -260,6 +264,8 @@ export async function updateVersion(
       elementsJson: payload.elements as object[],
       labelWidth: payload.labelWidth,
       labelHeight: payload.labelHeight,
+      // A client that does not send them leaves the saved ones alone
+      ...(payload.sampleValues !== undefined && { sampleValues: payload.sampleValues }),
     })
     .where(and(
       eq(designVersionsTable.designId, designId),

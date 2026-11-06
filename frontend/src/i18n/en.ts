@@ -31,6 +31,9 @@ export const en = {
   'toolbar.export': 'Export',
   'toolbar.exportTitle': 'Export label',
   'toolbar.logout': 'Log out',
+  'unsaved.badge': 'Unsaved',
+  'unsaved.title': 'There are changes that have not been saved yet',
+  'unsaved.confirmDiscard': 'There are unsaved changes in the editor. Continue and discard them?',
   'toolbar.language': 'Language',
   'toolbar.continue': 'Continue',
 

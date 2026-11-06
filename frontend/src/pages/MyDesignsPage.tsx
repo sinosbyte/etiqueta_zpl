@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { apiListVersions, DesignSummary, VersionSummary } from '../utils/designsClient';
 import { t, useT } from '../i18n';
+import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import { LanguageSelect } from '../components/LanguageSelect';
 
 interface Props {
@@ -188,6 +189,7 @@ export function MyDesignsPage({ onBack }: Props) {
   };
 
   const handleOpen = async (design: DesignSummary) => {
+    if (!confirmDiscardChanges()) return;
     setOpeningId(design.id);
     try {
       const { items } = await apiListVersions(design.id, 1, 0);
@@ -198,6 +200,7 @@ export function MyDesignsPage({ onBack }: Props) {
   };
 
   const handleLoadVersion = async (design: DesignSummary, versionNumber: number) => {
+    if (!confirmDiscardChanges()) return;
     setOpeningId(design.id);
     try { await loadVersion(design.id, versionNumber); onBack(); }
     finally { setOpeningId(null); }

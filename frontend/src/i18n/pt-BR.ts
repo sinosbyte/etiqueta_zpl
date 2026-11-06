@@ -33,6 +33,9 @@ export const ptBR: Record<keyof typeof en, string> = {
   'toolbar.export': 'Exportar',
   'toolbar.exportTitle': 'Exportar a etiqueta',
   'toolbar.logout': 'Sair',
+  'unsaved.badge': 'Não salvo',
+  'unsaved.title': 'Há alterações que ainda não foram salvas',
+  'unsaved.confirmDiscard': 'Há alterações não salvas no editor. Continuar e descartá-las?',
   'toolbar.language': 'Idioma',
   'toolbar.continue': 'Continuar',
 

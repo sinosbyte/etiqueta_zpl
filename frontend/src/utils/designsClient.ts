@@ -22,6 +22,7 @@ export interface VersionDetail {
   elements: DesignElement[];
   labelWidth: number;
   labelHeight: number;
+  sampleValues?: Record<string, string>;
   createdAt: string;
 }
 
@@ -30,6 +31,8 @@ export interface DesignPayload {
   elements: DesignElement[];
   labelWidth: number;
   labelHeight: number;
+  /** Example value per {{variable}}; only the ones the design uses */
+  sampleValues?: Record<string, string>;
 }
 
 /** A page of results plus the total count, mirroring the backend envelope. */

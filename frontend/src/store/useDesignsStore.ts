@@ -8,6 +8,7 @@ import {
   DesignSummary, VersionSummary,
 } from '../utils/designsClient';
 import type { TemplateDetail } from '../utils/templatesClient';
+import { EMPTY_SIGNATURE, signatureOf, usedSamples } from '../utils/unsaved';
 
 interface DesignsStore {
   designs: DesignSummary[];
@@ -18,6 +19,7 @@ interface DesignsStore {
   versions: VersionSummary[];
   showSaveModal: boolean;
   error: string;
+  savedSignature: string;  // signatureOf the content last saved, loaded or opened: the editor differs from it = unsaved changes
 
   fetchDesigns(): Promise<void>;
   loadMoreDesigns(): Promise<void>;
@@ -37,6 +39,16 @@ interface DesignsStore {
 
 const DESIGNS_PAGE_SIZE = 24;
 
+// What the editor holds now: the payload to save and its signature
+function editorContent() {
+  const { elements, zplCode: zpl, labelWidth, labelHeight, sampleValues } = useDesignerStore.getState();
+  return {
+    payload: { zpl, elements, labelWidth, labelHeight, sampleValues: usedSamples(elements, sampleValues) },
+    signature: signatureOf(elements, labelWidth, labelHeight, sampleValues),
+  };
+}
+const currentSignature = () => editorContent().signature;
+
 export const useDesignsStore = create<DesignsStore>((set, get) => ({
   designs: [],
   designsTotal: 0,
@@ -46,6 +58,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
   versions: [],
   showSaveModal: false,
   error: '',
+  savedSignature: EMPTY_SIGNATURE,
 
   async fetchDesigns() {
     try {
@@ -67,9 +80,9 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
   },
 
   async saveNewDesign(name: string) {
-    const { elements, zplCode: zpl, labelWidth, labelHeight } = useDesignerStore.getState();
-    const result = await apiCreateDesign(name, { zpl, elements, labelWidth, labelHeight });
-    set({ activeDesignId: result.designId, activeDesignName: name, activeVersionNumber: 1, showSaveModal: false });
+    const { payload, signature } = editorContent();  // what was sent is what counts as saved, even if the user keeps editing meanwhile
+    const result = await apiCreateDesign(name, payload);
+    set({ activeDesignId: result.designId, activeDesignName: name, activeVersionNumber: 1, showSaveModal: false, savedSignature: signature });
     await get().fetchDesigns();
     toast.success(t('toast.designSaved', { name }));
   },
@@ -77,9 +90,9 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
   async saveVersion() {
     const { activeDesignId } = get();
     if (!activeDesignId) return;
-    const { elements, zplCode: zpl, labelWidth, labelHeight } = useDesignerStore.getState();
-    const version = await apiCreateVersion(activeDesignId, { zpl, elements, labelWidth, labelHeight });
-    set({ activeVersionNumber: version.versionNumber });
+    const { payload, signature } = editorContent();
+    const version = await apiCreateVersion(activeDesignId, payload);
+    set({ activeVersionNumber: version.versionNumber, savedSignature: signature });
     await get().fetchDesigns();
     await get().fetchVersions(activeDesignId);
     toast.success(t('toast.versionSaved', { n: version.versionNumber }));
@@ -88,10 +101,9 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
   async overwriteVersion() {
     const { activeDesignId, activeVersionNumber } = get();
     if (!activeDesignId || activeVersionNumber === null) return;
-    const { elements, zplCode: zpl, labelWidth, labelHeight } = useDesignerStore.getState();
-    await apiUpdateVersion(activeDesignId, activeVersionNumber, {
-      zpl, elements, labelWidth, labelHeight,
-    });
+    const { payload, signature } = editorContent();
+    await apiUpdateVersion(activeDesignId, activeVersionNumber, payload);
+    set({ savedSignature: signature });
     await get().fetchDesigns();
     set({ showSaveModal: false });
     toast.success(t('toast.versionUpdated', { n: activeVersionNumber }));
@@ -105,10 +117,12 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       zplCode: version.zpl,
       labelWidth: version.labelWidth,
       labelHeight: version.labelHeight,
+      // This design's own example values (none for versions saved before they existed), not the previous design's
+      sampleValues: version.sampleValues ?? {},
       selectedId: null,
     });
     const designName = get().designs.find(d => d.id === designId)?.name ?? '';
-    set({ activeDesignId: designId, activeDesignName: designName, activeVersionNumber: versionNumber });
+    set({ activeDesignId: designId, activeDesignName: designName, activeVersionNumber: versionNumber, savedSignature: currentSignature() });
   },
 
   // A template opens as a new design: nothing is saved until the user saves it under their own name
@@ -119,10 +133,11 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       zplCode: template.zpl,
       labelWidth: template.labelWidth,
       labelHeight: template.labelHeight,
+      sampleValues: {},
       selectedId: null,
       selectedIds: [],
     });
-    set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [] });
+    set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [], savedSignature: currentSignature() });
   },
 
   async renameDesign(id: number, newName: string) {
@@ -146,7 +161,8 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       toast.error(e instanceof Error ? e.message : t('toast.deleteFailed'));
       return;
     }
-    if (get().activeDesignId === id) set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [] });
+    // The open design is gone: what is in the editor is no longer saved anywhere (empty, as at the start, if it is empty)
+    if (get().activeDesignId === id) set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [], savedSignature: EMPTY_SIGNATURE });
     await get().fetchDesigns();
     toast.success(t('toast.deleted', { name }));
   },
