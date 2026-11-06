@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { toast } from '../store/useToastStore';
@@ -7,8 +7,10 @@ import {
   TemplateSummary,
 } from '../utils/templatesClient';
 import { DOTS_PER_MM } from '../utils/units';
-import { useT } from '../i18n';
+import { useT, MessageKey } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
+import { TemplatePreview } from '../components/TemplatePreview';
+import { CategoryFilter, TEMPLATE_CATEGORIES } from '../utils/templateCategories';
 
 interface Props {
   onBack: () => void;
@@ -24,6 +26,10 @@ export function TemplatesPage({ onBack }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [category, setCategory] = useState<CategoryFilter>('all');
+  // The card whose label is being previewed (shown after a short pause over its name)
+  const [hover, setHover] = useState<{ template: TemplateSummary; anchor: DOMRect } | null>(null);
+  const hoverTimer = useRef<number | undefined>(undefined);
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +45,23 @@ export function TemplatesPage({ onBack }: Props) {
   }, [t]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+
+  const showPreview = (template: TemplateSummary, card: HTMLElement) => {
+    window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => setHover({ template, anchor: card.getBoundingClientRect() }), 200);
+  };
+  const hidePreview = () => {
+    window.clearTimeout(hoverTimer.current);
+    setHover(null);
+  };
+
+  // Tabs: all, then the categories that have templates (an administrator sees every one, to publish into it)
+  const countOf = (c: CategoryFilter) => c === 'all' ? templates.length : templates.filter(x => x.category === c).length;
+  const tabs: CategoryFilter[] = ['all', ...TEMPLATE_CATEGORIES.filter(c => canManage || countOf(c) > 0)];
+  const visible = category === 'all' ? templates : templates.filter(x => x.category === category);
+  // The open category emptied (e.g. its last template was deleted): back to all
+  useEffect(() => { if (!tabs.includes(category)) setCategory('all'); }); // eslint-disable-line react-hooks/exhaustive-deps
 
   const use = async (template: TemplateSummary) => {
     setBusyId(template.id);
@@ -63,7 +86,8 @@ export function TemplatesPage({ onBack }: Props) {
     if (!name) return;
     const description = window.prompt(t('templates.askDescription'))?.trim() ?? '';
     try {
-      await apiCreateTemplate(name, description, current());
+      // Published in the open tab's category; "all" leaves it to the default (outros)
+      await apiCreateTemplate(name, description, current(), category === 'all' ? undefined : category);
       toast.success(t('templates.published', { name }));
       await load();
     } catch (e) {
@@ -127,14 +151,60 @@ export function TemplatesPage({ onBack }: Props) {
           {t('templates.intro')}
         </p>
 
+        {!loading && !error && templates.length > 0 && (
+          <div role="tablist" className="chrome-scroll" style={{
+            display: 'flex', gap: 2, marginBottom: 16, overflowX: 'auto', borderBottom: '1px solid var(--chrome-border)',
+          }}>
+            {tabs.map(c => {
+              const active = c === category;
+              return (
+                <button
+                  key={c}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => { hidePreview(); setCategory(c); }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
+                    marginBottom: -1,
+                    padding: '8px 12px',
+                    fontSize: 12,
+                    fontWeight: active ? 600 : 500,
+                    color: active ? 'var(--chrome-text)' : 'var(--chrome-text-muted)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  {t(`templates.cat.${c}` as MessageKey)}
+                  <span style={{
+                    fontSize: 10, padding: '1px 6px', borderRadius: 999,
+                    background: active ? 'var(--accent)' : 'var(--chrome-border)',
+                    color: active ? '#fff' : 'var(--chrome-text-faint)',
+                  }}>
+                    {countOf(c)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {loading && <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>{t('designs.loading')}</p>}
         {!loading && error && <p style={{ fontSize: 13, color: 'var(--status-error)', textAlign: 'center', marginTop: 60 }}>{error}</p>}
         {!loading && !error && templates.length === 0 && (
           <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>{t('templates.empty')}</p>
         )}
 
+        {!loading && !error && templates.length > 0 && visible.length === 0 && (
+          <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 40 }}>{t('templates.emptyCategory')}</p>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-          {templates.map(template => (
+          {visible.map(template => (
             <div
               key={template.id}
               style={{
@@ -147,10 +217,17 @@ export function TemplatesPage({ onBack }: Props) {
                 gap: 8,
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--chrome-text)' }}>{template.name}</span>
-              <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>
-                {mm(template.labelWidth)} × {mm(template.labelHeight)} mm
-              </span>
+              {/* Hovering the name and size shows the label; the buttons below are not affected */}
+              <div
+                onMouseEnter={e => showPreview(template, e.currentTarget.parentElement as HTMLElement)}
+                onMouseLeave={hidePreview}
+                style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--chrome-text)' }}>{template.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>
+                  {mm(template.labelWidth)} × {mm(template.labelHeight)} mm
+                </span>
+              </div>
               {template.description && (
                 <span style={{ fontSize: 12, color: 'var(--chrome-text-muted)', lineHeight: 1.5 }}>{template.description}</span>
               )}
@@ -168,8 +245,20 @@ export function TemplatesPage({ onBack }: Props) {
                     <button onClick={() => replace(template)} className="chrome-btn chrome-btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} title={t('templates.replaceTitle')}>
                       {t('templates.replace')}
                     </button>
-                    <button onClick={() => remove(template)} className="chrome-btn chrome-btn-danger" style={{ fontSize: 12, padding: '4px 10px' }}>
-                      {t('panel.delete')}
+                    <button
+                      onClick={() => remove(template)}
+                      className="chrome-btn chrome-btn-danger"
+                      style={{ padding: '4px 8px' }}
+                      title={t('templates.deleteTitle')}
+                      aria-label={t('templates.deleteTitle')}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <line x1="10" x2="10" y1="11" y2="17" />
+                        <line x1="14" x2="14" y1="11" y2="17" />
+                      </svg>
                     </button>
                   </>
                 )}
@@ -178,6 +267,7 @@ export function TemplatesPage({ onBack }: Props) {
           ))}
         </div>
       </div>
+      {hover && <TemplatePreview template={hover.template} anchor={hover.anchor} />}
     </div>
   );
 }

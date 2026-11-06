@@ -2,6 +2,7 @@ import { eq, asc } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { templatesTable, usersTable } from '../db/schema';
 import { Element } from '../zpl/types';
+import { DEFAULT_TEMPLATE_CATEGORY, TemplateCategory } from './categories';
 
 export interface TemplatePayload {
   zpl: string;
@@ -14,6 +15,7 @@ export interface TemplateSummary {
   id: number;
   name: string;
   description: string;
+  category: string;
   labelWidth: number;
   labelHeight: number;
   updatedAt: string;
@@ -28,13 +30,14 @@ const summaryColumns = {
   id: templatesTable.id,
   name: templatesTable.name,
   description: templatesTable.description,
+  category: templatesTable.category,
   labelWidth: templatesTable.labelWidth,
   labelHeight: templatesTable.labelHeight,
   updatedAt: templatesTable.updatedAt,
 };
 
-const toSummary = (r: { id: number; name: string; description: string; labelWidth: number; labelHeight: number; updatedAt: Date }): TemplateSummary =>
-  ({ id: r.id, name: r.name, description: r.description, labelWidth: r.labelWidth, labelHeight: r.labelHeight, updatedAt: r.updatedAt.toISOString() });
+const toSummary = (r: { id: number; name: string; description: string; category: string; labelWidth: number; labelHeight: number; updatedAt: Date }): TemplateSummary =>
+  ({ id: r.id, name: r.name, description: r.description, category: r.category, labelWidth: r.labelWidth, labelHeight: r.labelHeight, updatedAt: r.updatedAt.toISOString() });
 
 /** True when the user is a Sinosbyte administrator (users.is_admin). */
 export async function isAdmin(userId: number): Promise<boolean> {
@@ -55,11 +58,15 @@ export async function getTemplate(id: number): Promise<TemplateDetail | undefine
 }
 
 /** Throws TEMPLATE_NAME_TAKEN when another template already has the name. */
-export async function createTemplate(userId: number, name: string, description: string, payload: TemplatePayload): Promise<{ id: number }> {
+export async function createTemplate(
+  userId: number, name: string, description: string, payload: TemplatePayload,
+  category: TemplateCategory = DEFAULT_TEMPLATE_CATEGORY,
+): Promise<{ id: number }> {
   try {
     const rows = await getDb().insert(templatesTable).values({
       name,
       description,
+      category,
       zpl: payload.zpl,
       elementsJson: payload.elements,
       labelWidth: payload.labelWidth,
@@ -73,10 +80,10 @@ export async function createTemplate(userId: number, name: string, description: 
   }
 }
 
-/** Changes the name and description of a template and, when given, replaces its label. */
+/** Changes the name, description and category of a template and, when given, replaces its label. */
 export async function updateTemplate(
   id: number,
-  fields: { name?: string; description?: string },
+  fields: { name?: string; description?: string; category?: TemplateCategory },
   payload?: TemplatePayload,
 ): Promise<boolean> {
   try {

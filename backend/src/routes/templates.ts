@@ -4,6 +4,7 @@ import {
   isAdmin, listTemplates, getTemplate, createTemplate, updateTemplate, deleteTemplate,
 } from '../templates/templatesService';
 import { ElementSchema } from '../zpl/schema';
+import { TEMPLATE_CATEGORIES } from '../templates/categories';
 
 export const templatesRouter = Router();
 
@@ -18,10 +19,12 @@ const PayloadSchema = z.object({
 const CreateSchema = PayloadSchema.extend({
   name: z.string().min(1).max(100),
   description: z.string().max(300).default(''),
+  category: z.enum(TEMPLATE_CATEGORIES).optional(),
 });
 const UpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(300).optional(),
+  category: z.enum(TEMPLATE_CATEGORIES).optional(),
   payload: PayloadSchema.optional(),
 });
 
@@ -64,8 +67,8 @@ templatesRouter.post('/', requireAdmin, async (req: Request, res: Response, next
   const parsed = CreateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   try {
-    const { name, description, ...payload } = parsed.data;
-    res.status(201).json(await createTemplate(req.user!.userId, name, description, payload));
+    const { name, description, category, ...payload } = parsed.data;
+    res.status(201).json(await createTemplate(req.user!.userId, name, description, payload, category));
   } catch (e) {
     if (e instanceof Error && e.message === 'TEMPLATE_NAME_TAKEN') {
       res.status(409).json({ error: 'Template name already taken' });
