@@ -7,7 +7,7 @@ import { initDb, _resetDb, getDb } from '../db/database';
 import { apiTokensTable, designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
 import { registerUser } from '../auth/authService';
 import {
-  createToken, listTokens, revokeToken, authenticateToken, extractApiToken, MAX_ACTIVE_TOKENS, TOKEN_PREFIX,
+  createToken, listTokens, revokeToken, authenticateToken, parseAuthHeader, MAX_ACTIVE_TOKENS, TOKEN_PREFIX,
 } from './tokensService';
 
 let aliceId: number;
@@ -139,26 +139,26 @@ describe('ownership', () => {
   });
 });
 
-describe('extractApiToken', () => {
+describe('parseAuthHeader', () => {
   const basic = (user: string, pass: string) => 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
 
   test('reads a Bearer integration token', () => {
-    expect(extractApiToken('Bearer zpd_abc123')).toBe('zpd_abc123');
+    expect(parseAuthHeader('Bearer zpd_abc123')).toBe('zpd_abc123');
   });
 
   test('reads the password of an HTTP Basic header (SM59)', () => {
-    expect(extractApiToken(basic('guilherme.f', 'zpd_abc123'))).toBe('zpd_abc123');
+    expect(parseAuthHeader(basic('guilherme.f', 'zpd_abc123'))).toBe('zpd_abc123');
   });
 
   test('a password that itself contains a colon is kept whole', () => {
-    expect(extractApiToken(basic('u', 'zpd_a:b'))).toBe('zpd_a:b');
+    expect(parseAuthHeader(basic('u', 'zpd_a:b'))).toBe('zpd_a:b');
   });
 
   test('ignores JWTs, other Basic passwords, other schemes and no header', () => {
-    expect(extractApiToken('Bearer eyJhbGciOiJIUzI1NiJ9.e30.x')).toBeNull();
-    expect(extractApiToken(basic('u', 'plain-password'))).toBeNull();
-    expect(extractApiToken('Digest abc')).toBeNull();
-    expect(extractApiToken(undefined)).toBeNull();
-    expect(extractApiToken('')).toBeNull();
+    expect(parseAuthHeader('Bearer eyJhbGciOiJIUzI1NiJ9.e30.x')).toBeNull();
+    expect(parseAuthHeader(basic('u', 'plain-password'))).toBeNull();
+    expect(parseAuthHeader('Digest abc')).toBeNull();
+    expect(parseAuthHeader(undefined)).toBeNull();
+    expect(parseAuthHeader('')).toBeNull();
   });
 });

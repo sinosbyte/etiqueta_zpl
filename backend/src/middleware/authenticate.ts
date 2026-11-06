@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../auth/authService';
 import { JWT_SECRET, JWT_ALGORITHM } from '../config';
-import { authenticateToken, extractApiToken } from '../tokens/tokensService';
+import { authenticateToken, parseAuthHeader } from '../tokens/tokensService';
 
 /** Integration tokens may only read designs and templates. */
 const TOKEN_READ_PATH = /^\/api\/(designs|templates)(\/|$)/;
@@ -11,10 +11,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   const header = req.headers.authorization;
 
   // Personal integration token (Bearer, or the password of an HTTP Basic header): read-only
-  const apiToken = extractApiToken(header);
-  if (apiToken) {
+  const presented = parseAuthHeader(header);
+  if (presented) {
     try {
-      const owner = await authenticateToken(apiToken);
+      const owner = await authenticateToken(presented);
       if (!owner) {
         res.status(401).json({ error: 'Invalid or revoked API token' });
         return;

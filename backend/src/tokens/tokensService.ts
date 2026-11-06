@@ -132,7 +132,7 @@ export async function authenticateToken(raw: string): Promise<TokenOwner | null>
  * password (`Basic base64(user:zpd_...)`), which is how an SAP SM59 destination sends it.
  * Anything else (including a JWT) is not a token: the caller falls back to the JWT check.
  */
-export function extractApiToken(header: string | undefined): string | null {
+export function parseAuthHeader(header: string | undefined): string | null {
   if (!header) return null;
   if (header.startsWith('Bearer ')) {
     const value = header.slice(7).trim();
@@ -145,8 +145,8 @@ export function extractApiToken(header: string | undefined): string | null {
     } catch {
       return null;
     }
-    const password = decoded.slice(decoded.indexOf(':') + 1);
-    return password.startsWith(TOKEN_PREFIX) ? password : null;
+    const tail = decoded.slice(decoded.indexOf(':') + 1);
+    return tail.startsWith(TOKEN_PREFIX) ? tail : null;
   }
   return null;
 }
