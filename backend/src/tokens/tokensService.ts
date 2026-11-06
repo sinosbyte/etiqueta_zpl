@@ -103,6 +103,17 @@ export async function revokeToken(userId: number, tokenId: number): Promise<bool
   return rows.length > 0;
 }
 
+/**
+ * Deletes one of the user's own tokens for good (an active one stops working too).
+ * False when it is not theirs or does not exist.
+ */
+export async function deleteToken(userId: number, tokenId: number): Promise<boolean> {
+  const rows = await getDb().delete(apiTokensTable)
+    .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, userId)))
+    .returning({ id: apiTokensTable.id });
+  return rows.length > 0;
+}
+
 /** The owner of a valid token (not revoked, not expired), or null. */
 export async function authenticateToken(raw: string): Promise<TokenOwner | null> {
   if (!raw.startsWith(TOKEN_PREFIX)) return null;

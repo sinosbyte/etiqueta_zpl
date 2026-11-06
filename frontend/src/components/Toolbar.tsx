@@ -3,7 +3,8 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useHistory } from '../hooks/useHistory';
-import { mmToDots, dotsToMm } from '../utils/units';
+import { useMeasure } from '../store/useUnitStore';
+import { UnitToggle } from './UnitToggle';
 import { NumberInput } from './NumberInput';
 import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables, substituteVariables } from '../utils/variables';
@@ -28,6 +29,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const { logout } = useAuthStore();
   const t = useT();
   const lang = useLangStore(s => s.lang);
+  const m = useMeasure();
   const { undo, redo, canUndo, canRedo } = useHistory();
   const [showExport, setShowExport] = React.useState(false);
   const [exportZplOverride, setExportZplOverride] = React.useState<string | undefined>(undefined);
@@ -236,23 +238,26 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)', whiteSpace: 'nowrap' }}>W</span>
           <NumberInput
-            min={10}
+            key={`w-${m.unit}`}
+            min={m.show(80)}
             style={{ width: 68, textAlign: 'center' }}
-            decimals={3} step={0.5} value={dotsToMm(labelWidth)}
-            onCommit={mm => setLabelSize(mmToDots(mm), labelHeight)}
+            decimals={m.decimals} step={m.step} value={m.show(labelWidth)}
+            onCommit={v => setLabelSize(m.read(v), labelHeight)}
             title={t('toolbar.labelWidth')}
           />
-          <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>mm</span>
+          <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{m.short}</span>
           <span style={{ fontSize: 11, color: 'var(--chrome-border)', padding: '0 2px' }}>×</span>
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)', whiteSpace: 'nowrap' }}>H</span>
           <NumberInput
-            min={10}
+            key={`h-${m.unit}`}
+            min={m.show(80)}
             style={{ width: 68, textAlign: 'center' }}
-            decimals={3} step={0.5} value={dotsToMm(labelHeight)}
-            onCommit={mm => setLabelSize(labelWidth, mmToDots(mm))}
+            decimals={m.decimals} step={m.step} value={m.show(labelHeight)}
+            onCommit={v => setLabelSize(labelWidth, m.read(v))}
             title={t('toolbar.labelHeight')}
           />
-          <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>mm</span>
+          <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{m.short}</span>
+          <UnitToggle />
         </div>
 
         {/* Spacer */}

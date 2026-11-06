@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from '../store/useToastStore';
-import { apiListTokens, apiCreateToken, apiRevokeToken, CreatedToken, TokenSummary } from '../utils/tokensClient';
+import { apiListTokens, apiCreateToken, apiRevokeToken, apiDeleteToken, CreatedToken, TokenSummary } from '../utils/tokensClient';
 import { useT } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
 
@@ -107,6 +107,18 @@ export function TokensPage({ onBack }: Props) {
     }
   };
 
+  const remove = async (token: TokenSummary) => {
+    if (!window.confirm(t('tokens.deleteConfirm', { name: token.name }))) return;
+    try {
+      await apiDeleteToken(token.id);
+      if (created?.id === token.id) setCreated(null);
+      toast.success(t('tokens.deleted', { name: token.name }));
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t('tokens.createFailed'));
+    }
+  };
+
   const status = (token: TokenSummary) => {
     if (token.revokedAt) return t('tokens.statusRevoked');
     if (token.expiresAt && new Date(token.expiresAt).getTime() <= Date.now()) return t('tokens.statusExpired');
@@ -146,6 +158,7 @@ export function TokensPage({ onBack }: Props) {
 
       <div className="chrome-scroll" style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 820 }}>
         <p style={{ fontSize: 12, color: 'var(--chrome-text-faint)', lineHeight: 1.6 }}>{t('tokens.intro')}</p>
+        <p style={{ fontSize: 12, color: 'var(--chrome-text-faint)', lineHeight: 1.6 }}>{t('tokens.help')}</p>
 
         <form onSubmit={create} style={{ ...card, display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 220 }}>
@@ -206,11 +219,16 @@ export function TokensPage({ onBack }: Props) {
                 {t('tokens.createdAt')}: {when(token.createdAt)} · {t('tokens.lastUsed')}: {when(token.lastUsedAt)} · {t('tokens.expires')}: {when(token.expiresAt)}
               </div>
             </div>
-            {!token.revokedAt && (
-              <button onClick={() => revoke(token)} className="chrome-btn chrome-btn-danger" style={{ fontSize: 12, padding: '4px 10px' }}>
-                {t('tokens.revoke')}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {!token.revokedAt && (
+                <button onClick={() => revoke(token)} className="chrome-btn chrome-btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} title={t('tokens.revokeTitle')}>
+                  {t('tokens.revoke')}
+                </button>
+              )}
+              <button onClick={() => remove(token)} className="chrome-btn chrome-btn-danger" style={{ fontSize: 12, padding: '4px 10px' }} title={t('tokens.deleteTitle')}>
+                {t('tokens.delete')}
               </button>
-            )}
+            </div>
           </div>
         ))}
       </div>

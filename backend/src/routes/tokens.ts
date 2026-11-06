@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { createToken, listTokens, revokeToken } from '../tokens/tokensService';
+import { createToken, deleteToken, listTokens, revokeToken } from '../tokens/tokensService';
 
 export const tokensRouter = Router();
 
@@ -54,6 +54,21 @@ tokensRouter.delete('/:id', async (req: Request, res: Response, next: NextFuncti
   if (!id.success) { res.status(400).json({ error: 'Invalid token ID' }); return; }
   try {
     if (!(await revokeToken(req.user!.userId, id.data))) {
+      res.status(404).json({ error: 'Token not found' });
+      return;
+    }
+    res.status(204).end();
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Deletes one of the user's own tokens for good (it also stops working, if it was active).
+tokensRouter.delete('/:id/permanent', async (req: Request, res: Response, next: NextFunction) => {
+  const id = IdParam.safeParse(req.params.id);
+  if (!id.success) { res.status(400).json({ error: 'Invalid token ID' }); return; }
+  try {
+    if (!(await deleteToken(req.user!.userId, id.data))) {
       res.status(404).json({ error: 'Token not found' });
       return;
     }

@@ -7,7 +7,7 @@ import { initDb, _resetDb, getDb } from '../db/database';
 import { apiTokensTable, designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
 import { registerUser } from '../auth/authService';
 import {
-  createToken, listTokens, revokeToken, authenticateToken, parseAuthHeader, MAX_ACTIVE_TOKENS, TOKEN_PREFIX,
+  createToken, listTokens, revokeToken, deleteToken, authenticateToken, parseAuthHeader, MAX_ACTIVE_TOKENS, TOKEN_PREFIX,
 } from './tokensService';
 
 let aliceId: number;
@@ -128,6 +128,28 @@ describe('ownership', () => {
   test('a user cannot revoke another user token', async () => {
     const { token, summary } = await createToken(aliceId, 'alice sap');
     await expect(revokeToken(bobId, summary.id)).resolves.toBe(false);
+    await expect(authenticateToken(token)).resolves.toEqual({ userId: aliceId, username: 'alice' });
+  });
+
+  test('deleting removes the token for good (it leaves the list and stops working)', async () => {
+    const { token, summary } = await createToken(aliceId, 'to delete');
+    await expect(deleteToken(aliceId, summary.id)).resolves.toBe(true);
+    expect(await listTokens(aliceId)).toHaveLength(0);
+    await expect(authenticateToken(token)).resolves.toBeNull();
+    await expect(deleteToken(aliceId, summary.id)).resolves.toBe(false);
+  });
+
+  test('a revoked token can be deleted too', async () => {
+    const { summary } = await createToken(aliceId, 'old');
+    await revokeToken(aliceId, summary.id);
+    await expect(deleteToken(aliceId, summary.id)).resolves.toBe(true);
+    expect(await listTokens(aliceId)).toHaveLength(0);
+  });
+
+  test('a user cannot delete another user token', async () => {
+    const { token, summary } = await createToken(aliceId, 'alice sap');
+    await expect(deleteToken(bobId, summary.id)).resolves.toBe(false);
+    expect(await listTokens(aliceId)).toHaveLength(1);
     await expect(authenticateToken(token)).resolves.toEqual({ userId: aliceId, username: 'alice' });
   });
 
