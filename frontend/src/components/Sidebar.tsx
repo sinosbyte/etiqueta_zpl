@@ -93,9 +93,10 @@ const PALETTE: { type: ElementType; label: MessageKey; icon: React.ReactNode }[]
 interface Props {
   onNavigateToMyDesigns(): void;
   onNavigateToTemplates(): void;
+  onNavigateToTokens(): void;
 }
 
-export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates }: Props) {
+export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNavigateToTokens }: Props) {
   const { addElement, activeTab, elements, clearAll, labelWidth, labelHeight } = useDesignerStore();
   const t = useT();
 
@@ -256,6 +257,39 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates }: Props)
           <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3"/>
         </svg>
         {t('sidebar.templates')}
+      </button>
+      <button
+        onClick={onNavigateToTokens}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '7px 10px',
+          borderRadius: 6,
+          border: '1px solid transparent',
+          background: 'transparent',
+          color: 'var(--chrome-text-muted)',
+          fontSize: 12,
+          fontWeight: 500,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          width: '100%',
+          transition: 'background 0.1s, color 0.1s',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--chrome-elevated)';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text)';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text-muted)';
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="5.5" cy="10.5" r="2.5" stroke="currentColor" strokeWidth="1.3"/>
+          <path d="M7.5 8.5L13 3m-2 0l2 2m-3-1l1.5 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {t('sidebar.tokens')}
       </button>
       <button
         onClick={onNavigateToMyDesigns}

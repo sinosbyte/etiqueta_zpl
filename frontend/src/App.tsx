@@ -15,8 +15,9 @@ import { useDesignsStore } from './store/useDesignsStore';
 import { LoginPage } from './pages/LoginPage';
 import { MyDesignsPage } from './pages/MyDesignsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
+import { TokensPage } from './pages/TokensPage';
 
-type View = 'designer' | 'my-designs' | 'templates';
+type View = 'designer' | 'my-designs' | 'templates' | 'tokens';
 
 export default function App() {
   const { activeTab, previewUrl, previewLoading, previewError } = useDesignerStore();
@@ -31,6 +32,8 @@ export default function App() {
     content = <LoginPage />;
   } else if (currentView === 'my-designs') {
     content = <MyDesignsPage onBack={() => setCurrentView('designer')} />;
+  } else if (currentView === 'tokens') {
+    content = <TokensPage onBack={() => setCurrentView('designer')} />;
   } else if (currentView === 'templates') {
     content = <TemplatesPage onBack={() => setCurrentView('designer')} />;
   } else {
@@ -39,7 +42,7 @@ export default function App() {
         <KeyboardShortcuts />
         <Toolbar onNavigateToMyDesigns={() => setCurrentView('my-designs')} />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar onNavigateToMyDesigns={() => setCurrentView('my-designs')} onNavigateToTemplates={() => setCurrentView('templates')} />
+          <Sidebar onNavigateToMyDesigns={() => setCurrentView('my-designs')} onNavigateToTemplates={() => setCurrentView('templates')} onNavigateToTokens={() => setCurrentView('tokens')} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <TabSwitcher />
             <div className="flex flex-1 overflow-hidden">
