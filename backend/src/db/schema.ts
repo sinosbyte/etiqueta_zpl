@@ -44,6 +44,8 @@ export const templatesTable = pgTable('templates', {
   elementsJson: jsonb('elements_json').notNull().$type<object[]>(),
   labelWidth: integer('label_width').notNull(),
   labelHeight: integer('label_height').notNull(),
+  // One of TEMPLATE_CATEGORIES (templates/categories.ts); the Templates page groups by it
+  category: text('category').notNull().default('outros'),
   createdBy: integer('created_by').references(() => usersTable.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

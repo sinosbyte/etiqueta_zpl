@@ -1,11 +1,13 @@
 import { apiFetch } from './apiClient';
 import { DesignElement } from '../types';
 import { DesignPayload } from './designsClient';
+import { TemplateCategory } from './templateCategories';
 
 export interface TemplateSummary {
   id: number;
   name: string;
   description: string;
+  category: TemplateCategory;
   labelWidth: number;
   labelHeight: number;
   updatedAt: string;
@@ -26,8 +28,10 @@ export const apiListTemplates = (): Promise<TemplateList> => apiFetch('/api/temp
 
 export const apiGetTemplate = (id: number): Promise<TemplateDetail> => apiFetch(`/api/templates/${id}`);
 
-export const apiCreateTemplate = (name: string, description: string, payload: DesignPayload): Promise<{ id: number }> =>
-  apiFetch('/api/templates', { method: 'POST', body: JSON.stringify({ name, description, ...payload }) });
+export const apiCreateTemplate = (
+  name: string, description: string, payload: DesignPayload, category?: TemplateCategory,
+): Promise<{ id: number }> =>
+  apiFetch('/api/templates', { method: 'POST', body: JSON.stringify({ name, description, category, ...payload }) });
 
 export const apiReplaceTemplate = (id: number, payload: DesignPayload): Promise<{ id: number }> =>
   apiFetch(`/api/templates/${id}`, { method: 'PATCH', body: JSON.stringify({ payload }) });
