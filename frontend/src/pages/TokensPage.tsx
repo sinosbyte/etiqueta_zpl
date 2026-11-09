@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from '../store/useToastStore';
+import { askConfirm } from '../store/useDialogStore';
 import { apiListTokens, apiCreateToken, apiRevokeToken, apiDeleteToken, CreatedToken, TokenSummary } from '../utils/tokensClient';
 import { useT } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
@@ -96,7 +97,13 @@ export function TokensPage({ onBack }: Props) {
   };
 
   const revoke = async (token: TokenSummary) => {
-    if (!window.confirm(t('tokens.revokeConfirm', { name: token.name }))) return;
+    const ok = await askConfirm({
+      title: t('tokens.revokeDialogTitle'),
+      message: t('tokens.revokeConfirm', { name: token.name }),
+      confirmLabel: t('tokens.revokeAction'),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await apiRevokeToken(token.id);
       if (created?.id === token.id) setCreated(null);
@@ -108,7 +115,13 @@ export function TokensPage({ onBack }: Props) {
   };
 
   const remove = async (token: TokenSummary) => {
-    if (!window.confirm(t('tokens.deleteConfirm', { name: token.name }))) return;
+    const ok = await askConfirm({
+      title: t('tokens.deleteDialogTitle'),
+      message: t('tokens.deleteConfirm', { name: token.name }),
+      confirmLabel: t('dialog.delete'),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await apiDeleteToken(token.id);
       if (created?.id === token.id) setCreated(null);
@@ -207,7 +220,15 @@ export function TokensPage({ onBack }: Props) {
         {loading && <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)' }}>{t('designs.loading')}</p>}
         {!loading && error && <p style={{ fontSize: 13, color: 'var(--status-error)' }}>{error}</p>}
         {!loading && !error && tokens.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)' }}>{t('tokens.empty')}</p>
+          <div style={{ ...card, fontSize: 12, color: 'var(--chrome-text-muted)', lineHeight: 1.7 }}>
+            <strong style={{ display: 'block', fontSize: 13, color: 'var(--chrome-text)', marginBottom: 6 }}>{t('tokens.empty')}</strong>
+            <p style={{ margin: '0 0 6px' }}>{t('tokens.emptyWhat')}</p>
+            <ol style={{ margin: 0, paddingLeft: 18, listStyle: 'decimal' }}>
+              <li>{t('tokens.emptyStep1')}</li>
+              <li>{t('tokens.emptyStep2')}</li>
+              <li>{t('tokens.emptyStep3')}</li>
+            </ol>
+          </div>
         )}
 
         {tokens.map(token => (

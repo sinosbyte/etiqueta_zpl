@@ -3,6 +3,7 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { signatureOf } from '../utils/unsaved';
 import { t } from '../i18n';
+import { askConfirm } from '../store/useDialogStore';
 
 /** True when the editor holds changes that were not saved (or an unsaved new design). */
 export function useIsDirty(): boolean {
@@ -24,8 +25,14 @@ export function isDirtyNow(): boolean {
 }
 
 /** Before replacing the editor's content: true when nothing would be lost or the user accepts losing it. */
-export function confirmDiscardChanges(): boolean {
-  return !isDirtyNow() || window.confirm(t('unsaved.confirmDiscard'));
+export async function confirmDiscardChanges(): Promise<boolean> {
+  if (!isDirtyNow()) return true;
+  return askConfirm({
+    title: t('unsaved.dialogTitle'),
+    message: t('unsaved.confirmDiscard'),
+    confirmLabel: t('unsaved.discard'),
+    danger: true,
+  });
 }
 
 /** Makes the browser ask before closing or reloading the tab while there are unsaved changes. */

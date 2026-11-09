@@ -9,6 +9,7 @@ import { SaveDesignModal } from './components/SaveDesignModal';
 import { PreviewPanel } from './components/PreviewPanel';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { Toasts } from './components/Toasts';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { useDesignerStore } from './store/useDesignerStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useDesignsStore } from './store/useDesignsStore';
@@ -74,6 +75,7 @@ export default function App() {
   return (
     <>
       {content}
+      <ConfirmDialog />
       <Toasts />
     </>
   );

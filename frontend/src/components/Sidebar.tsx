@@ -2,6 +2,7 @@ import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ElementType } from '../types';
 import { toast } from '../store/useToastStore';
+import { askConfirm } from '../store/useDialogStore';
 import { t as translate, useT, MessageKey } from '../i18n';
 import { DEFAULT_THRESHOLD, chooseImage, imagePatch, imageSources, initialImageWidth, rasterize } from '../utils/graphic';
 
@@ -100,8 +101,14 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
   const { addElement, activeTab, elements, clearAll, labelWidth, labelHeight } = useDesignerStore();
   const t = useT();
 
-  const handleClearAll = () => {
-    if (window.confirm(t('sidebar.clearConfirm'))) clearAll();
+  const handleClearAll = async () => {
+    const ok = await askConfirm({
+      title: t('sidebar.clearDialogTitle'),
+      message: t('sidebar.clearConfirm'),
+      confirmLabel: t('sidebar.clearAction'),
+      danger: true,
+    });
+    if (ok) clearAll();
   };
 
   // A picture (e.g. a logo) becomes a black and white ^GFA image
@@ -183,7 +190,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
               <div style={{ height: 1, background: 'var(--chrome-border)', margin: '8px 6px 4px' }} />
               <button
                 onClick={handleClearAll}
-                title={t('sidebar.clearTitle')}
+                title={t('sidebar.clearDialogTitle')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

@@ -11,7 +11,9 @@ import { useT, MessageKey } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { TemplatePreview } from '../components/TemplatePreview';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
-import { CategoryFilter, TEMPLATE_CATEGORIES } from '../utils/templateCategories';
+import { askConfirm } from '../store/useDialogStore';
+import { PublishTemplateModal } from '../components/PublishTemplateModal';
+import { CategoryFilter, TemplateCategory, TEMPLATE_CATEGORIES } from '../utils/templateCategories';
 
 interface Props {
   onBack: () => void;
@@ -28,6 +30,7 @@ export function TemplatesPage({ onBack }: Props) {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [category, setCategory] = useState<CategoryFilter>('all');
+  const [publishing, setPublishing] = useState(false);
   // The card whose label is being previewed (shown after a short pause over its name)
   const [hover, setHover] = useState<{ template: TemplateSummary; anchor: DOMRect } | null>(null);
   const hoverTimer = useRef<number | undefined>(undefined);
@@ -65,7 +68,7 @@ export function TemplatesPage({ onBack }: Props) {
   useEffect(() => { if (!tabs.includes(category)) setCategory('all'); }); // eslint-disable-line react-hooks/exhaustive-deps
 
   const use = async (template: TemplateSummary) => {
-    if (!confirmDiscardChanges()) return;
+    if (!(await confirmDiscardChanges())) return;
     setBusyId(template.id);
     try {
       openTemplate(await apiGetTemplate(template.id));
@@ -83,14 +86,12 @@ export function TemplatesPage({ onBack }: Props) {
     return { zpl: zplCode, elements, labelWidth, labelHeight };
   };
 
-  const publish = async () => {
-    const name = window.prompt(t('templates.askName'))?.trim();
-    if (!name) return;
-    const description = window.prompt(t('templates.askDescription'))?.trim() ?? '';
+  // The dialog preselects the open tab's category ("all" starts on outros, the default)
+  const publish = async (name: string, description: string, cat: TemplateCategory) => {
     try {
-      // Published in the open tab's category; "all" leaves it to the default (outros)
-      await apiCreateTemplate(name, description, current(), category === 'all' ? undefined : category);
+      await apiCreateTemplate(name, description, current(), cat);
       toast.success(t('templates.published', { name }));
+      setPublishing(false);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('templates.saveFailed'));
@@ -98,7 +99,12 @@ export function TemplatesPage({ onBack }: Props) {
   };
 
   const replace = async (template: TemplateSummary) => {
-    if (!window.confirm(t('templates.replaceConfirm', { name: template.name }))) return;
+    const ok = await askConfirm({
+      title: t('templates.replaceTitle'),
+      message: t('templates.replaceConfirm', { name: template.name }),
+      confirmLabel: t('templates.replace'),
+    });
+    if (!ok) return;
     try {
       await apiReplaceTemplate(template.id, current());
       toast.success(t('templates.replaced', { name: template.name }));
@@ -109,7 +115,13 @@ export function TemplatesPage({ onBack }: Props) {
   };
 
   const remove = async (template: TemplateSummary) => {
-    if (!window.confirm(t('templates.deleteConfirm', { name: template.name }))) return;
+    const ok = await askConfirm({
+      title: t('templates.deleteTitle'),
+      message: t('templates.deleteConfirm', { name: template.name }),
+      confirmLabel: t('dialog.delete'),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await apiDeleteTemplate(template.id);
       toast.success(t('templates.deleted', { name: template.name }));
@@ -141,7 +153,7 @@ export function TemplatesPage({ onBack }: Props) {
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--chrome-text)' }}>{t('sidebar.templates')}</span>
         <div style={{ flex: 1 }} />
         {canManage && (
-          <button onClick={publish} className="chrome-btn chrome-btn-primary" style={{ fontSize: 12 }} title={t('templates.publishTitle')}>
+          <button onClick={() => setPublishing(true)} className="chrome-btn chrome-btn-primary" style={{ fontSize: 12 }} title={t('templates.publishTitle')}>
             {t('templates.publish')}
           </button>
         )}
@@ -198,7 +210,10 @@ export function TemplatesPage({ onBack }: Props) {
         {loading && <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>{t('designs.loading')}</p>}
         {!loading && error && <p style={{ fontSize: 13, color: 'var(--status-error)', textAlign: 'center', marginTop: 60 }}>{error}</p>}
         {!loading && !error && templates.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>{t('templates.empty')}</p>
+          <div style={{ textAlign: 'center', marginTop: 60, fontSize: 13, color: 'var(--chrome-text-faint)', lineHeight: 1.8 }}>
+            <p>{t('templates.empty')}</p>
+            <p>{canManage ? t('templates.emptyAdmin') : t('templates.emptyUser')}</p>
+          </div>
         )}
 
         {!loading && !error && templates.length > 0 && visible.length === 0 && (
@@ -270,6 +285,13 @@ export function TemplatesPage({ onBack }: Props) {
         </div>
       </div>
       {hover && <TemplatePreview template={hover.template} anchor={hover.anchor} />}
+      {publishing && (
+        <PublishTemplateModal
+          defaultCategory={category === 'all' ? 'outros' : category}
+          onCancel={() => setPublishing(false)}
+          onPublish={publish}
+        />
+      )}
     </div>
   );
 }
