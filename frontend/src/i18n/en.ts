@@ -50,6 +50,8 @@ export const en = {
   'element.line': 'Line',
   'element.image': 'Image / logo',
 
+  'layers.title': 'Layers',
+  'layers.select': 'Select (Ctrl or Shift for several). The first in the list is on top.',
   'sidebar.elements': 'Elements',
   'sidebar.add': 'Add {name}',
   'sidebar.clear': 'Clear canvas',
