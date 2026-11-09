@@ -3,6 +3,7 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { ElementType } from '../types';
 import { toast } from '../store/useToastStore';
 import { askConfirm } from '../store/useDialogStore';
+import { LayersPanel } from './LayersPanel';
 import { t as translate, useT, MessageKey } from '../i18n';
 import { DEFAULT_THRESHOLD, chooseImage, imagePatch, imageSources, initialImageWidth, rasterize } from '../utils/graphic';
 
@@ -140,6 +141,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
       gap: 2,
       flexShrink: 0,
       userSelect: 'none',
+      overflowY: 'auto',
     }}>
       {activeTab !== 'code' && (
         <>
@@ -227,7 +229,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
         </>
       )}
 
-      <div style={{ flex: 1 }} />
+      {activeTab !== 'code' ? <LayersPanel /> : <div style={{ flex: 1 }} />}
 
       <div style={{ height: 1, background: 'var(--chrome-border)', margin: '4px 6px 8px' }} />
       <button

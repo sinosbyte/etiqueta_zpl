@@ -52,6 +52,8 @@ export const ptBR: Record<keyof typeof en, string> = {
   'element.line': 'Linha',
   'element.image': 'Imagem / logo',
 
+  'layers.title': 'Camadas',
+  'layers.select': 'Selecionar (Ctrl ou Shift para vários). A primeira da lista fica por cima.',
   'sidebar.elements': 'Elementos',
   'sidebar.add': 'Adicionar {name}',
   'sidebar.clear': 'Limpar a etiqueta',
