@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { Canvas } from './components/Canvas';
@@ -18,14 +18,14 @@ import { LoginPage } from './pages/LoginPage';
 import { MyDesignsPage } from './pages/MyDesignsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { TokensPage } from './pages/TokensPage';
-
-type View = 'designer' | 'my-designs' | 'templates' | 'tokens';
+import { navigate, useView } from './utils/navigation';
 
 export default function App() {
   const { activeTab, previewUrl, previewLoading, previewError } = useDesignerStore();
   const { token } = useAuthStore();
   const { showSaveModal } = useDesignsStore();
-  const [currentView, setCurrentView] = useState<View>('designer');
+  const currentView = useView();
+  const goEditor = () => navigate('designer');
   useWarnBeforeUnload();
 
   const previewActive = !!(previewUrl || previewLoading || previewError);
@@ -34,18 +34,18 @@ export default function App() {
   if (!token) {
     content = <LoginPage />;
   } else if (currentView === 'my-designs') {
-    content = <MyDesignsPage onBack={() => setCurrentView('designer')} />;
+    content = <MyDesignsPage onBack={goEditor} />;
   } else if (currentView === 'tokens') {
-    content = <TokensPage onBack={() => setCurrentView('designer')} />;
+    content = <TokensPage onBack={goEditor} />;
   } else if (currentView === 'templates') {
-    content = <TemplatesPage onBack={() => setCurrentView('designer')} />;
+    content = <TemplatesPage onBack={goEditor} />;
   } else {
     content = (
       <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--chrome-bg)' }}>
         <KeyboardShortcuts />
-        <Toolbar onNavigateToMyDesigns={() => setCurrentView('my-designs')} />
+        <Toolbar onNavigateToMyDesigns={() => navigate('my-designs')} />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar onNavigateToMyDesigns={() => setCurrentView('my-designs')} onNavigateToTemplates={() => setCurrentView('templates')} onNavigateToTokens={() => setCurrentView('tokens')} />
+          <Sidebar onNavigateToMyDesigns={() => navigate('my-designs')} onNavigateToTemplates={() => navigate('templates')} onNavigateToTokens={() => navigate('tokens')} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <TabSwitcher />
             <div className="flex flex-1 overflow-hidden">
