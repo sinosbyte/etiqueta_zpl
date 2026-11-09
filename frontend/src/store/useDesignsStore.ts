@@ -9,6 +9,7 @@ import {
 } from '../utils/designsClient';
 import type { TemplateDetail } from '../utils/templatesClient';
 import { EMPTY_SIGNATURE, signatureOf, usedSamples } from '../utils/unsaved';
+import { checkSapCompat } from '../utils/sapCompat';
 
 interface DesignsStore {
   designs: DesignSummary[];
@@ -49,6 +50,12 @@ function editorContent() {
 }
 const currentSignature = () => editorContent().signature;
 
+// The save modal already warned; once saved, remind that the SAP will not take it as it is
+function warnIfNotSapCompatible(zpl: string): void {
+  const problems = checkSapCompat(zpl).length;
+  if (problems > 0) toast.info(t('sap.savedWithIssues', { n: problems }));
+}
+
 export const useDesignsStore = create<DesignsStore>((set, get) => ({
   designs: [],
   designsTotal: 0,
@@ -85,6 +92,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     set({ activeDesignId: result.designId, activeDesignName: name, activeVersionNumber: 1, showSaveModal: false, savedSignature: signature });
     await get().fetchDesigns();
     toast.success(t('toast.designSaved', { name }));
+    warnIfNotSapCompatible(payload.zpl);
   },
 
   async saveVersion() {
@@ -96,6 +104,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     await get().fetchDesigns();
     await get().fetchVersions(activeDesignId);
     toast.success(t('toast.versionSaved', { n: version.versionNumber }));
+    warnIfNotSapCompatible(payload.zpl);
   },
 
   async overwriteVersion() {
@@ -107,6 +116,7 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     await get().fetchDesigns();
     set({ showSaveModal: false });
     toast.success(t('toast.versionUpdated', { n: activeVersionNumber }));
+    warnIfNotSapCompatible(payload.zpl);
   },
 
   async loadVersion(designId: number, versionNumber: number) {

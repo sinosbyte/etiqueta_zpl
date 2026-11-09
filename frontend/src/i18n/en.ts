@@ -98,6 +98,13 @@ export const en = {
   'save.saveVersion': 'Save version',
   'save.create': 'Create',
   'save.failed': 'Save failed',
+  'sap.compatible': 'SAP compatible',
+  'sap.incompatible': 'The SAP could not capture or print this label as it is:',
+  'sap.longLine': 'Code line {line} has {length} characters (maximum {max}).',
+  'sap.badMarker': 'Code line {line} has an invalid variable marker (use {{NAME}}, letters, digits and _ only).',
+  'sap.more': 'and {n} more problem(s).',
+  'sap.canSave': 'You can save anyway, but fix it before capturing in the SAP. Tip: open the Code tab and check that line.',
+  'sap.savedWithIssues': 'Saved, but the SAP could not capture this label ({n} problem(s) in the code).',
 
   'toast.designSaved': 'Design "{name}" saved',
   'toast.versionSaved': 'Version {n} saved',

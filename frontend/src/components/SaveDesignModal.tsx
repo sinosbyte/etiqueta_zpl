@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useDesignsStore } from '../store/useDesignsStore';
+import { useDesignerStore } from '../store/useDesignerStore';
+import { checkSapCompat, SAP_MAX_LINE } from '../utils/sapCompat';
 import { useT } from '../i18n';
 
 type Mode = 'overwrite' | 'version' | 'new';
@@ -18,6 +20,11 @@ export function SaveDesignModal() {
   const [mode, setMode] = useState<Mode>(defaultMode);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Whether the SAP could capture and print what is about to be saved
+  const zplCode = useDesignerStore(s => s.zplCode);
+  const sapIssues = useMemo(() => checkSapCompat(zplCode), [zplCode]);
+  const shownIssues = sapIssues.slice(0, 4);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +112,37 @@ export function SaveDesignModal() {
                 className="chrome-input"
                 placeholder={t('save.placeholder')}
               />
+            </div>
+          )}
+
+          {sapIssues.length === 0 ? (
+            <p style={{ fontSize: 11, color: 'var(--status-success)', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2.5 6.5l2.5 2.5 4.5-5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {t('sap.compatible')}
+            </p>
+          ) : (
+            <div role="alert" style={{
+              fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 6,
+              background: 'rgba(255, 179, 64, 0.1)', border: '1px solid rgba(255, 179, 64, 0.45)', color: 'var(--chrome-text)',
+            }}>
+              <strong style={{ display: 'block', marginBottom: 4, color: 'var(--status-warning)' }}>{t('sap.incompatible')}</strong>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {shownIssues.map(issue => (
+                  <li key={`${issue.kind}-${issue.line}`} style={{ marginBottom: 3 }}>
+                    {issue.kind === 'longLine'
+                      ? t('sap.longLine', { line: issue.line, length: issue.length, max: SAP_MAX_LINE })
+                      : t('sap.badMarker', { line: issue.line })}
+                    <br />
+                    <code style={{ fontSize: 10, color: 'var(--chrome-text-faint)', wordBreak: 'break-all' }}>{issue.excerpt}</code>
+                  </li>
+                ))}
+              </ul>
+              {sapIssues.length > shownIssues.length && (
+                <p style={{ margin: '4px 0 0' }}>{t('sap.more', { n: sapIssues.length - shownIssues.length })}</p>
+              )}
+              <p style={{ margin: '6px 0 0', color: 'var(--chrome-text-muted)' }}>{t('sap.canSave')}</p>
             </div>
           )}
 

@@ -100,6 +100,13 @@ export const ptBR: Record<keyof typeof en, string> = {
   'save.saveVersion': 'Salvar versão',
   'save.create': 'Criar',
   'save.failed': 'Falha ao salvar',
+  'sap.compatible': 'Compatível com o SAP',
+  'sap.incompatible': 'O SAP não conseguiria capturar ou imprimir esta etiqueta como está:',
+  'sap.longLine': 'Linha {line} do código tem {length} caracteres (máximo {max}).',
+  'sap.badMarker': 'Linha {line} do código tem um marcador de variável inválido (use {{NOME}}, só letras, números e _).',
+  'sap.more': 'e mais {n} problema(s).',
+  'sap.canSave': 'Você pode salvar mesmo assim, mas corrija antes de capturar no SAP. Dica: abra a aba Código e confira essa linha.',
+  'sap.savedWithIssues': 'Salvo, mas o SAP não conseguiria capturar esta etiqueta ({n} problema(s) no código).',
 
   'toast.designSaved': 'Design "{name}" salvo',
   'toast.versionSaved': 'Versão {n} salva',
