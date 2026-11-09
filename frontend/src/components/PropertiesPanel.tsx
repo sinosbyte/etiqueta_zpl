@@ -15,6 +15,7 @@ import {
 } from '../utils/graphic';
 import { toast } from '../store/useToastStore';
 import { t as translate, useT, MessageKey } from '../i18n';
+import { VariablesCatalog } from './VariablesCatalog';
 
 export function PropertiesPanel() {
   const t = useT();
@@ -40,19 +41,20 @@ export function PropertiesPanel() {
 
   if (!el) {
     return (
-      <div style={{
+      <div className="chrome-scroll" style={{
         width: 200,
         background: 'var(--chrome-surface)',
         borderLeft: '1px solid var(--chrome-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         flexShrink: 0,
         padding: 16,
+        overflowY: 'auto',
       }}>
-        <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)', textAlign: 'center', lineHeight: 1.5 }}>
+        <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)', textAlign: 'center', lineHeight: 1.5, margin: '0 0 16px' }}>
           {t('panel.select1')}<br />{t('panel.select2')}
         </p>
+        <div style={{ borderTop: '1px solid var(--chrome-border)', paddingTop: 12 }}>
+          <VariablesCatalog />
+        </div>
       </div>
     );
   }
