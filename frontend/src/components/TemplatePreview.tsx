@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { apiGetTemplate, TemplateDetail, TemplateSummary } from '../utils/templatesClient';
+import { TemplateDetail, TemplateSummary } from '../utils/templatesClient';
+import { cachedTemplate, loadTemplate } from '../utils/templateCache';
 import { DOTS_PER_MM } from '../utils/units';
 import { useT } from '../i18n';
 import { LabelPreview } from './LabelPreview';
@@ -17,10 +18,6 @@ const GAP = 12;
 const MARGIN = 8;
 const CAPTION = 22;
 
-// Templates already fetched. A replaced template has a new updatedAt, so it is fetched again.
-const loaded = new Map<string, TemplateDetail>();
-const keyOf = (t: TemplateSummary) => `${t.id}:${t.updatedAt}`;
-
 const mm = (dots: number) => parseFloat((dots / DOTS_PER_MM).toFixed(1)).toLocaleString();
 
 /**
@@ -29,21 +26,20 @@ const mm = (dots: number) => parseFloat((dots / DOTS_PER_MM).toFixed(1)).toLocal
  */
 export function TemplatePreview({ template, anchor }: Props) {
   const t = useT();
-  const key = keyOf(template);
-  const [detail, setDetail] = useState<TemplateDetail | null>(loaded.get(key) ?? null);
+  const [detail, setDetail] = useState<TemplateDetail | null>(cachedTemplate(template) ?? null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const cached = loaded.get(key);
+    const cached = cachedTemplate(template);
     setFailed(false);
     if (cached) { setDetail(cached); return; }
     setDetail(null);
     let alive = true;
-    apiGetTemplate(template.id)
-      .then(d => { loaded.set(key, d); if (alive) setDetail(d); })
+    loadTemplate(template)
+      .then(d => { if (alive) setDetail(d); })
       .catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
-  }, [key, template.id]);
+  }, [template]);
 
   const scale = Math.min(MAX_WIDTH / template.labelWidth, MAX_HEIGHT / template.labelHeight);
   const width = Math.round(template.labelWidth * scale);

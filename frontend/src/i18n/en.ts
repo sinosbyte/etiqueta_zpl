@@ -243,6 +243,7 @@ export const en = {
   'api.retryIn': 'Try again in about {n} min.',
   'sidebar.templates': 'Templates',
   'templates.intro': 'Ready-made labels from Sinosbyte. Open one to use it as the starting point: it opens in the editor as a new design, and nothing is saved until you save it under your own name.',
+  'templates.viewTitle': 'View the label',
   'templates.use': 'Use this template',
   'templates.empty': 'There are no templates yet.',
   'templates.loadFailed': 'Could not load the templates',
