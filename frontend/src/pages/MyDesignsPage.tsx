@@ -3,6 +3,7 @@ import { useDesignsStore } from '../store/useDesignsStore';
 import { apiListVersions, DesignSummary, VersionSummary } from '../utils/designsClient';
 import { t, useT } from '../i18n';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
+import { askConfirm } from '../store/useDialogStore';
 import { LanguageSelect } from '../components/LanguageSelect';
 
 interface Props {
@@ -189,7 +190,7 @@ export function MyDesignsPage({ onBack }: Props) {
   };
 
   const handleOpen = async (design: DesignSummary) => {
-    if (!confirmDiscardChanges()) return;
+    if (!(await confirmDiscardChanges())) return;
     setOpeningId(design.id);
     try {
       const { items } = await apiListVersions(design.id, 1, 0);
@@ -200,14 +201,20 @@ export function MyDesignsPage({ onBack }: Props) {
   };
 
   const handleLoadVersion = async (design: DesignSummary, versionNumber: number) => {
-    if (!confirmDiscardChanges()) return;
+    if (!(await confirmDiscardChanges())) return;
     setOpeningId(design.id);
     try { await loadVersion(design.id, versionNumber); onBack(); }
     finally { setOpeningId(null); }
   };
 
   const handleDelete = async (design: DesignSummary) => {
-    if (!window.confirm(t('designs.deleteConfirm', { name: design.name }))) return;
+    const ok = await askConfirm({
+      title: t('designs.deleteTitle'),
+      message: t('designs.deleteConfirm', { name: design.name }),
+      confirmLabel: t('dialog.delete'),
+      danger: true,
+    });
+    if (!ok) return;
     await deleteDesign(design.id);
   };
 
@@ -280,7 +287,8 @@ export function MyDesignsPage({ onBack }: Props) {
           <div style={{ textAlign: 'center', marginTop: 80 }}>
             <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', lineHeight: 1.8 }}>
               {t('designs.empty1')}<br />
-              {t('designs.empty2')}
+              {t('designs.empty2')}<br />
+              {t('designs.empty3')}
             </p>
             <button onClick={onBack} className="chrome-btn chrome-btn-primary" style={{ marginTop: 16, justifyContent: 'center' }}>
               {t('designs.goEditor')}
