@@ -13,6 +13,8 @@ import { TemplatePreview } from '../components/TemplatePreview';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import { askConfirm } from '../store/useDialogStore';
 import { PublishTemplateModal } from '../components/PublishTemplateModal';
+import { TemplateThumb } from '../components/TemplateThumb';
+import { TemplatePreviewModal } from '../components/TemplatePreviewModal';
 import { CategoryFilter, TemplateCategory, TEMPLATE_CATEGORIES } from '../utils/templateCategories';
 
 interface Props {
@@ -31,6 +33,8 @@ export function TemplatesPage({ onBack }: Props) {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [publishing, setPublishing] = useState(false);
+  // The template whose label is open in the large preview window
+  const [viewing, setViewing] = useState<TemplateSummary | null>(null);
   // The card whose label is being previewed (shown after a short pause over its name)
   const [hover, setHover] = useState<{ template: TemplateSummary; anchor: DOMRect } | null>(null);
   const hoverTimer = useRef<number | undefined>(undefined);
@@ -69,6 +73,7 @@ export function TemplatesPage({ onBack }: Props) {
 
   const use = async (template: TemplateSummary) => {
     if (!(await confirmDiscardChanges())) return;
+    setViewing(null);
     setBusyId(template.id);
     try {
       openTemplate(await apiGetTemplate(template.id));
@@ -220,7 +225,7 @@ export function TemplatesPage({ onBack }: Props) {
           <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 40 }}>{t('templates.emptyCategory')}</p>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
           {visible.map(template => (
             <div
               key={template.id}
@@ -234,6 +239,7 @@ export function TemplatesPage({ onBack }: Props) {
                 gap: 8,
               }}
             >
+              <TemplateThumb template={template} onOpen={() => { hidePreview(); setViewing(template); }} label={t('templates.viewTitle')} />
               {/* Hovering the name and size shows the label; the buttons below are not affected */}
               <div
                 onMouseEnter={e => showPreview(template, e.currentTarget.parentElement as HTMLElement)}
@@ -253,13 +259,27 @@ export function TemplatesPage({ onBack }: Props) {
                   onClick={() => use(template)}
                   disabled={busyId === template.id}
                   className="chrome-btn chrome-btn-primary"
-                  style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}
+                  style={{ flex: 1, minWidth: 0, justifyContent: 'center', fontSize: 12 }}
                 >
                   {t('templates.use')}
                 </button>
-                {canManage && (
+                <button
+                  onClick={() => { hidePreview(); setViewing(template); }}
+                  className="chrome-btn chrome-btn-ghost"
+                  style={{ padding: '4px 8px' }}
+                  title={t('templates.viewTitle')}
+                  aria-label={t('templates.viewTitle')}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </div>
+              {canManage && (
+                <div style={{ display: 'flex', gap: 6 }}>
                   <>
-                    <button onClick={() => replace(template)} className="chrome-btn chrome-btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }} title={t('templates.replaceTitle')}>
+                    <button onClick={() => replace(template)} className="chrome-btn chrome-btn-ghost" style={{ flex: 1, minWidth: 0, justifyContent: 'center', fontSize: 12, padding: '4px 10px' }} title={t('templates.replaceTitle')}>
                       {t('templates.replace')}
                     </button>
                     <button
@@ -278,13 +298,14 @@ export function TemplatesPage({ onBack }: Props) {
                       </svg>
                     </button>
                   </>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
       </div>
-      {hover && <TemplatePreview template={hover.template} anchor={hover.anchor} />}
+      {hover && !viewing && <TemplatePreview template={hover.template} anchor={hover.anchor} />}
+      {viewing && <TemplatePreviewModal template={viewing} onClose={() => setViewing(null)} onUse={() => use(viewing)} />}
       {publishing && (
         <PublishTemplateModal
           defaultCategory={category === 'all' ? 'outros' : category}

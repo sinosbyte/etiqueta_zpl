@@ -245,6 +245,7 @@ export const ptBR: Record<keyof typeof en, string> = {
   'api.retryIn': 'Tente novamente em cerca de {n} min.',
   'sidebar.templates': 'Templates',
   'templates.intro': 'Etiquetas prontas da Sinosbyte. Abra uma para usar como ponto de partida: ela abre no editor como um design novo, e nada é salvo até você salvar com o seu nome.',
+  'templates.viewTitle': 'Visualizar a etiqueta',
   'templates.use': 'Usar este template',
   'templates.empty': 'Ainda não há templates.',
   'templates.loadFailed': 'Não foi possível carregar os templates',
