@@ -23,6 +23,7 @@ export const ElementSchema = z.object({
   rounding: z.number().int().min(0).max(8).optional(),
   qrErrorCorrection: z.enum(['H', 'Q', 'M', 'L']).optional(),
   origin: z.literal('FT').optional(),
+  hexUtf8: z.boolean().optional(),
   block: z.object({
     maxLines: z.number().int().min(1),
     lineSpacing: z.number(),

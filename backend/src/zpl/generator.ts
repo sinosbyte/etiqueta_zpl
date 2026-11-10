@@ -2,6 +2,7 @@ import { Element, GenerateRequest } from './types';
 import { i2of5DigitCount, i2of5Modules } from './i2of5';
 import { CODE128_START } from './code128';
 import { wrapGraphicData } from './graphic';
+import { encodeHexUtf8 } from './hexText';
 
 // Field data emitted into ^FD. Dynamic elements emit a {{variableName}}
 // placeholder for the API caller to substitute; others emit their value.
@@ -41,7 +42,12 @@ export function generateZpl(req: GenerateRequest): string {
       case 'text': {
         const fontName = el.fontName ?? '0';
         const fontSize = el.fontSize ?? 30;
-        const data = fieldData(el);
+        // Text imported as ^FH\^CI28 ^FD..^FS ^CI27: escapes for what is not plain ASCII, and the
+        // wrapper is written back exactly as ZebraDesigner wrote it
+        const hex = el.hexUtf8 === true;
+        const data = hex ? encodeHexUtf8(fieldData(el)) : fieldData(el);
+        const hexOpen = hex ? '^FH\\^CI28' : '';
+        const hexClose = hex ? '^CI27' : '';
         // ^FT positions the baseline (of the last line of a ^FB block): the canvas
         // top-left plus the font height, plus the lines above the last one
         const linesAbove = el.block ? (el.block.maxLines - 1) * (fontSize + el.block.lineSpacing) : 0;
@@ -63,10 +69,10 @@ export function generateZpl(req: GenerateRequest): string {
             cfFontSize = fontSize;
             cfFontWidth = fontWidth;
           }
-          lines.push(`${origin}${fb}${fr}^FD${data}^FS`);
+          lines.push(`${origin}${fb}${fr}${hexOpen}^FD${data}^FS${hexClose}`);
         } else {
           // Explicit ^A inline font (^CF has no orientation); width defaults to the height
-          lines.push(`${origin}^A${fontName}${orientation},${fontSize},${el.fontWidth ?? fontSize}${fb}${fr}^FD${data}^FS`);
+          lines.push(`${origin}^A${fontName}${orientation},${fontSize},${el.fontWidth ?? fontSize}${fb}${fr}${hexOpen}^FD${data}^FS${hexClose}`);
         }
         break;
       }

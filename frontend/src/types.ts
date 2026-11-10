@@ -31,6 +31,7 @@ export interface DesignElement {
   rounding?: number;    // ^GB corner rounding, 0 (none) to 8 (heaviest)
   qrErrorCorrection?: 'H' | 'Q' | 'M' | 'L';
   origin?: 'FT';              // text positioned with ^FT (baseline); x/y stay the top-left
+  hexUtf8?: boolean;          // text imported as ^FH\^CI28 ^FD..^FS ^CI27 (ZebraDesigner): plain text here, \HH escapes in the ZPL
   block?: FieldBlock;         // text inside a ^FB block
   orientation?: Orientation;  // text, barcode128 and barcodeI2of5 rotation; omitted = N
   moduleWidth?: number;       // barcode ^BY narrow bar width

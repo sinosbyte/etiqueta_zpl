@@ -2,6 +2,7 @@ import { Element, FieldBlock, Orientation, ParseResult } from './types';
 import { i2of5DigitCount, i2of5Modules } from './i2of5';
 import { Code128Set, code128Modules, splitCode128Start } from './code128';
 import { compactGraphicData, decodeGraphicRows } from './graphic';
+import { decodeHexUtf8 } from './hexText';
 
 // A field whose entire data is {{name}} is a dynamic placeholder.
 const DYNAMIC_RE = /^\{\{([A-Za-z0-9_]+)\}\}$/;
@@ -25,6 +26,12 @@ const isInterleaved2of5 = (cmd: string, tail: string): boolean => cmd === 'B' &&
 
 const isEditableFieldCommand = (cmd: string, tail: string): boolean =>
   EDITABLE_FIELD_COMMANDS.has(cmd) || isInterleaved2of5(cmd, tail);
+
+// Text as ZebraDesigner writes it: ^FH\ (escape character \) and ^CI28 (UTF-8) before ^FD, and
+// ^CI27 right after ^FS. It is read as editable text ONLY in exactly that shape (see case 'FS');
+// ^FH with any other escape character, ^FH alone, or ^CI in another place keep the field raw.
+const isHexWrapperCommand = (cmd: string, tail: string, sawFh: boolean): boolean =>
+  (cmd === 'FH' && tail === '\\') || (cmd === 'CI' && tail === '28' && sawFh);
 
 const ORIENTATIONS = new Set(['N', 'R', 'I', 'B']);
 
@@ -109,6 +116,9 @@ export function parseZpl(zpl: string): ParseResult {
   let fieldFontHeight = 0;
   let fieldFontWidth = 0;
   let fieldData = '';
+  let fieldSawFd = false;
+  let fieldHex = false;    // ^FH\ before the data
+  let fieldCi28 = false;   // ^CI28 after ^FH\ and before the data
   let fieldHasFont = false;
   let fieldTextOrientation: Orientation = 'N';
   // ^GFA graphic read in this field
@@ -132,6 +142,9 @@ export function parseZpl(zpl: string): ParseResult {
     fieldFontHeight = 0;
     fieldFontWidth = 0;
     fieldData = '';
+    fieldSawFd = false;
+    fieldHex = false;
+    fieldCi28 = false;
     fieldHasFont = false;
     fieldTextOrientation = 'N';
     pendingGraphic = null;
@@ -152,7 +165,8 @@ export function parseZpl(zpl: string): ParseResult {
 
   const tokens = tokenize(zpl);
 
-  for (const token of tokens) {
+  for (let ti = 0; ti < tokens.length; ti++) {
+    const token = tokens[ti];
     // Extract command name (letters after ^) and the rest
     // ZPL commands are 1–2 uppercase letters; stop there so data (e.g. "Hello", "N,100") stays in tail
     const cmdMatch = token.match(/^\^([A-Z]{1,2})([\s\S]*)/);
@@ -203,7 +217,7 @@ export function parseZpl(zpl: string): ParseResult {
     // ── Field commands ──────────────────────────────────────────────────────
     if (fieldTokens.length > 0 || isFieldCommand(cmd)) {
       fieldTokens.push(token);
-      if (!isEditableFieldCommand(cmd, tail)) {
+      if (!isEditableFieldCommand(cmd, tail) && !isHexWrapperCommand(cmd, tail, fieldHex)) {
         fieldEditable = false;
         unknownCommands.push(token);
       }
@@ -322,9 +336,22 @@ export function parseZpl(zpl: string): ParseResult {
           break;
         }
 
+        // ^FH\ : \HH escapes in the data. Only meaningful before ^FD (checked again at ^FS).
+        case 'FH':
+          fieldHex = tail === '\\';
+          if (fieldSawFd) fieldEditable = false;
+          break;
+
+        // ^CI28 inside a field is only read right after ^FH\ and before ^FD
+        case 'CI':
+          fieldCi28 = fieldHex && tail === '28' && !fieldSawFd;
+          if (!fieldCi28) fieldEditable = false;
+          break;
+
         // Field data (^FD data)
         case 'FD':
           fieldData = tail;
+          fieldSawFd = true;
           break;
 
         // Graphic box (^GB width, height, thickness, color, rounding)
@@ -375,6 +402,23 @@ export function parseZpl(zpl: string): ParseResult {
 
         // Field separator — emit the pending text or barcode element
         case 'FS': {
+          // Text under ^FH\^CI28 ... ^FS^CI27 is editable only if it is exactly that: it starts
+          // with its own ^FO/^FT, plain text (no barcode or graphic), non-empty, \HH escapes that
+          // read as UTF-8, and the ^CI27 that ZebraDesigner writes right after the field.
+          // Anything else stays raw as before.
+          let hexText = false;
+          if (fieldEditable && (fieldHex || fieldCi28)) {
+            const decoded = decodeHexUtf8(fieldData);
+            if (fieldHex && fieldCi28 && !pendingBarcode && !pendingGraphic && fieldData !== ''
+                && /^\^F[OT]/.test(fieldTokens[0] ?? '')
+                && decoded !== null && /^\^CI27$/i.test(tokens[ti + 1] ?? '')) {
+              fieldData = decoded;
+              hexText = true;
+            } else {
+              fieldEditable = false;
+            }
+          }
+
           // QR data must start with a prefix the canvas can represent
           let qrErrorCorrection: 'H' | 'Q' | 'M' | 'L' | undefined;
           if (fieldEditable && pendingBarcode?.kind === 'bqr') {
@@ -520,9 +564,12 @@ export function parseZpl(zpl: string): ParseResult {
                   hangingIndent: block.hangingIndent,
                 },
               } : {}),
+              ...(hexText ? { hexUtf8: true } : {}),
               ...dyn,
               ...(fieldReversed ? { reversed: true } : {}),
             });
+            // The ^CI27 after the field belongs to the element (the generator writes it again)
+            if (hexText) ti += 1;
           }
           resetField();
           break;
