@@ -32,6 +32,7 @@ export interface Element {
   rounding?: number;   // ^GB corner rounding, 0 (none) to 8 (heaviest)
   qrErrorCorrection?: 'H' | 'Q' | 'M' | 'L';  // ^FD prefix of a QR code; omitted = M
   origin?: 'FT';       // text positioned with ^FT (baseline); x/y stay the top-left on the canvas
+  hexUtf8?: boolean;   // text written as ^FH\^CI28 ^FD..^FS ^CI27 (ZebraDesigner): value is plain text, non-ASCII goes out as \HH; omitted = plain ^FD
   block?: FieldBlock;  // text inside a ^FB block; the block width is the element width
   orientation?: Orientation;  // text, barcode128 and barcodeI2of5 rotation; omitted = N
   moduleWidth?: number;       // barcode ^BY narrow bar width in dots
