@@ -4,6 +4,7 @@ import { TextElement } from './elements/TextElement';
 import { BarcodeElement } from './elements/BarcodeElement';
 import { I2of5Element } from './elements/I2of5Element';
 import { QRCodeElement } from './elements/QRCodeElement';
+import { DataMatrixElement } from './elements/DataMatrixElement';
 import { RectElement } from './elements/RectElement';
 import { LineElement } from './elements/LineElement';
 import { ImageElement } from './elements/ImageElement';
@@ -21,6 +22,7 @@ function drawElement(element: DesignElement, scale: number): React.ReactNode {
     case 'barcode128': return <BarcodeElement element={element} scale={scale} />;
     case 'barcodeI2of5': return <I2of5Element element={element} scale={scale} />;
     case 'qrcode': return <QRCodeElement element={element} scale={scale} />;
+    case 'datamatrix': return <DataMatrixElement element={element} scale={scale} />;
     case 'rect': return <RectElement element={element} scale={scale} />;
     case 'line': return <LineElement element={element} scale={scale} />;
     case 'image': return <ImageElement element={element} scale={scale} />;

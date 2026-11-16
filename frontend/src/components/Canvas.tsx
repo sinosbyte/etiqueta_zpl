@@ -12,6 +12,7 @@ import { TextElement } from './elements/TextElement';
 import { BarcodeElement } from './elements/BarcodeElement';
 import { I2of5Element } from './elements/I2of5Element';
 import { QRCodeElement } from './elements/QRCodeElement';
+import { DataMatrixElement } from './elements/DataMatrixElement';
 import { RectElement } from './elements/RectElement';
 import { LineElement } from './elements/LineElement';
 import { ImageElement } from './elements/ImageElement';
@@ -89,7 +90,7 @@ function withSampleValue(element: DesignElement, samples: Record<string, string>
 
 function ElementRenderer({ element, scale }: { element: DesignElement; scale: number }) {
   const samples = useDesignerStore(s => (s.showSamples ? s.sampleValues : null));
-  if (samples && (element.type === 'barcode128' || element.type === 'barcodeI2of5' || element.type === 'qrcode')) {
+  if (samples && (element.type === 'barcode128' || element.type === 'barcodeI2of5' || element.type === 'qrcode' || element.type === 'datamatrix')) {
     element = withSampleValue(element, samples);
   }
   switch (element.type) {
@@ -97,6 +98,7 @@ function ElementRenderer({ element, scale }: { element: DesignElement; scale: nu
     case 'barcode128': return <BarcodeElement element={element} scale={scale} />;
     case 'barcodeI2of5': return <I2of5Element element={element} scale={scale} />;
     case 'qrcode': return <QRCodeElement element={element} scale={scale} />;
+    case 'datamatrix': return <DataMatrixElement element={element} scale={scale} />;
     case 'rect': return <RectElement element={element} scale={scale} />;
     case 'line': return <LineElement element={element} scale={scale} />;
     case 'image': return <ImageElement element={element} scale={scale} />;

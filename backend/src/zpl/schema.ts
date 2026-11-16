@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DATAMATRIX_MAX_MODULE, DATAMATRIX_MIN_MODULE, DATAMATRIX_SIZES } from './datamatrix';
 
 /**
  * Zod schema for a single design element, shared by the ZPL and designs
@@ -6,7 +7,7 @@ import { z } from 'zod';
  */
 export const ElementSchema = z.object({
   id: z.string(),
-  type: z.enum(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'rect', 'line', 'image', 'comment', 'raw']),
+  type: z.enum(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'datamatrix', 'rect', 'line', 'image', 'comment', 'raw']),
   x: z.number(),
   y: z.number(),
   width: z.number(),
@@ -22,6 +23,9 @@ export const ElementSchema = z.object({
   color: z.enum(['B', 'W']).optional(),
   rounding: z.number().int().min(0).max(8).optional(),
   qrErrorCorrection: z.enum(['H', 'Q', 'M', 'L']).optional(),
+  qrMagnification: z.number().int().min(1).max(10).optional(),
+  dmModuleSize: z.number().int().min(DATAMATRIX_MIN_MODULE).max(DATAMATRIX_MAX_MODULE).optional(),
+  dmSize: z.number().int().refine(n => DATAMATRIX_SIZES.includes(n), 'Not a square ECC 200 Data Matrix size').optional(),
   origin: z.literal('FT').optional(),
   hexUtf8: z.boolean().optional(),
   block: z.object({

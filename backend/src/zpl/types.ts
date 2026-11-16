@@ -1,7 +1,7 @@
 // 'raw' holds ZPL the editor cannot represent (e.g. ^FT, ^FB, ^B2, ^CI, ~SD).
 // It is not drawn on the canvas and is emitted back verbatim, so editing the
 // canvas never drops commands the editor does not understand.
-export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'rect' | 'line' | 'image' | 'comment' | 'raw';
+export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'datamatrix' | 'rect' | 'line' | 'image' | 'comment' | 'raw';
 
 export type Orientation = 'N' | 'R' | 'I' | 'B';
 
@@ -31,6 +31,9 @@ export interface Element {
   color?: 'B' | 'W';   // ^GB line color
   rounding?: number;   // ^GB corner rounding, 0 (none) to 8 (heaviest)
   qrErrorCorrection?: 'H' | 'Q' | 'M' | 'L';  // ^FD prefix of a QR code; omitted = M
+  qrMagnification?: number;  // QR code ^BQ magnification, 1 to 10 dots per module; omitted = width / 33 (how designs saved before this field were sized)
+  dmModuleSize?: number;  // datamatrix ^BX h: dots per module, 1 to 20; omitted = 4
+  dmSize?: number;        // datamatrix symbol side in modules (^BX c,r, a square ECC 200 size); omitted = the printer takes the smallest that fits
   origin?: 'FT';       // text positioned with ^FT (baseline); x/y stay the top-left on the canvas
   hexUtf8?: boolean;   // text written as ^FH\^CI28 ^FD..^FS ^CI27 (ZebraDesigner): value is plain text, non-ASCII goes out as \HH; omitted = plain ^FD
   block?: FieldBlock;  // text inside a ^FB block; the block width is the element width

@@ -2,6 +2,8 @@ import { DesignElement, displayValue } from '../types';
 import { getZplFont } from './zplFonts';
 import { splitVariables } from './variables';
 import { code128Width } from './code128';
+import { qrBoxSide } from './qr';
+import { dmBoxSide } from './datamatrix';
 import { isQuarterTurn, turnedSize } from './rotation';
 
 // Lays text out the way the printer does, so the canvas matches the printed label.
@@ -212,6 +214,16 @@ function textBox(el: DesignElement, samples?: Record<string, string> | null): { 
 // (a Code 128 box is its bars; the digits print outside it)
 export function elementBox(el: DesignElement, samples?: Record<string, string> | null): { width: number; height: number } {
   if (el.type === 'barcode128') return turnedSize(el.orientation, code128Width(el, samples), el.height);
+  if (el.type === 'datamatrix') {
+    // Always the printed symbol: modules x module size
+    const side = dmBoxSide(el, samples);
+    return { width: side, height: side };
+  }
+  if (el.type === 'qrcode') {
+    // With a stored magnification the box is the printed symbol; without one it is the stored size
+    const side = qrBoxSide(el, samples);
+    return side === null ? { width: el.width, height: el.height } : { width: side, height: side };
+  }
   if (el.type !== 'text') return { width: el.width, height: el.height };
   const box = textBox(el, samples);
   return turnedSize(el.orientation, box.width, box.height);

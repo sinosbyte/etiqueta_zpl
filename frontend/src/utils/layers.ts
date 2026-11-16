@@ -15,6 +15,7 @@ const TYPE_KEYS: Partial<Record<ElementType, MessageKey>> = {
   barcode128: 'element.barcode128',
   barcodeI2of5: 'element.barcodeI2of5',
   qrcode: 'element.qrcode',
+  datamatrix: 'element.datamatrix',
   rect: 'element.rect',
   line: 'element.line',
   image: 'element.image',
@@ -37,7 +38,7 @@ export function layerList(elements: DesignElement[]): Layer[] {
     const el = elements[i];
     const typeKey = TYPE_KEYS[el.type];
     if (!typeKey) continue;
-    const hasText = el.type === 'text' || el.type === 'barcode128' || el.type === 'barcodeI2of5' || el.type === 'qrcode';
+    const hasText = el.type === 'text' || el.type === 'barcode128' || el.type === 'barcodeI2of5' || el.type === 'qrcode' || el.type === 'datamatrix';
     layers.push({ id: el.id, type: el.type, typeKey, detail: hasText ? shorten(displayValue(el) ?? '') : '' });
   }
   return layers;

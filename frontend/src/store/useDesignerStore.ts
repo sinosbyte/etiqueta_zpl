@@ -18,6 +18,8 @@ const DEFAULT_SIZES: Record<ElementType, { width: number; height: number }> = {
   // 14 digits, ^BY2,3: (14 * 9 + 9) modules x 2 dots
   barcodeI2of5: { width: 270, height: 100 },
   qrcode: { width: 100, height: 100 },
+  // '1234567890' is a 12 x 12 symbol, 4 dots per module
+  datamatrix: { width: 48, height: 48 },
   rect: { width: 200, height: 100 },
   line: { width: 200, height: 8 },
   image: { width: 0, height: 0 },  // set from the picture
@@ -30,6 +32,7 @@ const DEFAULT_VALUES: Partial<Record<ElementType, Partial<DesignElement>>> = {
   barcode128: { value: '123456789', moduleWidth: 2 },
   barcodeI2of5: { value: '17896380197511', moduleWidth: 2, ratio: 3 },
   qrcode: { value: 'https://example.com' },
+  datamatrix: { value: '1234567890', dmModuleSize: 4 },
 };
 
 interface DesignerStore {

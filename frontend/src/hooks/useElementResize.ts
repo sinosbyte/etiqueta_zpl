@@ -2,6 +2,8 @@ import { useCallback, useRef } from 'react';
 import { DesignElement } from '../types';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
 import { resizeCode128Patch } from '../utils/code128';
+import { resizeQrPatch } from '../utils/qr';
+import { resizeDmPatch } from '../utils/datamatrix';
 import { resizeImagePatch } from '../utils/graphic';
 import { snapContext, useDesignerStore } from '../store/useDesignerStore';
 import { snapResize } from '../utils/snap';
@@ -65,6 +67,8 @@ export function useElementResize(
     const height = patch.height ?? box.height;
     if (el.type === 'text' && !el.block) sized = resizeTextPatch(el, width, height, samples);
     else if (el.type === 'barcode128' && el.moduleWidth) sized = resizeCode128Patch(el, width, height, samples);
+    else if (el.type === 'qrcode' && el.qrMagnification !== undefined) sized = resizeQrPatch(el, width, height, samples);
+    else if (el.type === 'datamatrix') sized = resizeDmPatch(el, width, height, samples);
     else if (el.type === 'image') {
       // Side handles follow the side dragged; corners follow the width
       const byHeight = !dir.includes('e') && !dir.includes('w');

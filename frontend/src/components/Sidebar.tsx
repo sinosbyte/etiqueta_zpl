@@ -62,6 +62,19 @@ const PALETTE: { type: ElementType; label: MessageKey; icon: React.ReactNode }[]
     ),
   },
   {
+    type: 'datamatrix',
+    label: 'element.datamatrix',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M2.5 2.5v11h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M5 2.5h1.5M8.5 2.5H10M12.5 2.5h1M13.5 5v1.5M13.5 9V10.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+        <rect x="5.5" y="6" width="2" height="2" fill="currentColor"/>
+        <rect x="9" y="8" width="2" height="2" fill="currentColor"/>
+        <rect x="6.5" y="10" width="1.8" height="1.8" fill="currentColor"/>
+      </svg>
+    ),
+  },
+  {
     type: 'rect',
     label: 'element.rect',
     icon: (
