@@ -3,6 +3,9 @@ import { i2of5DigitCount, i2of5Modules } from './i2of5';
 import { Code128Set, code128Modules, splitCode128Start } from './code128';
 import { compactGraphicData, decodeGraphicRows } from './graphic';
 import { decodeHexUtf8 } from './hexText';
+import {
+  DATAMATRIX_MAX_MODULE, DATAMATRIX_MIN_MODULE, DATAMATRIX_PARSED_MODULES, DATAMATRIX_SIZES,
+} from './datamatrix';
 
 // A field whose entire data is {{name}} is a dynamic placeholder.
 const DYNAMIC_RE = /^\{\{([A-Za-z0-9_]+)\}\}$/;
@@ -19,7 +22,7 @@ const FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FD', 'FB', 'FH', 'FR', 'FN', '
 // Field commands the canvas can represent (plus ^B2, see isEditableFieldCommand).
 // A field using any other command (e.g. ^FH, ^B3) is kept verbatim as a 'raw'
 // element so that regenerating ZPL from the canvas never drops it.
-const EDITABLE_FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FB', 'FD', 'FR', 'BY', 'BC', 'BQ', 'GB', 'GF', 'FS']);
+const EDITABLE_FIELD_COMMANDS = new Set(['FO', 'FT', 'A', 'FB', 'FD', 'FR', 'BY', 'BC', 'BQ', 'BX', 'GB', 'GF', 'FS']);
 
 // The tokenizer reads ^B2 as cmd "B" with tail "2..." (command names are letters only)
 const isInterleaved2of5 = (cmd: string, tail: string): boolean => cmd === 'B' && tail.startsWith('2');
@@ -126,6 +129,7 @@ export function parseZpl(zpl: string): ParseResult {
   // Pending barcode command (set between ^FO and ^FD)
   type PendingBarcode = { kind: 'bc128'; orientation: Orientation; height: number; printLine: boolean; moduleWidth: number; codeAuto: boolean } |
                         { kind: 'bqr';   orientation: string; model: number; mag: number } |
+                        { kind: 'bx';    moduleSize: number; size: number | null } |
                         { kind: 'i2of5'; orientation: Orientation; height: number; printLine: boolean;
                           lineAbove: boolean; checkDigit: boolean; moduleWidth: number; ratio: number };
   let pendingBarcode: PendingBarcode | null = null;
@@ -336,6 +340,29 @@ export function parseZpl(zpl: string): ParseResult {
           break;
         }
 
+        // Data Matrix (^BX orientation, module size, quality, columns, rows, format, escape, aspect).
+        // Only what the generator writes is editable: unturned, ECC 200 (quality 200), a module size,
+        // and either no symbol size or a square one. Anything else (other quality, format, escape
+        // character, rectangular, turned) stays raw.
+        case 'BX': {
+          const p = params(tail).map(v => v.trim());
+          const orientation = (p[0] ?? '').toUpperCase() || 'N';
+          const moduleSize = (p[1] ?? '') !== '' ? Number(p[1]) : NaN;
+          const sized = (p[3] ?? '') !== '' || (p[4] ?? '') !== '';
+          const side = Number(p[3]);
+          const ok = orientation === 'N'
+            && Number.isInteger(moduleSize) && moduleSize >= DATAMATRIX_MIN_MODULE && moduleSize <= DATAMATRIX_MAX_MODULE
+            && (p[2] ?? '') === '200'
+            && (!sized || (p[3] === p[4] && DATAMATRIX_SIZES.includes(side)))
+            && ((p[5] ?? '') === '' || p[5] === '6')
+            && ((p[6] ?? '') === '' || p[6] === '_')
+            && ((p[7] ?? '') === '' || p[7] === '1')
+            && p.length <= 8;
+          if (!ok) fieldEditable = false;
+          pendingBarcode = { kind: 'bx', moduleSize: ok ? moduleSize : 1, size: ok && sized ? side : null };
+          break;
+        }
+
         // ^FH\ : \HH escapes in the data. Only meaningful before ^FD (checked again at ^FS).
         case 'FH':
           fieldHex = tail === '\\';
@@ -510,6 +537,23 @@ export function parseZpl(zpl: string): ParseResult {
                 ...(bc.printLine ? {} : { printLine: false }),
                 ...(code128Set ? { codeSet: code128Set } : {}),
                 ...(bc.codeAuto ? { codeAuto: true } : {}),
+                ...dyn,
+                ...(fieldReversed ? { reversed: true } : {}),
+              });
+            } else if (pendingBarcode.kind === 'bx') {
+              // The side depends on the data (the editor works it out); the box starts as the stated
+              // symbol size, or a typical one. The generator writes the module size, not the box.
+              const side = pendingBarcode.moduleSize * (pendingBarcode.size ?? DATAMATRIX_PARSED_MODULES);
+              elements.push({
+                id: nextId(),
+                type: 'datamatrix',
+                x: fieldX,
+                y: fieldY,
+                width: side,
+                height: side,
+                value: fieldData,
+                dmModuleSize: pendingBarcode.moduleSize,
+                ...(pendingBarcode.size !== null ? { dmSize: pendingBarcode.size } : {}),
                 ...dyn,
                 ...(fieldReversed ? { reversed: true } : {}),
               });

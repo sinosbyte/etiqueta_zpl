@@ -1,20 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { DesignElement } from '../../types';
+import { qrPrinted, qrText } from '../../utils/qr';
 
 interface Props { element: DesignElement; scale: number; }
 
 export function QRCodeElement({ element, scale }: Props) {
   const [src, setSrc] = useState('');
-  const size = Math.max(element.width, element.height) * scale;
   const isDynamic = element.dynamic && element.variableName;
+  // With a stored magnification the symbol is drawn at the size it prints (modules x magnification)
+  // and with the same error correction; without one it fills the box, as it always did
+  const explicit = element.qrMagnification !== undefined;
+  const printed = explicit ? qrPrinted(element) : null;
+  const side = printed ? printed.size : Math.max(element.width, element.height);
+  const size = side * scale;
+  const text = explicit ? qrText(element).text : (element.value || 'https://example.com');
+  const level = element.qrErrorCorrection ?? 'M';
 
   useEffect(() => {
     if (isDynamic) return;
-    QRCode.toDataURL(element.value || 'https://example.com', { width: size, margin: 1 })
+    QRCode.toDataURL(text, explicit
+      ? { width: size, margin: 0, errorCorrectionLevel: level }
+      : { width: size, margin: 1 })
       .then(setSrc)
       .catch(() => setSrc(''));
-  }, [element.value, size, isDynamic]);
+  }, [text, size, isDynamic, explicit, level]);
 
   if (isDynamic) {
     return (

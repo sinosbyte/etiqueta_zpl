@@ -4,7 +4,7 @@ import { turnedSize } from './rotation';
 import { elementBox } from './zplText';
 
 // Things a Code 128 must not print over
-const OBSTACLES: ReadonlySet<DesignElement['type']> = new Set(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'image']);
+const OBSTACLES: ReadonlySet<DesignElement['type']> = new Set(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'datamatrix', 'image']);
 
 export interface BarcodeFit {
   chars: number;              // characters of the value the check assumes

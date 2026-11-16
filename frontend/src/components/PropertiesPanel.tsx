@@ -2,11 +2,17 @@ import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ZPL_FONTS } from '../utils/zplFonts';
 import { useMeasure } from '../store/useUnitStore';
+import { dotsToMm } from '../utils/units';
 import { extractVariables } from '../utils/variables';
 import { elementBox, resizeTextPatch } from '../utils/zplText';
 import {
   CODE128_PLACEHOLDER_CHARS, Code128Mode, barWidthPatch, code128ModePatch, code128Value, expectedCharsPatch, resizeCode128Patch,
 } from '../utils/code128';
+import { QR_PLACEHOLDER_CHARS, qrMagnification, qrMagnificationPatch, qrPrinted, resizeQrPatch } from '../utils/qr';
+import {
+  DATAMATRIX_SIZES, DATAMATRIX_MAX_MODULE, DATAMATRIX_MIN_MODULE, DM_PLACEHOLDER_CHARS, dmModuleSize, dmModuleSizePatch,
+  dmPrinted, dmSizePatch, resizeDmPatch, useEncoder,
+} from '../utils/datamatrix';
 import { barcodeFit } from '../utils/barcodeFit';
 import { NumberInput } from './NumberInput';
 import { Orientation } from '../types';
@@ -20,6 +26,7 @@ import { VariablesCatalog } from './VariablesCatalog';
 export function PropertiesPanel() {
   const t = useT();
   const m = useMeasure();
+  const encoder = useEncoder();  // a Data Matrix has its size only once the encoder is loaded
   const { elements, selectedId, showSamples, sampleValues, labelWidth, labelHeight, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
   const el = elements.find(e => e.id === selectedId);
 
@@ -86,6 +93,10 @@ export function PropertiesPanel() {
       ? resizeTextPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
       : sizedByBars
         ? resizeCode128Patch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
+        : el.type === 'qrcode' && el.qrMagnification !== undefined
+          ? resizeQrPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
+        : el.type === 'datamatrix'
+          ? resizeDmPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
         : el.type === 'image'
           ? resizeImagePatch(el, patch.width ?? (patch.height ?? el.height) * el.width / el.height)
           : patch);
@@ -406,10 +417,74 @@ export function PropertiesPanel() {
         </div>
       )}
 
-      {(el.type === 'barcode128' || el.type === 'barcodeI2of5' || el.type === 'qrcode') && (
+      {(el.type === 'barcode128' || el.type === 'barcodeI2of5' || el.type === 'qrcode' || el.type === 'datamatrix') && (
         <div style={sectionStyle}>
           {valueControls}
           {dynamicControls}
+          {el.type === 'datamatrix' && (() => {
+            const printed = dmPrinted(el, samples);
+            const noteStyle: React.CSSProperties = { fontSize: 10, color: 'var(--chrome-text-faint)', margin: '4px 0 0', lineHeight: 1.5 };
+            const warnStyle: React.CSSProperties = { ...noteStyle, color: '#dc2626' };
+            const sizeText = printed
+              ? m.unit === 'mm'
+                ? `${m.show(printed.size).toLocaleString()} mm (${printed.size} pt)`
+                : `${printed.size} pt (${dotsToMm(printed.size).toLocaleString()} mm)`
+              : '';
+            return (
+              <div style={{ marginBottom: 8 }}>
+                <label style={labelStyle} title={t('panel.dmModuleSizeTitle')}>{t('panel.dmModuleSize')}</label>
+                <NumberInput min={DATAMATRIX_MIN_MODULE} max={DATAMATRIX_MAX_MODULE} decimals={0} value={dmModuleSize(el)}
+                  onCommit={v => updateElement(el.id, dmModuleSizePatch(el, v, samples))}
+                />
+                <label style={{ ...labelStyle, marginTop: 8 }} title={t('panel.dmSymbolSizeTitle')}>{t('panel.dmSymbolSize')}</label>
+                <select
+                  className="chrome-input"
+                  value={el.dmSize ?? ''}
+                  onChange={e => updateElement(el.id, dmSizePatch(el, e.target.value === '' ? undefined : Number(e.target.value), samples))}
+                >
+                  <option value="">{t('panel.dmAuto')}</option>
+                  {DATAMATRIX_SIZES.map(n => <option key={n} value={n}>{t('panel.dmSide', { n })}</option>)}
+                </select>
+                {printed && printed.fits && (
+                  <p style={noteStyle}>{t('panel.qrPrinted', { modules: printed.modules, size: sizeText })}</p>
+                )}
+                {printed && printed.fits && printed.estimated && (
+                  <p style={noteStyle}>{t('panel.qrEstimateNote', { chars: DM_PLACEHOLDER_CHARS })}</p>
+                )}
+                {printed && !printed.fits && (
+                  <p style={warnStyle}>{printed.fixed ? t('panel.dmNoFit', { n: printed.modules }) : t('panel.dmCannotEncode')}</p>
+                )}
+                {encoder.failed && <p style={warnStyle}>{t('panel.dmFailed')}</p>}
+              </div>
+            );
+          })()}
+          {el.type === 'qrcode' && (() => {
+            const printed = qrPrinted(el, samples);
+            const noteStyle: React.CSSProperties = { fontSize: 10, color: 'var(--chrome-text-faint)', margin: '4px 0 0', lineHeight: 1.5 };
+            // Size in the chosen unit, with the other one beside it
+            const sizeText = printed
+              ? m.unit === 'mm'
+                ? `${m.show(printed.size).toLocaleString()} mm (${printed.size} pt)`
+                : `${printed.size} pt (${dotsToMm(printed.size).toLocaleString()} mm)`
+              : '';
+            return (
+              <div style={{ marginBottom: 8 }}>
+                <label style={labelStyle} title={t('panel.qrMagnificationTitle')}>{t('panel.qrMagnification')}</label>
+                <NumberInput min={1} max={10} decimals={0} value={qrMagnification(el)}
+                  onCommit={v => updateElement(el.id, qrMagnificationPatch(el, v, samples))}
+                />
+                {printed && (
+                  <p style={noteStyle}>{t('panel.qrPrinted', { modules: printed.modules, size: sizeText })}</p>
+                )}
+                {printed?.estimated && (
+                  <p style={noteStyle}>{t('panel.qrEstimateNote', { chars: QR_PLACEHOLDER_CHARS })}</p>
+                )}
+                {el.qrMagnification === undefined && (
+                  <p style={noteStyle}>{t('panel.qrLegacyNote')}</p>
+                )}
+              </div>
+            );
+          })()}
           {el.type === 'barcodeI2of5' && (
             <>
               {orientationControl(next => {

@@ -3,6 +3,9 @@ import { i2of5DigitCount, i2of5Modules } from './i2of5';
 import { CODE128_START } from './code128';
 import { wrapGraphicData } from './graphic';
 import { encodeHexUtf8 } from './hexText';
+import {
+  DATAMATRIX_DEFAULT_MODULE, DATAMATRIX_MAX_MODULE, DATAMATRIX_MIN_MODULE, DATAMATRIX_SIZES,
+} from './datamatrix';
 
 // Field data emitted into ^FD. Dynamic elements emit a {{variableName}}
 // placeholder for the API caller to substitute; others emit their value.
@@ -109,8 +112,20 @@ export function generateZpl(req: GenerateRequest): string {
         break;
       }
       case 'qrcode': {
-        const mag = Math.max(1, Math.min(10, Math.floor(el.width / 33)));
+        // An explicit magnification wins; without one the box width decides, as it always did
+        const mag = el.qrMagnification !== undefined
+          ? Math.max(1, Math.min(10, Math.round(el.qrMagnification)))
+          : Math.max(1, Math.min(10, Math.floor(el.width / 33)));
         lines.push(`${fo}${fr}^BQN,2,${mag}^FD${el.qrErrorCorrection ?? 'M'}A,${fieldData(el)}^FS`);
+        break;
+      }
+      case 'datamatrix': {
+        // ECC 200 (quality 200). The side is modules x the module size; asking for a symbol size
+        // (c,r) keeps it the same whatever the data is, otherwise the printer takes the smallest
+        const moduleSize = Math.max(DATAMATRIX_MIN_MODULE,
+          Math.min(DATAMATRIX_MAX_MODULE, Math.round(el.dmModuleSize ?? DATAMATRIX_DEFAULT_MODULE)));
+        const side = el.dmSize !== undefined && DATAMATRIX_SIZES.includes(el.dmSize) ? `,${el.dmSize},${el.dmSize}` : '';
+        lines.push(`${fo}${fr}^BXN,${moduleSize},200${side}^FD${fieldData(el)}^FS`);
         break;
       }
       case 'rect': {
