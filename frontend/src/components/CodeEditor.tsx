@@ -3,10 +3,13 @@ import Editor from '@monaco-editor/react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { registerZplLanguage, ZPL_LANGUAGE_ID } from '../utils/zplLanguage';
 import { useT } from '../i18n';
+import { isStructured } from '../utils/pages';
 
 export function CodeEditor() {
-  const { zplCode, zplError, onCodeChange } = useDesignerStore();
+  const { zplCode, zplError, onCodeChange, pages, elements } = useDesignerStore();
   const t = useT();
+  // A design of two pages or with a table is not read back from its code (it would break the structure)
+  const readOnly = isStructured(pages, elements);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden h-full">
@@ -20,8 +23,24 @@ export function CodeEditor() {
         flexShrink: 0,
       }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--chrome-text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>ZPL</span>
-        <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{t('code.sync')}</span>
+        {readOnly
+          ? <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--status-warning)' }}>{t('code.readOnlyBadge')}</span>
+          : <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{t('code.sync')}</span>}
       </div>
+
+      {readOnly && (
+        <div
+          role="note"
+          style={{
+            display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', flexShrink: 0,
+            background: 'var(--chrome-elevated)', borderBottom: '1px solid var(--chrome-border)',
+            fontSize: 12, lineHeight: 1.5, color: 'var(--chrome-text)',
+          }}
+        >
+          <span aria-hidden="true" style={{ color: 'var(--status-warning)' }}>🔒</span>
+          <span>{t('code.readOnlyNotice')}</span>
+        </div>
+      )}
 
       {zplError && (
         <div style={{
@@ -46,8 +65,9 @@ export function CodeEditor() {
           beforeMount={registerZplLanguage}
           theme="vs-dark"
           value={zplCode}
-          onChange={v => onCodeChange(v ?? '')}
+          onChange={v => { if (!readOnly) onCodeChange(v ?? ''); }}
           options={{
+            readOnly,
             fontSize: 13,
             minimap: { enabled: false },
             lineNumbers: 'on',

@@ -1,5 +1,7 @@
-import { DesignElement } from '../types';
+import { DataRecord, DesignElement, PageConfig, PagesConfig } from '../types';
 import { extractVariables } from './variables';
+import { pagesConfigOf } from './pages';
+import { tableVariables } from './tableEdit';
 
 // What the editor holds for a design and what is saved with it: the elements, the
 // label size and the sample values. The ZPL text is left out on purpose: it is
@@ -12,6 +14,8 @@ const MAX_VALUE = 255;
 export function designVariables(elements: DesignElement[]): string[] {
   const names = new Set(extractVariables(JSON.stringify(elements)));
   for (const el of elements) if (el.dynamic && el.variableName) names.add(el.variableName);
+  // A table prints the variable of each column for each record it holds (the generator writes them into the ZPL)
+  for (const el of elements) if (el.type === 'table') for (const n of tableVariables(el)) names.add(n);
   return [...names];
 }
 
@@ -40,11 +44,26 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 
-/** A text that is the same exactly when the saved content of two editor states is the same. */
+/**
+ * A text that is the same exactly when the saved content of two editor states is the same. The pages
+ * (and the test records) count too; a design of one page with no records is `null`, as when it was saved
+ * before pages existed, so its signature does not change.
+ */
 export function signatureOf(
   elements: DesignElement[], labelWidth: number, labelHeight: number, samples: Record<string, string>,
+  pagesConfig: PagesConfig | null = null,
 ): string {
-  return stable([elements, labelWidth, labelHeight, usedSamples(elements, samples)]);
+  const content: unknown[] = [elements, labelWidth, labelHeight, usedSamples(elements, samples)];
+  if (pagesConfig) content.push(pagesConfig);
+  return stable(content);
+}
+
+/** The signature of what the editor holds. */
+export function editorSignature(s: {
+  elements: DesignElement[]; labelWidth: number; labelHeight: number; sampleValues: Record<string, string>;
+  pages: PageConfig[]; records: DataRecord[];
+}): string {
+  return signatureOf(s.elements, s.labelWidth, s.labelHeight, s.sampleValues, pagesConfigOf(s.pages, s.records));
 }
 
 /** The signature of an empty editor, as it opens. */

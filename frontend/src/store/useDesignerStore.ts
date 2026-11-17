@@ -3,9 +3,11 @@ import { t } from '../i18n';
 import { ZOOM_100 } from '../utils/units';
 import { substituteVariables } from '../utils/variables';
 import { temporal } from 'zundo';
-import { DesignElement, ElementType } from '../types';
+import { DataRecord, DesignElement, ElementType, PageConfig } from '../types';
+import { isStructured, isValidPages, MAX_PAGES, pageOf, singlePage } from '../utils/pages';
 import { generateZpl, parseZpl, previewZpl } from '../utils/zplClient';
 import { elementBox } from '../utils/zplText';
+import { newTableFields, tableOnPage } from '../utils/tableEdit';
 import { Box, Guide, SNAP_DISTANCE_PX, SnapOptions, snappingSuspended } from '../utils/snap';
 
 let idCounter = 0;
@@ -25,6 +27,7 @@ const DEFAULT_SIZES: Record<ElementType, { width: number; height: number }> = {
   image: { width: 0, height: 0 },  // set from the picture
   comment: { width: 0, height: 0 },
   raw: { width: 0, height: 0 },
+  table: { width: 0, height: 0 },  // always drawn from its columns (see tableBox), never from these
 };
 
 const DEFAULT_VALUES: Partial<Record<ElementType, Partial<DesignElement>>> = {
@@ -55,8 +58,12 @@ interface DesignerStore {
   guides: Guide[];                       // alignment lines shown while dragging or resizing
   sampleValues: Record<string, string>;  // example value per {{variable}}, for Preview/Export and the canvas
   showSamples: boolean;                  // canvas shows sample values instead of {{variable}}
+  pages: PageConfig[];                   // the pages of the design: one, or two (first, then repeat)
+  activePage: number;                    // the page being edited: index into pages
+  records: DataRecord[];                 // test records the tables show (the simulation); saved with the design
   setLabelSize(width: number, height: number): void;
   addElement(type: ElementType, x?: number, y?: number, fields?: Partial<DesignElement>): string;
+  addTable(x?: number, y?: number): string | null;
   updateElement(id: string, patch: Partial<DesignElement>): void;
   deleteElement(id: string): void;
   deleteSelected(): void;
@@ -80,6 +87,11 @@ interface DesignerStore {
   moveSelected(dx: number, dy: number): void;
   setSampleValues(values: Record<string, string>): void;
   setShowSamples(show: boolean): void;
+  addPage(): boolean;
+  removePage(): boolean;
+  setActivePage(index: number): boolean;
+  updatePage(index: number, patch: Partial<PageConfig>): boolean;
+  setRecords(records: DataRecord[]): void;
   onCodeChange(code: string): void;
   syncToCode(): Promise<void>;
   setPreviewUrl(url: string | null): void;
@@ -120,8 +132,11 @@ export function snapContext(
   if ((!snapToGrid && !snapToElements) || snappingSuspended()) return null;
   const samples = showSamples ? sampleValues : null;
   const moving = new Set(movingIds);
+  // Only what is on the page being moved on: another page is another label
+  const movingFirst = elements.find(e => moving.has(e.id));
+  const page = movingFirst ? pageOf(movingFirst) : useDesignerStore.getState().activePage;
   const others = elements
-    .filter(e => !moving.has(e.id) && e.type !== 'raw' && e.type !== 'comment')
+    .filter(e => !moving.has(e.id) && pageOf(e) === page && e.type !== 'raw' && e.type !== 'comment')
     .map(e => ({ x: e.x, y: e.y, ...elementBox(e, samples) }));
   return {
     others,
@@ -152,6 +167,9 @@ export const useDesignerStore = create<DesignerStore>()(
   guides: [],
   sampleValues: {},
   showSamples: false,
+  pages: singlePage(),
+  activePage: 0,
+  records: [],
 
   setLabelSize(width, height) {
     set({ labelWidth: width, labelHeight: height });
@@ -159,6 +177,8 @@ export const useDesignerStore = create<DesignerStore>()(
   },
 
   addElement(type, x = 50, y = 50, fields) {
+    // A design of one page keeps its elements as they always were (no page field)
+    const { pages, activePage } = get();
     const el: DesignElement = {
       id: nextId(),
       type,
@@ -166,11 +186,19 @@ export const useDesignerStore = create<DesignerStore>()(
       y,
       ...DEFAULT_SIZES[type],
       ...DEFAULT_VALUES[type],
+      ...(pages.length > 1 && { page: activePage }),
       ...fields,
     };
     set(s => ({ elements: [...s.elements, el], selectedId: el.id, selectedIds: [el.id] }));
     get().syncToCode();
     return el.id;
+  },
+
+  addTable(x = 50, y = 50) {
+    // A page holds one table (the generator and the distribution of the records work with one per page)
+    const { elements, activePage, labelWidth } = get();
+    if (tableOnPage(elements, activePage)) return null;
+    return get().addElement('table', x, y, newTableFields(labelWidth, x));
   },
 
   updateElement(id, patch) {
@@ -201,7 +229,12 @@ export const useDesignerStore = create<DesignerStore>()(
   },
 
   clearAll() {
-    set({ elements: [], selectedId: null, selectedIds: [] });
+    // With two pages only the one being edited is cleared
+    set(s => ({
+      elements: s.pages.length > 1 ? s.elements.filter(e => pageOf(e) !== s.activePage) : [],
+      selectedId: null,
+      selectedIds: [],
+    }));
     get().syncToCode();
   },
 
@@ -211,7 +244,8 @@ export const useDesignerStore = create<DesignerStore>()(
     if (ids.length === 0) return;
     const offset = 16;
     const newEls = elements
-      .filter(e => ids.includes(e.id))
+      // A page holds one table: a table is not duplicated (it would be a second one on the same page)
+      .filter(e => ids.includes(e.id) && e.type !== 'table')
       .map(e => ({ ...e, id: nextId(), x: e.x + offset, y: e.y + offset }));
     if (newEls.length === 0) return;
     const newSelectedId = newEls[newEls.length - 1].id;
@@ -229,8 +263,11 @@ export const useDesignerStore = create<DesignerStore>()(
     if (!selectedId) return;
     const idx = elements.findIndex(e => e.id === selectedId);
     if (idx === -1 || idx === elements.length - 1) return;
+    // The next element on the same page: elements of the other page between them stay where they are
+    const other = elements.findIndex((e, i) => i > idx && pageOf(e) === pageOf(elements[idx]));
+    if (other === -1) return;
     const next = [...elements];
-    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    [next[idx], next[other]] = [next[other], next[idx]];
     set({ elements: next });
     get().syncToCode();
   },
@@ -240,8 +277,11 @@ export const useDesignerStore = create<DesignerStore>()(
     if (!selectedId) return;
     const idx = elements.findIndex(e => e.id === selectedId);
     if (idx <= 0) return;
+    let other = -1;
+    for (let i = idx - 1; i >= 0; i--) if (pageOf(elements[i]) === pageOf(elements[idx])) { other = i; break; }
+    if (other === -1) return;
     const next = [...elements];
-    [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
+    [next[idx], next[other]] = [next[other], next[idx]];
     set({ elements: next });
     get().syncToCode();
   },
@@ -402,7 +442,60 @@ export const useDesignerStore = create<DesignerStore>()(
     set({ showSamples: show });
   },
 
+  // A second page (first, then repeat): at most two. It becomes the page being edited. One set, so
+  // undo takes the page and the view back together.
+  addPage() {
+    const { pages } = get();
+    if (pages.length >= MAX_PAGES) return false;
+    set({ pages: [...pages, { mode: 'repeat' }], activePage: pages.length, selectedId: null, selectedIds: [] });
+    get().syncToCode();
+    return true;
+  },
+
+  // Back to one page: the elements of the second page go with it
+  removePage() {
+    const { pages } = get();
+    if (pages.length <= 1) return false;
+    set(s => ({
+      pages: pages.slice(0, 1),
+      activePage: 0,
+      elements: s.elements.filter(e => pageOf(e) === 0),
+      selectedId: null,
+      selectedIds: [],
+    }));
+    get().syncToCode();
+    return true;
+  },
+
+  // Switching pages only changes which one is being edited: no element is touched
+  setActivePage(index) {
+    const { pages, activePage } = get();
+    if (!Number.isInteger(index) || index < 0 || index >= pages.length) return false;
+    if (index !== activePage) set({ activePage: index, selectedId: null, selectedIds: [] });
+    return true;
+  },
+
+  // A property of a page. Today the only one is its mode, which the rules fix by position (the first
+  // page is 'first', the second 'repeat'), so a change that breaks them is refused.
+  updatePage(index, patch) {
+    const { pages } = get();
+    if (index < 0 || index >= pages.length) return false;
+    const next = pages.map((p, i) => (i === index ? { ...p, ...patch } : p));
+    if (!isValidPages(next)) return false;
+    if (next.every((p, i) => p.mode === pages[i].mode)) return true;  // nothing changes
+    set({ pages: next });
+    get().syncToCode();
+    return true;
+  },
+
+  setRecords(records) {
+    set({ records });
+  },
+
   onCodeChange(code: string) {
+    // A design of two pages or with a table is not read back from its code: the parser would flatten
+    // the pages and break the table into lines and text. The code tab shows it read-only.
+    if (isStructured(get().pages, get().elements)) return;
     set({ zplCode: code });
 
     if (code === lastCanvasZpl) return;
@@ -438,7 +531,7 @@ export const useDesignerStore = create<DesignerStore>()(
   },
 
   async syncToCode() {
-    const { labelWidth, labelHeight, elements } = get();
+    const { labelWidth, labelHeight, elements, pages } = get();
 
     // Cancel any previous in-flight sync request
     if (syncAbort) syncAbort.abort();
@@ -446,7 +539,7 @@ export const useDesignerStore = create<DesignerStore>()(
     const signal = syncAbort.signal;
 
     try {
-      const zpl = await generateZpl({ labelWidth, labelHeight, elements }, signal);
+      const zpl = await generateZpl({ labelWidth, labelHeight, elements, ...(pages.length > 1 && { pages }) }, signal);
       if (signal.aborted) return;
       lastCanvasZpl = zpl;
       lastPreviewZpl = ''; // invalidate preview cache when canvas changes
@@ -501,7 +594,16 @@ export const useDesignerStore = create<DesignerStore>()(
         elements: state.elements,
         labelWidth: state.labelWidth,
         labelHeight: state.labelHeight,
+        pages: state.pages,
+        activePage: state.activePage,
+        records: state.records,
       }),
+      // A change that leaves what is tracked as it was is not a step of the history: the ZPL arriving after
+      // an edit (it is not tracked, but it is a change of the store) and switching the page being edited used
+      // to leave an empty step, so the first undo after any edit did nothing
+      equality: (a, b) =>
+        a.elements === b.elements && a.labelWidth === b.labelWidth && a.labelHeight === b.labelHeight
+        && a.pages === b.pages && a.records === b.records,
       handleSet: (handleSet) => {
         let t: ReturnType<typeof setTimeout> | null = null;
         return (...args: Parameters<typeof handleSet>) => {

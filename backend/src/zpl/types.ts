@@ -1,9 +1,32 @@
 // 'raw' holds ZPL the editor cannot represent (e.g. ^FT, ^FB, ^B2, ^CI, ~SD).
 // It is not drawn on the canvas and is emitted back verbatim, so editing the
 // canvas never drops commands the editor does not understand.
-export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'datamatrix' | 'rect' | 'line' | 'image' | 'comment' | 'raw';
+export type ElementType = 'text' | 'barcode128' | 'barcodeI2of5' | 'qrcode' | 'datamatrix' | 'rect' | 'line' | 'image' | 'comment' | 'raw' | 'table';
 
 export type Orientation = 'N' | 'R' | 'I' | 'B';
+
+// How a page of the design is printed: 'first' once, on the first label; 'repeat' on the labels that
+// follow, as many times as the records left over need
+export type PageMode = 'first' | 'repeat';
+
+export interface PageConfig {
+  mode: PageMode;
+}
+
+// What is saved with a design version about its pages (NULL = a design of one page)
+export interface PagesConfig {
+  pages: PageConfig[];
+  records?: Record<string, string>[];  // the test records the tables show, for the simulation
+}
+
+// One column of a table: the title printed in the header row, and the {{variable}} (field) its cells
+// print for each record
+export interface TableColumn {
+  header: string;
+  field: string;
+  width: number;  // ZPL dots
+  align: 'L' | 'C' | 'R';
+}
 
 // ^FB field block: text wrapped/aligned inside a box of fixed width
 export interface FieldBlock {
@@ -49,6 +72,14 @@ export interface Element {
   dynamic?: boolean;
   variableName?: string;
   bytesPerRow?: number;       // image: ^GFA bytes per row; value holds the ^GFA data
+  page?: number;              // page of the design the element is on, 0 or 1; omitted = 0 (the only page of a design saved before pages existed)
+  columns?: TableColumn[];    // table: its columns, left to right; the table width is their sum
+  rowHeight?: number;         // table: height of every row in dots; omitted = 40
+  headerRow?: boolean;        // table: a header row with the column titles; omitted = true
+  rowsPerPage?: number;       // table: records it holds on each label (its capacity); omitted = 1
+  cellPadding?: number;       // table: dots between a column edge and its text; omitted = 6
+  // A table's font is fontName / fontSize / fontWidth (omitted: 0, 24, as tall) and its border is
+  // thickness (omitted = 2; 0 = no lines)
 }
 
 export interface LabelDimensions {
@@ -58,6 +89,7 @@ export interface LabelDimensions {
 
 export interface GenerateRequest extends LabelDimensions {
   elements: Element[];
+  pages?: PageConfig[];  // omitted = one page, or two (first + repeat) when an element is on page 1
 }
 
 export interface ParseResult extends LabelDimensions {

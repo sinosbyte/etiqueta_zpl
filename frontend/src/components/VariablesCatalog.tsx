@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { variableCatalog } from '../utils/variableCatalog';
 import { useT } from '../i18n';
+import { tableVariables } from '../utils/tableEdit';
 
 // The longest variable name whose example value is saved with the design (backend limit)
 const MAX_SAMPLE_NAME = 60;
@@ -15,6 +16,13 @@ export function VariablesCatalog() {
   const selectElement = useDesignerStore(s => s.selectElement);
 
   const variables = useMemo(() => variableCatalog(elements), [elements]);
+  // Variables only a table prints are filled in by the test data (one record per row): an example value would be ignored
+  const tableOnly = useMemo(() => {
+    const tables = elements.filter(e => e.type === 'table');
+    const names = new Set(tables.flatMap(tableVariables));
+    const ids = new Set(tables.map(e => e.id));
+    return new Set(variables.filter(v => names.has(v.name) && v.elementIds.every(id => ids.has(id))).map(v => v.name));
+  }, [elements, variables]);
 
   if (variables.length === 0) {
     return (
@@ -49,6 +57,9 @@ export function VariablesCatalog() {
             <span style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginLeft: 6 }}>
               {v.elementIds.length === 1 ? t('vars.used1') : t('vars.usedN', { n: v.elementIds.length })}
             </span>
+            {tableOnly.has(v.name) ? (
+              <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', lineHeight: 1.4, margin: '3px 0 0' }}>{t('vars.fromTable')}</p>
+            ) : (
             <input
               className="chrome-input"
               type="text"
@@ -59,6 +70,7 @@ export function VariablesCatalog() {
               style={{ marginTop: 4 }}
               maxLength={255}
             />
+            )}
             {v.clashesWith.length > 0 && (
               <p style={{ fontSize: 10, color: 'var(--status-warning)', lineHeight: 1.4, margin: '3px 0 0' }}>
                 {t('vars.clash', { other: v.clashesWith.map(n => `{{${n}}}`).join(', ') })}

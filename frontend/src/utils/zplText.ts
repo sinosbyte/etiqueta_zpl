@@ -5,6 +5,7 @@ import { code128Width } from './code128';
 import { qrBoxSide } from './qr';
 import { dmBoxSide } from './datamatrix';
 import { isQuarterTurn, turnedSize } from './rotation';
+import { tableBox } from './tableBox';
 
 // Lays text out the way the printer does, so the canvas matches the printed label.
 // Font 0 metrics were measured from Labelary renders (8 dpmm); other fonts are
@@ -224,6 +225,7 @@ export function elementBox(el: DesignElement, samples?: Record<string, string> |
     const side = qrBoxSide(el, samples);
     return side === null ? { width: el.width, height: el.height } : { width: side, height: side };
   }
+  if (el.type === 'table') return tableBox(el);
   if (el.type !== 'text') return { width: el.width, height: el.height };
   const box = textBox(el, samples);
   return turnedSize(el.orientation, box.width, box.height);

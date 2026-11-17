@@ -1,7 +1,8 @@
 import { eq, and, sql, count, desc } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { designsTable, designVersionsTable } from '../db/schema';
-import { Element } from '../zpl/types';
+import { Element, PagesConfig } from '../zpl/types';
+import { elementsFitPages } from '../zpl/schema';
 
 export interface DesignPayload {
   zpl: string;
@@ -9,6 +10,9 @@ export interface DesignPayload {
   labelWidth: number;
   labelHeight: number;
   sampleValues?: Record<string, string>;  // example value per {{variable}}; omitted = none
+  // How the pages print and the test records of the tables. Omitted on an update = the saved one stays;
+  // null = back to one page; omitted on a new version = one page
+  pagesConfig?: PagesConfig | null;
 }
 
 export interface DesignSummary {
@@ -46,6 +50,7 @@ export interface VersionDetail {
   labelWidth: number;
   labelHeight: number;
   sampleValues: Record<string, string>;
+  pagesConfig: PagesConfig | null;  // null = a design of one page (every version saved before pages existed)
   createdAt: string;
 }
 
@@ -183,6 +188,7 @@ async function insertVersion(designId: number, payload: DesignPayload): Promise<
     labelWidth: payload.labelWidth,
     labelHeight: payload.labelHeight,
     sampleValues: payload.sampleValues ?? null,
+    pagesConfig: payload.pagesConfig ?? null,
   }).returning({ id: designVersionsTable.id });
   await db.update(designsTable).set({ updatedAt: new Date() }).where(eq(designsTable.id, designId));
   return rows[0].id;
@@ -244,6 +250,7 @@ function toVersionDetail(r: typeof designVersionsTable.$inferSelect): VersionDet
     labelWidth: r.labelWidth,
     labelHeight: r.labelHeight,
     sampleValues: r.sampleValues ?? {},
+    pagesConfig: r.pagesConfig ?? null,
     createdAt: toIso(r.createdAt),
   };
 }
@@ -257,6 +264,13 @@ export async function updateVersion(
   const db = getDb();
   if (!await ownershipCheck(userId, designId)) return undefined;
 
+  // An update that leaves the pages alone must still not put an element on a page the saved design lacks
+  if (payload.pagesConfig === undefined && payload.elements.some(el => (el.page ?? 0) > 0)) {
+    const saved = await db.select({ pagesConfig: designVersionsTable.pagesConfig }).from(designVersionsTable)
+      .where(and(eq(designVersionsTable.designId, designId), eq(designVersionsTable.versionNumber, versionNumber)));
+    if (saved[0] && !elementsFitPages(payload.elements, saved[0].pagesConfig)) throw new Error('PAGES_MISMATCH');
+  }
+
   const rows = await db
     .update(designVersionsTable)
     .set({
@@ -266,6 +280,8 @@ export async function updateVersion(
       labelHeight: payload.labelHeight,
       // A client that does not send them leaves the saved ones alone
       ...(payload.sampleValues !== undefined && { sampleValues: payload.sampleValues }),
+      // Same for the pages: only a client that sends them (or null, to go back to one page) changes them
+      ...(payload.pagesConfig !== undefined && { pagesConfig: payload.pagesConfig }),
     })
     .where(and(
       eq(designVersionsTable.designId, designId),

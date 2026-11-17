@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { useDesignsStore } from '../store/useDesignsStore';
-import { signatureOf } from '../utils/unsaved';
+import { editorSignature } from '../utils/unsaved';
 import { t } from '../i18n';
 import { askConfirm } from '../store/useDialogStore';
 
@@ -11,17 +11,19 @@ export function useIsDirty(): boolean {
   const labelWidth = useDesignerStore(s => s.labelWidth);
   const labelHeight = useDesignerStore(s => s.labelHeight);
   const sampleValues = useDesignerStore(s => s.sampleValues);
+  const pages = useDesignerStore(s => s.pages);
+  const records = useDesignerStore(s => s.records);
   const saved = useDesignsStore(s => s.savedSignature);
   return useMemo(
-    () => signatureOf(elements, labelWidth, labelHeight, sampleValues) !== saved,
-    [elements, labelWidth, labelHeight, sampleValues, saved],
+    () => editorSignature({ elements, labelWidth, labelHeight, sampleValues, pages, records }) !== saved,
+    [elements, labelWidth, labelHeight, sampleValues, pages, records, saved],
   );
 }
 
 /** The same check outside React, for handlers that are about to replace what is in the editor. */
 export function isDirtyNow(): boolean {
   const s = useDesignerStore.getState();
-  return signatureOf(s.elements, s.labelWidth, s.labelHeight, s.sampleValues) !== useDesignsStore.getState().savedSignature;
+  return editorSignature(s) !== useDesignsStore.getState().savedSignature;
 }
 
 /** Before replacing the editor's content: true when nothing would be lost or the user accepts losing it. */

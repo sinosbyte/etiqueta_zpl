@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { layerList } from '../utils/layers';
+import { pageOf } from '../utils/pages';
 import { useT } from '../i18n';
 
 const arrowButton: React.CSSProperties = {
@@ -11,7 +12,14 @@ const arrowButton: React.CSSProperties = {
 /** The label's elements as a list, top layer first: pick one, even when it is hidden behind another, and reorder. */
 export function LayersPanel() {
   const t = useT();
-  const elements = useDesignerStore(s => s.elements);
+  const allElements = useDesignerStore(s => s.elements);
+  const pages = useDesignerStore(s => s.pages);
+  const activePage = useDesignerStore(s => s.activePage);
+  // With two pages the list is the one being edited
+  const elements = useMemo(
+    () => (pages.length > 1 ? allElements.filter(e => pageOf(e) === activePage) : allElements),
+    [allElements, pages.length, activePage],
+  );
   const selectedIds = useDesignerStore(s => s.selectedIds);
   const selectElement = useDesignerStore(s => s.selectElement);
   const toggleSelectElement = useDesignerStore(s => s.toggleSelectElement);

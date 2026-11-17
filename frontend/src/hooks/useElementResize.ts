@@ -5,6 +5,7 @@ import { resizeCode128Patch } from '../utils/code128';
 import { resizeQrPatch } from '../utils/qr';
 import { resizeDmPatch } from '../utils/datamatrix';
 import { resizeImagePatch } from '../utils/graphic';
+import { resizeTablePatch } from '../utils/tableEdit';
 import { snapContext, useDesignerStore } from '../store/useDesignerStore';
 import { snapResize } from '../utils/snap';
 
@@ -69,6 +70,7 @@ export function useElementResize(
     else if (el.type === 'barcode128' && el.moduleWidth) sized = resizeCode128Patch(el, width, height, samples);
     else if (el.type === 'qrcode' && el.qrMagnification !== undefined) sized = resizeQrPatch(el, width, height, samples);
     else if (el.type === 'datamatrix') sized = resizeDmPatch(el, width, height, samples);
+    else if (el.type === 'table') sized = resizeTablePatch(el, width, height);
     else if (el.type === 'image') {
       // Side handles follow the side dragged; corners follow the width
       const byHeight = !dir.includes('e') && !dir.includes('w');

@@ -2,6 +2,7 @@ import { DesignElement } from '../types';
 import { CODE128_PLACEHOLDER_CHARS, code128Modules, code128Value } from './code128';
 import { turnedSize } from './rotation';
 import { elementBox } from './zplText';
+import { pageOf } from './pages';
 
 // Things a Code 128 must not print over
 const OBSTACLES: ReadonlySet<DesignElement['type']> = new Set(['text', 'barcode128', 'barcodeI2of5', 'qrcode', 'datamatrix', 'image']);
@@ -45,7 +46,7 @@ export function barcodeFit(
   // The others are as the canvas shows them
   const shown = showSamples ? sampleValues : null;
   const overlaps = elements.filter(other =>
-    other.id !== el.id && OBSTACLES.has(other.type) && overlap(mine, { x: other.x, y: other.y, ...elementBox(other, shown) }));
+    other.id !== el.id && pageOf(other) === pageOf(el) && OBSTACLES.has(other.type) && overlap(mine, { x: other.x, y: other.y, ...elementBox(other, shown) }));
   const outside = mine.x + mine.width > labelWidth + 1 || mine.y + mine.height > labelHeight + 1;
   return { chars, sampleChars, length, overlaps, outside };
 }

@@ -6,6 +6,7 @@ import { encodeHexUtf8 } from './hexText';
 import {
   DATAMATRIX_DEFAULT_MODULE, DATAMATRIX_MAX_MODULE, DATAMATRIX_MIN_MODULE, DATAMATRIX_SIZES,
 } from './datamatrix';
+import { TABLE_DEFAULT_BORDER, TABLE_DEFAULT_FONT_SIZE, TABLE_DEFAULT_PADDING, tableGeometry, tableSlotName } from './table';
 
 // Field data emitted into ^FD. Dynamic elements emit a {{variableName}}
 // placeholder for the API caller to substitute; others emit their value.
@@ -19,18 +20,62 @@ const gbExtras = (el: Element): string =>
 
 const yn = (flag: boolean): string => (flag ? 'Y' : 'N');
 
-export function generateZpl(req: GenerateRequest): string {
+// Cells of a table as ZPL: a ^GB box with the lines between rows and columns, then one ^FD per cell.
+// The header cells print their title; the others print the {{variable}} of the column, numbered
+// when the table holds several records (see tableSlotName).
+function tableLines(el: Element): string[] {
+  const g = tableGeometry(el);
+  const columns = el.columns ?? [];
+  if (!g) return [];
+
+  const lines: string[] = [];
+  const border = Math.max(0, Math.round(el.thickness ?? TABLE_DEFAULT_BORDER));
+  const padding = Math.max(0, Math.round(el.cellPadding ?? TABLE_DEFAULT_PADDING));
+  const fontName = el.fontName ?? '0';
+  const fontSize = Math.max(1, Math.round(el.fontSize ?? TABLE_DEFAULT_FONT_SIZE));
+  const fontWidth = Math.max(1, Math.round(el.fontWidth ?? fontSize));
+  const rows = g.capacity + (g.headerRow ? 1 : 0);
+
+  if (border > 0) {
+    lines.push(`^FO${el.x},${el.y}^GB${g.width},${g.height},${border}^FS`);
+    for (let r = 1; r < rows; r++) {
+      lines.push(`^FO${el.x},${el.y + r * g.rowHeight}^GB${g.width},${border},${border}^FS`);
+    }
+    for (let c = 1; c < columns.length; c++) {
+      lines.push(`^FO${el.x + g.colX[c]},${el.y}^GB${border},${g.height},${border}^FS`);
+    }
+  }
+
+  const textTop = Math.max(0, Math.round((g.rowHeight - fontSize) / 2));
+  for (let r = 0; r < rows; r++) {
+    const isHeader = g.headerRow && r === 0;
+    const slot = r - (g.headerRow ? 1 : 0) + 1;
+    columns.forEach((col, c) => {
+      // ^ and ~ start ZPL commands: they cannot be part of a title
+      const text = isHeader ? col.header.replace(/[\^~]/g, ' ') : `{{${tableSlotName(col.field, slot, g.capacity)}}}`;
+      if (text === '') return;
+      const left = el.x + g.colX[c] + padding;
+      const width = Math.max(1, g.colW[c] - 2 * padding);
+      const top = el.y + r * g.rowHeight + textTop;
+      lines.push(`^FO${left},${top}^A${fontName}N,${fontSize},${fontWidth}^FB${width},1,0,${col.align},0^FD${text}^FS`);
+    });
+  }
+  return lines;
+}
+
+// One label (^XA ... ^XZ) with the given elements
+function generateBlock(labelWidth: number, labelHeight: number, elements: Element[]): string {
   const lines: string[] = [
     '^XA',
-    `^PW${req.labelWidth}`,
-    `^LL${req.labelHeight}`,
+    `^PW${labelWidth}`,
+    `^LL${labelHeight}`,
   ];
 
   let cfFontName: string | null = null;
   let cfFontSize: number | null = null;
   let cfFontWidth: number | null = null;
 
-  for (const field of req.elements) {
+  for (const field of elements) {
     // The printer works in whole dots: a position or size from the canvas may be fractional
     const el = {
       ...field,
@@ -159,6 +204,10 @@ export function generateZpl(req: GenerateRequest): string {
         lines.push(el.value ?? '');
         break;
       }
+      case 'table': {
+        lines.push(...tableLines(el));
+        break;
+      }
       default: {
         const _exhaustive: never = el.type;
         break;
@@ -168,4 +217,27 @@ export function generateZpl(req: GenerateRequest): string {
 
   lines.push('^XZ');
   return lines.join('\n');
+}
+
+/** Pages of the design: the ones configured, or the highest page an element is on. At least one. */
+export function pageCountOf(req: GenerateRequest): number {
+  let count = Math.max(1, req.pages?.length ?? 1);
+  for (const el of req.elements) count = Math.max(count, (el.page ?? 0) + 1);
+  return count;
+}
+
+/** The label (^XA ... ^XZ) of one page of the design, with its {{variables}} as they are. */
+export function generatePageZpl(req: GenerateRequest, page: number): string {
+  return generateBlock(req.labelWidth, req.labelHeight, req.elements.filter(el => (el.page ?? 0) === page));
+}
+
+/**
+ * The ZPL of the design: one label per page, in order. A design with one page (every design saved
+ * before pages existed) is exactly the single label it always was.
+ */
+export function generateZpl(req: GenerateRequest): string {
+  if (pageCountOf(req) <= 1) return generateBlock(req.labelWidth, req.labelHeight, req.elements);
+  const blocks: string[] = [];
+  for (let page = 0; page < pageCountOf(req); page++) blocks.push(generatePageZpl(req, page));
+  return blocks.join('\n');
 }

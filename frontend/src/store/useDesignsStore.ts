@@ -8,7 +8,8 @@ import {
   DesignSummary, VersionSummary,
 } from '../utils/designsClient';
 import type { TemplateDetail } from '../utils/templatesClient';
-import { EMPTY_SIGNATURE, signatureOf, usedSamples } from '../utils/unsaved';
+import { EMPTY_SIGNATURE, editorSignature, usedSamples } from '../utils/unsaved';
+import { pagesConfigOf, pagesFromConfig, recordsFromConfig, singlePage } from '../utils/pages';
 import { checkSapCompat } from '../utils/sapCompat';
 
 interface DesignsStore {
@@ -42,10 +43,15 @@ const DESIGNS_PAGE_SIZE = 24;
 
 // What the editor holds now: the payload to save and its signature
 function editorContent() {
-  const { elements, zplCode: zpl, labelWidth, labelHeight, sampleValues } = useDesignerStore.getState();
+  const state = useDesignerStore.getState();
+  const { elements, zplCode: zpl, labelWidth, labelHeight, sampleValues, pages, records } = state;
   return {
-    payload: { zpl, elements, labelWidth, labelHeight, sampleValues: usedSamples(elements, sampleValues) },
-    signature: signatureOf(elements, labelWidth, labelHeight, sampleValues),
+    payload: {
+      zpl, elements, labelWidth, labelHeight, sampleValues: usedSamples(elements, sampleValues),
+      // Always sent, so what is saved is what the editor shows (null = one page)
+      pagesConfig: pagesConfigOf(pages, records),
+    },
+    signature: editorSignature(state),
   };
 }
 const currentSignature = () => editorContent().signature;
@@ -129,7 +135,12 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       labelHeight: version.labelHeight,
       // This design's own example values (none for versions saved before they existed), not the previous design's
       sampleValues: version.sampleValues ?? {},
+      // A version with no configuration is a design of one page
+      pages: pagesFromConfig(version.pagesConfig),
+      records: recordsFromConfig(version.pagesConfig),
+      activePage: 0,
       selectedId: null,
+      selectedIds: [],
     });
     const designName = get().designs.find(d => d.id === designId)?.name ?? '';
     set({ activeDesignId: designId, activeDesignName: designName, activeVersionNumber: versionNumber, savedSignature: currentSignature() });
@@ -144,6 +155,9 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       labelWidth: template.labelWidth,
       labelHeight: template.labelHeight,
       sampleValues: {},
+      pages: singlePage(),
+      records: [],
+      activePage: 0,
       selectedId: null,
       selectedIds: [],
     });

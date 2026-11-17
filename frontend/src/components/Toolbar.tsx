@@ -12,6 +12,7 @@ import { useIsDirty } from '../hooks/useUnsavedChanges';
 import { GRID_STEPS } from '../utils/snap';
 import { useLangStore, useT } from '../i18n';
 import { LanguageSelect } from './LanguageSelect';
+import { MAX_PAGES } from '../utils/pages';
 
 interface Props {
   onNavigateToMyDesigns: () => void;
@@ -25,6 +26,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
     alignElements, distributeElements,
     fetchPreview, closePreview, previewUrl, previewLoading, zplCode,
     sampleValues, setSampleValues,
+    pages, addPage,
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
   const { logout } = useAuthStore();
@@ -89,12 +91,15 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   return (
     <>
       <header style={{
-        height: 44,
+        // One row of 44 px as always; in a narrow window the controls wrap to a second row instead of overflowing
+        minHeight: 44,
+        flexWrap: 'wrap',
+        rowGap: 4,
         background: 'var(--chrome-surface)',
         borderBottom: '1px solid var(--chrome-border)',
         display: 'flex',
         alignItems: 'center',
-        padding: '0 12px',
+        padding: '4px 12px',
         gap: 8,
         flexShrink: 0,
         userSelect: 'none',
@@ -249,7 +254,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         {divider}
 
         {/* Label dimensions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', rowGap: 4 }}>
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)', whiteSpace: 'nowrap' }}>W</span>
           <NumberInput
             key={`w-${m.unit}`}
@@ -272,6 +277,16 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           />
           <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>{m.short}</span>
           <UnitToggle />
+          {/* A second page, below the first: at most two */}
+          <button
+            className="chrome-btn chrome-btn-ghost"
+            onClick={addPage}
+            disabled={pages.length >= MAX_PAGES}
+            title={pages.length >= MAX_PAGES ? t('toolbar.addPageMax') : t('toolbar.addPageTitle')}
+            style={{ height: 24, fontSize: 11, padding: '0 8px', whiteSpace: 'nowrap', marginLeft: 4, opacity: pages.length >= MAX_PAGES ? 0.4 : 1 }}
+          >
+            {t('toolbar.addPage')}
+          </button>
         </div>
 
         {/* Spacer */}

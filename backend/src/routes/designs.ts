@@ -4,7 +4,7 @@ import {
   createDesign, listDesigns, getDesignWithVersion, deleteDesign, renameDesign,
   createVersion, listVersions, getVersion, updateVersion,
 } from '../designs/designsService';
-import { ElementSchema } from '../zpl/schema';
+import { ElementSchema, PagesConfigSchema, elementsFitPages } from '../zpl/schema';
 
 export const designsRouter = Router();
 
@@ -21,17 +21,30 @@ const PaginationSchema = z.object({
 const SampleValuesSchema = z.record(z.string().regex(/^[A-Za-z0-9_]{1,60}$/), z.string().max(255))
   .refine(values => Object.keys(values).length <= 200, 'Too many sample values');
 
-const VersionPayloadSchema = z.object({
+const VersionFields = z.object({
   zpl: z.string().min(1),
   elements: z.array(ElementSchema),
   labelWidth: z.number().positive(),
   labelHeight: z.number().positive(),
   sampleValues: SampleValuesSchema.optional(),
+  // How the pages print + the test records of the tables. Omitted: not touched on an update, one page on a
+  // new version. null: back to one page.
+  pagesConfig: PagesConfigSchema.nullable().optional(),
 });
 
-const CreateDesignSchema = VersionPayloadSchema.extend({
+// An element may only be on a page the design has. A new version with no configuration is one page; an update
+// with none keeps the saved one, so the service checks the elements against that (PAGES_MISMATCH).
+type PagesCheck = { elements: { page?: number }[]; pagesConfig?: { pages: unknown[] } | null };
+const fitsNewVersion = (v: PagesCheck) => elementsFitPages(v.elements, v.pagesConfig ?? null);
+const fitsWhenGiven = (v: PagesCheck) => v.pagesConfig === undefined || elementsFitPages(v.elements, v.pagesConfig);
+const PAGES_MESSAGE = { message: 'Elements are on a page the design does not have', path: ['pagesConfig'] };
+
+const NewVersionSchema = VersionFields.refine(fitsNewVersion, PAGES_MESSAGE);
+const UpdateVersionSchema = VersionFields.refine(fitsWhenGiven, PAGES_MESSAGE);
+
+const CreateDesignSchema = VersionFields.extend({
   name: z.string().min(1).max(100),
-});
+}).refine(fitsNewVersion, PAGES_MESSAGE);
 
 designsRouter.post('/', async (req: Request, res: Response, next: NextFunction) => {
   const parsed = CreateDesignSchema.safeParse(req.body);
@@ -117,7 +130,7 @@ designsRouter.delete('/:id', async (req: Request, res: Response, next: NextFunct
 designsRouter.post('/:id/versions', async (req: Request, res: Response, next: NextFunction) => {
   const idResult = IdParam.safeParse(req.params.id);
   if (!idResult.success) { res.status(400).json({ error: 'Invalid design ID' }); return; }
-  const parsed = VersionPayloadSchema.safeParse(req.body);
+  const parsed = NewVersionSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   try {
     const version = await createVersion(req.user!.userId, idResult.data, parsed.data);
@@ -163,13 +176,17 @@ designsRouter.put('/:id/versions/:vn', async (req: Request, res: Response, next:
   const vnResult = IdParam.safeParse(req.params.vn);
   if (!idResult.success) { res.status(400).json({ error: 'Invalid design ID' }); return; }
   if (!vnResult.success) { res.status(400).json({ error: 'Invalid version number' }); return; }
-  const parsed = VersionPayloadSchema.safeParse(req.body);
+  const parsed = UpdateVersionSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   try {
     const result = await updateVersion(req.user!.userId, idResult.data, vnResult.data, parsed.data);
     if (!result) { res.status(404).json({ error: 'Version not found' }); return; }
     res.json(result);
   } catch (e) {
-    next(e);
+    if (e instanceof Error && e.message === 'PAGES_MISMATCH') {
+      res.status(400).json({ error: PAGES_MESSAGE.message });
+    } else {
+      next(e);
+    }
   }
 });

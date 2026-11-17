@@ -1,5 +1,5 @@
 import { apiFetch } from './apiClient';
-import { DesignElement } from '../types';
+import { DesignElement, PagesConfig } from '../types';
 
 export interface DesignSummary {
   id: number;
@@ -23,6 +23,7 @@ export interface VersionDetail {
   labelWidth: number;
   labelHeight: number;
   sampleValues?: Record<string, string>;
+  pagesConfig?: PagesConfig | null;  // null (or absent) = a design of one page
   createdAt: string;
 }
 
@@ -33,6 +34,8 @@ export interface DesignPayload {
   labelHeight: number;
   /** Example value per {{variable}}; only the ones the design uses */
   sampleValues?: Record<string, string>;
+  /** How the pages print and the test records of the tables; null = one page. Left out = the saved one stays. */
+  pagesConfig?: PagesConfig | null;
 }
 
 /** A page of results plus the total count, mirroring the backend envelope. */
