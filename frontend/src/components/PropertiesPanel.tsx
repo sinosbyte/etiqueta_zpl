@@ -22,6 +22,8 @@ import {
 import { toast } from '../store/useToastStore';
 import { t as translate, useT, MessageKey } from '../i18n';
 import { VariablesCatalog } from './VariablesCatalog';
+import { TablePanel } from './TablePanel';
+import { resizeTablePatch } from '../utils/tableEdit';
 
 export function PropertiesPanel() {
   const t = useT();
@@ -97,6 +99,8 @@ export function PropertiesPanel() {
           ? resizeQrPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
         : el.type === 'datamatrix'
           ? resizeDmPatch(el, patch.width ?? box.width, patch.height ?? box.height, samples)
+        : el.type === 'table'
+          ? resizeTablePatch(el, patch.width ?? box.width, patch.height ?? box.height)
         : el.type === 'image'
           ? resizeImagePatch(el, patch.width ?? (patch.height ?? el.height) * el.width / el.height)
           : patch);
@@ -300,6 +304,8 @@ export function PropertiesPanel() {
         {reverseControl}
         </>
       )}
+
+      {el.type === 'table' && <TablePanel el={el} />}
 
       {el.type === 'image' && (
         <div style={sectionStyle}>

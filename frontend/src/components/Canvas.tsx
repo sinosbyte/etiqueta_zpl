@@ -13,6 +13,10 @@ import { BarcodeElement } from './elements/BarcodeElement';
 import { I2of5Element } from './elements/I2of5Element';
 import { QRCodeElement } from './elements/QRCodeElement';
 import { DataMatrixElement } from './elements/DataMatrixElement';
+import { TableElement } from './elements/TableElement';
+import { pageOf } from '../utils/pages';
+import { requestRemovePage } from '../utils/pageActions';
+import { useSimulationStore } from '../store/useSimulationStore';
 import { RectElement } from './elements/RectElement';
 import { LineElement } from './elements/LineElement';
 import { ImageElement } from './elements/ImageElement';
@@ -102,6 +106,7 @@ function ElementRenderer({ element, scale }: { element: DesignElement; scale: nu
     case 'rect': return <RectElement element={element} scale={scale} />;
     case 'line': return <LineElement element={element} scale={scale} />;
     case 'image': return <ImageElement element={element} scale={scale} />;
+    case 'table': return <TableElement element={element} scale={scale} />;
     case 'comment': return null;
     case 'raw': return null;
   }
@@ -134,6 +139,8 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
   const mergedPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button === 0) {
       e.stopPropagation();
+      // Working on an element is working on its page
+      useDesignerStore.getState().setActivePage(pageOf(element));
       if (e.shiftKey) {
         toggleSelectElement(element.id);
       } else if (!selectedIds.includes(element.id)) {
@@ -202,18 +209,157 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
   );
 }
 
+// One label of the design on the canvas: its own drawing area, with the elements of its page. With more than
+// one page each has a header that says which it is and how it prints, and clicking it makes it the page being
+// edited. A design of one page is drawn exactly as before, without a header.
+interface PageSurfaceProps {
+  index: number;
+  elements: DesignElement[];     // the elements of this page
+  zoom: number;
+  gridStep: number;
+  groupOffset: { x: number; y: number } | null;
+  showHeader: boolean;
+}
+
+function PageSurface({ index, elements, zoom, gridStep, groupOffset, showHeader }: PageSurfaceProps) {
+  const t = useT();
+  const { labelWidth, labelHeight } = useDesignerStore(useShallow(s => ({ labelWidth: s.labelWidth, labelHeight: s.labelHeight })));
+  const active = useDesignerStore(s => s.activePage === index);
+  const mode = useDesignerStore(s => s.pages[index]?.mode);
+  const guides = useDesignerStore(s => s.guides);
+  const { setNodeRef } = useDroppable({ id: index === 0 ? 'canvas' : `canvas-${index}` });
+
+  const canvasWidth = labelWidth * zoom;
+  const canvasHeight = labelHeight * zoom;
+  const activate = () => useDesignerStore.getState().setActivePage(index);
+
+  const label = (
+    <div
+      ref={setNodeRef}
+      data-page={index}
+      onClick={() => { activate(); useDesignerStore.getState().clearSelection(); }}
+      style={{
+        position: 'relative',
+        width: canvasWidth,
+        height: canvasHeight,
+        background: 'white',
+        margin: '0 auto',
+        boxShadow: showHeader && active
+          ? '0 0 0 2px var(--accent), 0 4px 20px rgba(0,0,0,0.35)'
+          : '0 4px 20px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Elements layer — no isolation so ^FR difference blend can see the white canvas bg */}
+      <div style={{ position: 'absolute', inset: 0 }}>
+        {elements.filter(el => el.type !== 'comment' && el.type !== 'raw').map(el => (
+          <DraggableElement key={el.id} element={el} scale={zoom} groupOffset={groupOffset} />
+        ))}
+      </div>
+      {/* Dot grid rendered after elements via multiply — visible on white, invisible on black */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: 'radial-gradient(circle, #aaa 1px, transparent 1px)',
+        backgroundSize: `${gridStep}px ${gridStep}px`,
+        mixBlendMode: 'multiply',
+        pointerEvents: 'none',
+      }} />
+      {/* Alignment guides while dragging or resizing (magnetic snapping): on the page being edited */}
+      {(active || !showHeader) && guides.map((g, i) => g.gap ? <GapMarker key={i} guide={g} zoom={zoom} /> : (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: g.axis === 'x' ? Math.min(g.at * zoom, canvasWidth - 1) : g.from * zoom,
+            top: g.axis === 'y' ? Math.min(g.at * zoom, canvasHeight - 1) : g.from * zoom,
+            width: g.axis === 'x' ? 1 : (g.to - g.from) * zoom,
+            height: g.axis === 'y' ? 1 : (g.to - g.from) * zoom,
+            background: GUIDE_COLOR,
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  if (!showHeader) return label;
+
+  return (
+    <section style={{ width: canvasWidth, margin: index === 0 ? '0 auto' : '28px auto 0' }}>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-pressed={active}
+        title={t('page.select')}
+        onClick={activate}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, minHeight: 26, marginBottom: 6, cursor: 'pointer',
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', userSelect: 'none',
+          color: active ? 'var(--accent)' : 'var(--chrome-text-muted)',
+        }}
+      >
+        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: active ? 'var(--accent)' : 'var(--chrome-text-faint)' }} />
+        <span>{t('page.title', { n: index + 1 })} — {t(mode === 'repeat' ? 'page.repeat' : 'page.first')}</span>
+        {active && (
+          <span style={{ fontSize: 10, fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: 'var(--chrome-text-faint)' }}>
+            · {t('page.editing')}
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        {index > 0 && (
+          <button
+            type="button"
+            className="chrome-btn chrome-btn-ghost"
+            style={{ height: 22, fontSize: 11, padding: '0 8px', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}
+            onClick={e => { e.stopPropagation(); void requestRemovePage(); }}
+          >
+            {t('page.remove')}
+          </button>
+        )}
+      </div>
+      {label}
+    </section>
+  );
+}
+
+// Tells that the canvas shows one label of the simulation (the records the backend put on it), not the editing
+// preview, and takes the user back to editing
+function SimulationBanner({ width }: { width: number }) {
+  const t = useT();
+  const view = useSimulationStore(s => s.view);
+  const setViewing = useSimulationStore(s => s.setViewing);
+  if (!view) return null;
+  const records = view.records.length === 0
+    ? t('sim.noRecords')
+    : view.records.length === 1 ? t('sim.record1', { n: view.firstRecord }) : t('sim.recordsRange', { from: view.firstRecord, to: view.firstRecord + view.records.length - 1 });
+  return (
+    <div
+      role="status"
+      data-testid="sim-banner"
+      style={{
+        width: Math.max(width, 280), margin: '0 auto 8px', padding: '6px 10px', fontSize: 12, lineHeight: 1.4, borderRadius: 6,
+        border: '1px solid var(--accent)', background: 'var(--chrome-surface)', color: 'var(--chrome-text)', boxSizing: 'border-box',
+        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+      }}
+    >
+      <span style={{ flex: 1 }}>{t('sim.viewing', { n: view.index, total: view.total, page: view.page + 1, records })}</span>
+      <button type="button" className="chrome-btn chrome-btn-ghost" onClick={() => setViewing(false)}>{t('sim.back')}</button>
+    </div>
+  );
+}
+
 export function Canvas() {
   const t = useT();
-  const { labelWidth, labelHeight, elements, clearSelection, zoom } =
+  const { labelWidth, elements, zoom, pages } =
     useDesignerStore(useShallow(s => ({
       labelWidth: s.labelWidth,
-      labelHeight: s.labelHeight,
       elements: s.elements,
-      clearSelection: s.clearSelection,
       zoom: s.zoom,
+      pages: s.pages,
     })));
 
-  const { setNodeRef } = useDroppable({ id: 'canvas' });
   const { wrapperRef, isPanning, handleMouseDown } = usePanning();
 
   // Register as non-passive so preventDefault() actually suppresses browser zoom.
@@ -231,17 +377,25 @@ export function Canvas() {
     return () => el.removeEventListener('wheel', handler);
   }, [wrapperRef]);
 
+  // A page just added is below the visible part: bring it into view
+  const pageCount = pages.length;
+  const previousPageCount = React.useRef(pageCount);
+  useEffect(() => {
+    if (pageCount > previousPageCount.current) {
+      wrapperRef.current?.querySelector(`[data-page="${pageCount - 1}"]`)?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    }
+    previousPageCount.current = pageCount;
+  }, [pageCount, wrapperRef]);
+
   const canvasWidth = labelWidth * zoom;
-  const canvasHeight = labelHeight * zoom;
 
   // Printed fields kept verbatim because the canvas cannot draw them
-  // (label-level settings such as ^CI28 have nothing to draw and are not counted)
+  // (label-level settings such as ^CI28 are not counted)
   const rawCount = elements.filter(isRawField).length;
 
   // Live pixel offset while a multi-selection drag is in progress, so the
   // non-active members follow the pointer too.
   const [groupOffset, setGroupOffset] = useState<{ x: number; y: number } | null>(null);
-  const guides = useDesignerStore(s => s.guides);
   const gridSize = useDesignerStore(s => s.gridSize);
 
   // The move in dots of the dragged element, or of the whole selection when it is
@@ -289,6 +443,7 @@ export function Canvas() {
     if (!elements.some(e => e.id === active.id)) return;
 
     // Move every selected element by the same snapped delta; fall back to the dragged one.
+    // Only x and y change: an element stays on its own page.
     const { ids, dx, dy } = dragSnap(String(active.id), delta);
     for (const id of ids) {
       const el = elements.find(e => e.id === id);
@@ -300,6 +455,8 @@ export function Canvas() {
   // Grid dots: every grid step, or every 2, 4… steps when they would be too dense to see
   let gridStep = gridSize * zoom;
   while (gridStep < 6) gridStep *= 2;
+
+  const showHeader = pages.length > 1;
 
   return (
     <DndContext
@@ -316,6 +473,7 @@ export function Canvas() {
         onMouseDown={handleMouseDown}
         onContextMenu={e => e.preventDefault()}
       >
+        <SimulationBanner width={canvasWidth} />
         {rawCount > 0 && (
           <div
             style={{
@@ -334,50 +492,19 @@ export function Canvas() {
             {t(rawCount === 1 ? 'canvas.rawOne' : 'canvas.rawMany', { n: rawCount })} {t('canvas.rawHelp')}
           </div>
         )}
-        <div
-          ref={setNodeRef}
-          onClick={() => clearSelection()}
-          style={{
-            position: 'relative',
-            width: canvasWidth,
-            height: canvasHeight,
-            background: 'white',
-            margin: '0 auto',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2)',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Elements layer — no isolation so ^FR difference blend can see the white canvas bg */}
-          <div style={{ position: 'absolute', inset: 0 }}>
-            {elements.filter(el => el.type !== 'comment' && el.type !== 'raw').map(el => (
-              <DraggableElement key={el.id} element={el} scale={zoom} groupOffset={groupOffset} />
-            ))}
-          </div>
-          {/* Dot grid rendered after elements via multiply — visible on white, invisible on black */}
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: 'radial-gradient(circle, #aaa 1px, transparent 1px)',
-            backgroundSize: `${gridStep}px ${gridStep}px`,
-            mixBlendMode: 'multiply',
-            pointerEvents: 'none',
-          }} />
-          {/* Alignment guides while dragging or resizing (magnetic snapping) */}
-          {guides.map((g, i) => g.gap ? <GapMarker key={i} guide={g} zoom={zoom} /> : (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: g.axis === 'x' ? Math.min(g.at * zoom, canvasWidth - 1) : g.from * zoom,
-                top: g.axis === 'y' ? Math.min(g.at * zoom, canvasHeight - 1) : g.from * zoom,
-                width: g.axis === 'x' ? 1 : (g.to - g.from) * zoom,
-                height: g.axis === 'y' ? 1 : (g.to - g.from) * zoom,
-                background: GUIDE_COLOR,
-                pointerEvents: 'none',
-              }}
-            />
-          ))}
-        </div>
+        {pages.map((_page, index) => (
+          <PageSurface
+            key={index}
+            index={index}
+            elements={showHeader ? elements.filter(el => pageOf(el) === index) : elements}
+            zoom={zoom}
+            gridStep={gridStep}
+            groupOffset={groupOffset}
+            showHeader={showHeader}
+          />
+        ))}
+        {/* Room below the last page, so its bottom edge can be reached when the editor scrolls */}
+        {showHeader && <div style={{ height: 24 }} />}
       </div>
     </DndContext>
   );

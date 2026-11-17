@@ -1,4 +1,5 @@
 import { pgTable, serial, text, integer, timestamp, unique, jsonb, index, boolean } from 'drizzle-orm/pg-core';
+import type { PagesConfig } from '../zpl/types';
 
 export const usersTable = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -35,6 +36,8 @@ export const designVersionsTable = pgTable('design_versions', {
   labelHeight: integer('label_height').notNull(),
   // Example value per {{variable}}, for the preview; null when none was saved
   sampleValues: jsonb('sample_values').$type<Record<string, string>>(),
+  // How the pages print (the first once, the second repeated) and the test records of its tables; null = one page
+  pagesConfig: jsonb('pages_config').$type<PagesConfig>(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [unique().on(t.designId, t.versionNumber)]);
 

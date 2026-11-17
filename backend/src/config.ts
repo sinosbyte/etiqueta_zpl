@@ -66,3 +66,23 @@ export const LABELARY_TIMEOUT_MS = 10_000;
 
 /** Base URL of the Labelary rendering API (HTTPS). */
 export const LABELARY_BASE_URL = 'https://api.labelary.com/v1/printers/8dpmm/labels';
+
+// The gate in front of Labelary (see labelary/gate.ts). The public service allows 3 requests a second and 5,000 a day
+// from one address, and every user of this server shares that address, so the server paces itself below it.
+const positive = (name: string, fallback: number): number => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+/** Requests a second the server starts at the service, for all users together. */
+export const LABELARY_RATE_PER_SECOND = positive('LABELARY_RATE_PER_SECOND', 2);
+
+/** Requests to the service in flight at once. */
+export const LABELARY_CONCURRENCY = positive('LABELARY_CONCURRENCY', 2);
+
+/** Longest (ms) a request waits in the queue before it is turned away as busy. */
+export const LABELARY_QUEUE_MAX_WAIT_MS = positive('LABELARY_QUEUE_MAX_WAIT_MS', 30_000);
+
+/** Requests one user may have waiting, and all users together. */
+export const LABELARY_MAX_QUEUED_PER_USER = positive('LABELARY_MAX_QUEUED_PER_USER', 100);
+export const LABELARY_MAX_QUEUED = positive('LABELARY_MAX_QUEUED', 1000);

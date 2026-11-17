@@ -84,6 +84,8 @@ const API_MESSAGES: Record<string, MessageKey> = {
   'Version not found': 'api.versionNotFound',
   'Labelary API error': 'api.labelaryError',
   'Could not reach Labelary API': 'api.labelaryUnreachable',
+  'Labelary rate limit reached, please retry later': 'api.labelaryRateLimited',
+  'Labelary API busy, please retry later': 'api.labelaryBusy',
 };
 
 /** The error text of an API response: known messages translated, validation objects as a generic text. */

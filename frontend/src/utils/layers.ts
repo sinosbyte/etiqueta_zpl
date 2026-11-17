@@ -19,6 +19,7 @@ const TYPE_KEYS: Partial<Record<ElementType, MessageKey>> = {
   rect: 'element.rect',
   line: 'element.line',
   image: 'element.image',
+  table: 'element.table',
 };
 
 const MAX_DETAIL = 24;

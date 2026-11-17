@@ -93,6 +93,16 @@ const PALETTE: { type: ElementType; label: MessageKey; icon: React.ReactNode }[]
     ),
   },
   {
+    type: 'table',
+    label: 'element.table',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="3" width="12" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.4"/>
+        <path d="M2 6.5h12M2 9.75h12M6 3v10M10 3v10" stroke="currentColor" strokeWidth="1.2"/>
+      </svg>
+    ),
+  },
+  {
     type: 'image',
     label: 'element.image',
     icon: (
@@ -127,6 +137,11 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
 
   // A picture (e.g. a logo) becomes a black and white ^GFA image
   const handleAdd = async (type: ElementType) => {
+    if (type === 'table') {
+      // A page holds one table; the other page can have its own
+      if (!useDesignerStore.getState().addTable(50, 50)) toast.error(translate('table.onePerPage'));
+      return;
+    }
     if (type !== 'image') {
       addElement(type, 50, 50);
       return;

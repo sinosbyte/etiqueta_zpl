@@ -85,6 +85,9 @@ export function TemplatesPage({ onBack }: Props) {
     }
   };
 
+  // A template is one page in this version: a design of two pages cannot be published or put in a template
+  const multiPage = useDesignerStore(s => s.pages.length > 1);
+
   // The label that is open in the editor, as a template payload
   const current = () => {
     const { zplCode, elements, labelWidth, labelHeight } = useDesignerStore.getState();
@@ -93,6 +96,7 @@ export function TemplatesPage({ onBack }: Props) {
 
   // The dialog preselects the open tab's category ("all" starts on outros, the default)
   const publish = async (name: string, description: string, cat: TemplateCategory) => {
+    if (useDesignerStore.getState().pages.length > 1) { toast.error(t('templates.onePageOnly')); return; }
     try {
       await apiCreateTemplate(name, description, current(), cat);
       toast.success(t('templates.published', { name }));
@@ -104,6 +108,7 @@ export function TemplatesPage({ onBack }: Props) {
   };
 
   const replace = async (template: TemplateSummary) => {
+    if (useDesignerStore.getState().pages.length > 1) { toast.error(t('templates.onePageOnly')); return; }
     const ok = await askConfirm({
       title: t('templates.replaceTitle'),
       message: t('templates.replaceConfirm', { name: template.name }),
@@ -158,7 +163,13 @@ export function TemplatesPage({ onBack }: Props) {
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--chrome-text)' }}>{t('sidebar.templates')}</span>
         <div style={{ flex: 1 }} />
         {canManage && (
-          <button onClick={() => setPublishing(true)} className="chrome-btn chrome-btn-primary" style={{ fontSize: 12 }} title={t('templates.publishTitle')}>
+          <button
+            onClick={() => setPublishing(true)}
+            disabled={multiPage}
+            className="chrome-btn chrome-btn-primary"
+            style={{ fontSize: 12, opacity: multiPage ? 0.45 : 1 }}
+            title={multiPage ? t('templates.onePageOnly') : t('templates.publishTitle')}
+          >
             {t('templates.publish')}
           </button>
         )}
@@ -169,6 +180,11 @@ export function TemplatesPage({ onBack }: Props) {
         <p style={{ fontSize: 12, color: 'var(--chrome-text-faint)', marginBottom: 16, maxWidth: 640, lineHeight: 1.6 }}>
           {t('templates.intro')}
         </p>
+        {canManage && multiPage && (
+          <p role="note" style={{ fontSize: 12, color: 'var(--status-warning)', marginBottom: 16, maxWidth: 640, lineHeight: 1.6 }}>
+            {t('templates.onePageOnly')}
+          </p>
+        )}
 
         {!loading && !error && templates.length > 0 && (
           <div role="tablist" className="chrome-scroll" style={{
@@ -279,7 +295,7 @@ export function TemplatesPage({ onBack }: Props) {
               {canManage && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <>
-                    <button onClick={() => replace(template)} className="chrome-btn chrome-btn-ghost" style={{ flex: 1, minWidth: 0, justifyContent: 'center', fontSize: 12, padding: '4px 10px' }} title={t('templates.replaceTitle')}>
+                    <button onClick={() => replace(template)} disabled={multiPage} className="chrome-btn chrome-btn-ghost" style={{ flex: 1, minWidth: 0, justifyContent: 'center', fontSize: 12, padding: '4px 10px', opacity: multiPage ? 0.45 : 1 }} title={multiPage ? t('templates.onePageOnly') : t('templates.replaceTitle')}>
                       {t('templates.replace')}
                     </button>
                     <button

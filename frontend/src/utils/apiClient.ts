@@ -1,6 +1,14 @@
 import { API_BASE, getToken, triggerOn401, refreshAccessToken } from './authClient';
 import { apiMessage, t } from '../i18n';
 
+/** An error answer of the API: still an Error with the same message, plus what a caller needs to decide to retry. */
+export class HttpError extends Error {
+  constructor(message: string, readonly status: number, readonly retryAfterMs?: number) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
 export function authHeaders(): Record<string, string> {
   const token = getToken();
   return {
@@ -55,7 +63,9 @@ export async function apiFetchBlob(path: string, opts?: RequestInit, _retry = fa
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `${t('api.requestFailed')} (${res.status})` }));
-    throw new Error(apiMessage(err.error, 'api.requestFailed'));
+    // Retry-After is in seconds (or a date; only the seconds form is used)
+    const seconds = Number(res.headers.get('Retry-After'));
+    throw new HttpError(apiMessage(err.error, 'api.requestFailed'), res.status, Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined);
   }
   return res.blob();
 }
