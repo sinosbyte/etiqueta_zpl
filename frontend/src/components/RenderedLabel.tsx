@@ -12,7 +12,7 @@ const note: React.CSSProperties = { fontSize: 11, color: 'var(--chrome-text-fain
  * that ZPL one click away. It is the third thing the panel shows, next to the editing canvas (the design) and the
  * simulation's table of records (which record is on which label): this is how the label will look.
  */
-export function RenderedLabel({ label, total, width, height }: { label: ExpandedLabel; total: number; width: number; height: number }) {
+export function RenderedLabel({ label, total, width, height, imageHeight = 220 }: { label: ExpandedLabel; total: number; width: number; height: number; imageHeight?: number }) {
   const t = useT();
   const stale = useSimulationStore(s => s.stale);
   const select = useSimulationStore(s => s.select);
@@ -55,7 +55,7 @@ export function RenderedLabel({ label, total, width, height }: { label: Expanded
             data-testid="sim-image-box"
             style={{
               position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              aspectRatio: `${width} / ${height}`, height: 220, maxWidth: '100%', background: '#fff', border: '1px solid var(--chrome-border)',
+              aspectRatio: `${width} / ${height}`, height: imageHeight, maxWidth: '100%', background: '#fff', border: '1px solid var(--chrome-border)',
               borderRadius: 4, overflow: 'hidden', opacity: stale ? 0.5 : 1,
             }}
           >

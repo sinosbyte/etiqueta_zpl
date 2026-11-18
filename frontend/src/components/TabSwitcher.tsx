@@ -1,6 +1,5 @@
 import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
-import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables } from '../utils/variables';
 import { useT } from '../i18n';
 import { ZOOM_100, zoomToPercent } from '../utils/units';
@@ -8,19 +7,14 @@ import { ZOOM_100, zoomToPercent } from '../utils/units';
 export function TabSwitcher() {
   const {
     activeTab, setActiveTab, zoom, setZoom, zplCode,
-    sampleValues, setSampleValues, showSamples, setShowSamples,
+    showSamples, setShowSamples,
   } = useDesignerStore();
   const t = useT();
   const displayPct = zoomToPercent(zoom);
-  const [askSamples, setAskSamples] = React.useState(false);
   const variables = extractVariables(zplCode);
 
-  // Show sample values on the canvas; ask for them first if some are missing
-  const toggleSamples = () => {
-    if (showSamples) setShowSamples(false);
-    else if (variables.some(v => !sampleValues[v])) setAskSamples(true);
-    else setShowSamples(true);
-  };
+  // Show the test values on the canvas (they are entered in Test data; a variable without a value shows its name)
+  const toggleSamples = () => setShowSamples(!showSamples);
 
   return (
     <div style={{
@@ -113,15 +107,6 @@ export function TabSwitcher() {
             title={t('zoom.in')}
           >+</button>
         </div>
-      )}
-      {askSamples && (
-        <SampleValuesModal
-          variables={variables}
-          initialValues={sampleValues}
-          confirmLabel={t('samples.showOnCanvas')}
-          onConfirm={values => { setSampleValues(values); setShowSamples(true); setAskSamples(false); }}
-          onClose={() => setAskSamples(false)}
-        />
       )}
     </div>
   );
