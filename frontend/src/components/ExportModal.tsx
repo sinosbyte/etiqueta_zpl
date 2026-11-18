@@ -65,7 +65,7 @@ export function ExportModal({ onClose, zplOverride }: Props) {
             <div>
               <button
                 type="button" className="chrome-btn chrome-btn-primary" style={{ marginTop: 6 }} data-testid="export-go-sim"
-                onClick={() => { usePanelStore.getState().show('sim'); onClose(); }}
+                onClick={() => { usePanelStore.getState().show(); onClose(); }}
               >
                 {t('export.goSimulation')}
               </button>

@@ -5,12 +5,13 @@ import { usePanelStore } from '../store/usePanelStore';
 import { toast } from '../store/useToastStore';
 import { MessageKey, useT } from '../i18n';
 import {
-  MAX_ADD_AT_ONCE, MAX_RECORDS, MAX_VALUE_LENGTH, addLabelField, addRecords, candidateLabelFields, dataFields, deleteRecord,
+  MAX_ADD_AT_ONCE, MAX_RECORDS, MAX_VALUE_LENGTH, addRecords, candidateLabelFields, dataFields, deleteRecord,
   labelFields as labelFieldsOf, labelValueConflicts, orphanFields, parsePaste, recordIssues, recordValue, removeOrphans, setCell,
 } from '../utils/testData';
+import { labelRecords, labelSummary, unplacedRecords, firstUnplaced } from '../utils/simulation';
 import { RenderedLabel } from './RenderedLabel';
 import { PdfExportBar } from './PdfExportBar';
-import { labelRecords, labelSummary, unplacedRecords, firstUnplaced } from '../utils/simulation';
+import { TestValues } from './TestValues';
 
 const WARN = '#dc2626';
 const AMBER = 'var(--status-warning)';
@@ -21,6 +22,9 @@ const th: React.CSSProperties = {
 };
 const td: React.CSSProperties = { padding: 2, borderBottom: '1px solid var(--chrome-border)', verticalAlign: 'middle' };
 const note: React.CSSProperties = { fontSize: 11, color: 'var(--chrome-text-faint)', margin: '4px 0', lineHeight: 1.5 };
+const sectionTitle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--chrome-text)', margin: '0 0 4px',
+};
 
 // A cell of the grid: the value is applied on Enter or on leaving the cell
 function Cell({ value, onCommit, label, muted }: { value: string; onCommit(v: string): void; label: string; muted?: boolean }) {
@@ -47,7 +51,8 @@ function Cell({ value, onCommit, label, muted }: { value: string; onCommit(v: st
   );
 }
 
-function DataTab() {
+/** The records of the tables (pagesConfig.records): the grid with everything it already had. */
+function RecordsSection({ gridHeight }: { gridHeight: number }) {
   const t = useT();
   const elements = useDesignerStore(s => s.elements);
   const records = useDesignerStore(s => s.records);
@@ -67,10 +72,11 @@ function DataTab() {
 
   if (fields.length === 0) {
     return (
-      <div>
+      <section data-testid="tr-records">
+        <h3 style={sectionTitle}>{t('td.records')}</h3>
         <p style={{ ...note, color: 'var(--chrome-text)', fontSize: 12 }} role="note">{t('td.noTable')}</p>
         {records.length > 0 && <p style={note}>{t('td.noTableKept', { n: records.length })}</p>}
-      </div>
+      </section>
     );
   }
 
@@ -102,7 +108,8 @@ function DataTab() {
 
   const columns = [...known, ...orphans];
   return (
-    <div>
+    <section data-testid="tr-records">
+      <h3 style={sectionTitle}>{t('td.records')} ({records.length})</h3>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <button type="button" className="chrome-btn chrome-btn-primary" onClick={() => add(1)} disabled={full} data-testid="td-add">{t('td.add')}</button>
         <input
@@ -119,22 +126,11 @@ function DataTab() {
         <button type="button" className="chrome-btn chrome-btn-ghost" title={t('td.pasteTitle')} onClick={() => setPasting(p => !p)} data-testid="td-paste-toggle">
           {t('td.paste')}
         </button>
-        {candidates.length > 0 && (
-          <select
-            className="chrome-input" value="" data-testid="td-add-label-col" style={{ width: 'auto', maxWidth: 200 }}
-            disabled={records.length === 0} title={records.length === 0 ? t('td.perLabelNeedsRecord') : t('td.perLabelTitle')}
-            aria-label={t('td.perLabelAdd')}
-            onChange={e => { const next = addLabelField(records, e.target.value); if (next) setRecords(next); }}
-          >
-            <option value="">{t('td.perLabelAdd')}</option>
-            {candidates.map(n => <option key={n} value={n}>{`{{${n}}}`}</option>)}
-          </select>
-        )}
         <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>
           {t('td.fields')} {fields.map(f => `{{${f}}}`).join(' ')}
         </span>
       </div>
-      {(perLabel.length > 0 || candidates.length > 0) && <p style={note} data-testid="td-perlabel-help">{t('td.perLabelHelp')}</p>}
+      {perLabel.length > 0 && <p style={note} data-testid="td-perlabel-help">{t('td.perLabelHelp')}</p>}
       {full && <p style={{ ...note, color: AMBER }}>{t('td.limit', { n: MAX_RECORDS })}</p>}
 
       {pasting && (
@@ -166,7 +162,7 @@ function DataTab() {
       {records.length === 0 ? (
         <p style={note}>{t('td.empty')}</p>
       ) : (
-        <div style={{ overflow: 'auto', maxHeight: 190, border: '1px solid var(--chrome-border)', borderRadius: 4 }}>
+        <div style={{ overflow: 'auto', maxHeight: gridHeight, border: '1px solid var(--chrome-border)', borderRadius: 4 }}>
           <table style={{ borderCollapse: 'collapse', width: '100%' }} data-testid="td-grid">
             <thead>
               <tr>
@@ -219,20 +215,25 @@ function DataTab() {
           {issues.length > 8 && <p style={note}>… +{issues.length - 8}</p>}
         </details>
       )}
-    </div>
+    </section>
   );
 }
 
 const KNOWN_WARNINGS = new Set(['repeat-page-without-table', 'unplaced-records']);
 
-function SimulationTab() {
+/**
+ * The preview: the real rendering (Labelary, through the simulation, the queue and the cache that already exist) of
+ * the label with the values on the left. It is only asked for when the user clicks Pré-visualizar / Atualizar; changing
+ * a value never sends anything, it only marks the picture as out of date.
+ */
+function PreviewSection({ maximized }: { maximized: boolean }) {
   const t = useT();
   const elements = useDesignerStore(s => s.elements);
   const sim = useSimulationStore();
   const fields = useMemo(() => dataFields(elements), [elements]);
-  const hasTable = fields.length > 0;
   const sentLabelFields = useMemo(() => labelFieldsOf(elements, sim.sent), [elements, sim.sent]);
   const result = sim.result;
+  const loading = sim.status === 'loading';
 
   const describe = (label: { page: number; recordStart: number; recordCount: number }): string => {
     const s = labelSummary(label as never);
@@ -241,15 +242,15 @@ function SimulationTab() {
   };
 
   return (
-    <div>
+    <section data-testid="tp-preview" aria-label={t('pv.title')}>
+      <h3 style={sectionTitle}>{t('pv.title')}</h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <button
           type="button" className="chrome-btn chrome-btn-primary" data-testid="sim-run"
-          disabled={!hasTable || sim.status === 'loading'} onClick={() => void sim.run()}
+          disabled={loading} onClick={() => void sim.run()}
         >
-          {sim.status === 'loading' ? t('sim.running') : t('sim.run')}
+          {loading ? t('sim.running') : result ? t('pv.refresh') : t('pv.run')}
         </button>
-        {!hasTable && <span style={{ ...note, color: AMBER }}>{t('sim.needTable')}</span>}
         {result && !sim.stale && (
           <span style={{ fontSize: 12, color: 'var(--chrome-text)' }} data-testid="sim-summary">
             {result.labels.length === 1
@@ -259,7 +260,7 @@ function SimulationTab() {
         )}
       </div>
 
-      {!result && sim.status !== 'error' && <p style={note}>{t('sim.intro')}</p>}
+      {!result && sim.status !== 'error' && <p style={note} data-testid="pv-intro">{t('pv.intro')}</p>}
       {sim.status === 'error' && <p role="alert" style={{ ...note, color: WARN }}>{t('sim.error', { message: sim.error })}</p>}
       {result && sim.stale && <p role="alert" data-testid="sim-stale" style={{ ...note, color: AMBER, fontWeight: 600 }}>{t('sim.stale')}</p>}
 
@@ -276,20 +277,22 @@ function SimulationTab() {
             </div>
           )}
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }} role="tablist">
-            {result.labels.map(l => (
-              <button
-                key={l.index} type="button" role="tab" aria-selected={sim.selected === l.index}
-                data-testid={`sim-label-${l.index}`}
-                className={`chrome-btn ${sim.selected === l.index ? 'chrome-btn-primary' : 'chrome-btn-ghost'}`}
-                style={{ flexDirection: 'column', alignItems: 'flex-start', height: 'auto', padding: '3px 8px', lineHeight: 1.3 }}
-                onClick={() => sim.select(l.index)}
-              >
-                <span style={{ fontWeight: 600 }}>{t('sim.labelTitle', { n: l.index })} · {t('sim.page', { n: l.page + 1 })}</span>
-                <span style={{ fontSize: 10, opacity: 0.85 }}>{describe(l)}</span>
-              </button>
-            ))}
-          </div>
+          {result.labels.length > 1 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }} role="tablist">
+              {result.labels.map(l => (
+                <button
+                  key={l.index} type="button" role="tab" aria-selected={sim.selected === l.index}
+                  data-testid={`sim-label-${l.index}`}
+                  className={`chrome-btn ${sim.selected === l.index ? 'chrome-btn-primary' : 'chrome-btn-ghost'}`}
+                  style={{ flexDirection: 'column', alignItems: 'flex-start', height: 'auto', padding: '3px 8px', lineHeight: 1.3 }}
+                  onClick={() => sim.select(l.index)}
+                >
+                  <span style={{ fontWeight: 600 }}>{t('sim.labelTitle', { n: l.index })} · {t('sim.page', { n: l.page + 1 })}</span>
+                  <span style={{ fontSize: 10, opacity: 0.85 }}>{describe(l)}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {(() => {
             const label = result.labels.find(l => l.index === sim.selected);
@@ -299,35 +302,35 @@ function SimulationTab() {
             const conflicts = labelValueConflicts(rows, sentLabelFields);
             return (
               <div data-testid="sim-detail">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <strong style={{ fontSize: 12 }}>{t('sim.contents')}</strong>
-                  {!sim.stale && (
-                    <button type="button" className="chrome-btn chrome-btn-ghost" onClick={() => sim.setViewing(!sim.viewing)} data-testid="sim-toggle-view">
-                      {sim.viewing ? t('sim.back') : t('sim.show')}
-                    </button>
-                  )}
-                </div>
+                {sim.size && (
+                  <RenderedLabel label={label} total={result.labels.length} width={sim.size.width} height={sim.size.height} imageHeight={maximized ? 420 : 230} />
+                )}
+                {!sim.stale && (
+                  <button type="button" className="chrome-btn chrome-btn-ghost" style={{ marginTop: 6 }} onClick={() => sim.setViewing(!sim.viewing)} data-testid="sim-toggle-view">
+                    {sim.viewing ? t('sim.back') : t('sim.show')}
+                  </button>
+                )}
                 {conflicts.length > 0 && (
                   <p role="alert" style={{ ...note, color: AMBER }} data-testid="sim-conflict">{t('sim.labelConflict', { fields: conflicts.join(', ') })}</p>
                 )}
-                {rows.length === 0 ? (
-                  <p style={note}>{t('sim.noneOnLabel')}</p>
-                ) : (
-                  <div style={{ overflow: 'auto', maxHeight: 110, border: '1px solid var(--chrome-border)', borderRadius: 4 }}>
-                    <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                      <thead><tr><th style={th}>#</th>{cols.map(c => <th key={c} style={th}>{c}</th>)}</tr></thead>
-                      <tbody>
-                        {rows.map((r, i) => (
-                          <tr key={i}>
-                            <td style={{ ...td, padding: '2px 6px', fontSize: 10 }}>{label.recordStart + i + 1}</td>
-                            {cols.map(c => <td key={c} style={{ ...td, padding: '2px 6px', fontSize: 12 }}>{recordValue(r, c)}</td>)}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                {rows.length > 0 && (
+                  <>
+                    <strong style={{ fontSize: 12, display: 'block', marginTop: 8 }}>{t('sim.contents')}</strong>
+                    <div style={{ overflow: 'auto', maxHeight: 110, border: '1px solid var(--chrome-border)', borderRadius: 4, marginTop: 4 }}>
+                      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                        <thead><tr><th style={th}>#</th>{cols.map(c => <th key={c} style={th}>{c}</th>)}</tr></thead>
+                        <tbody>
+                          {rows.map((r, i) => (
+                            <tr key={i}>
+                              <td style={{ ...td, padding: '2px 6px', fontSize: 10 }}>{label.recordStart + i + 1}</td>
+                              {cols.map(c => <td key={c} style={{ ...td, padding: '2px 6px', fontSize: 12 }}>{recordValue(r, c)}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
-                {sim.size && <RenderedLabel label={label} total={result.labels.length} width={sim.size.width} height={sim.size.height} />}
                 <PdfExportBar />
               </div>
             );
@@ -352,52 +355,61 @@ function SimulationTab() {
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
 /**
- * The test data of the design (pagesConfig.records) and the simulation of the labels it prints. A bar under the
- * canvas that opens into two tabs: the grid of records, and the simulation with its result.
+ * The single place to test a label: the values and the records on the left, the real preview on the right, in a bar
+ * under the canvas that can take the whole editor area. Nothing here is a different "mode": a design of one label, of
+ * several pages or with a table are all handled by the same fields and the same preview.
  */
 export function TestDataPanel() {
   const t = useT();
   const count = useDesignerStore(s => s.records.length);
   const stale = useSimulationStore(s => s.stale && !!s.result);
   const open = usePanelStore(p => p.open);
-  const tab = usePanelStore(p => p.tab);
-  const setOpen = (v: boolean | ((o: boolean) => boolean)) => usePanelStore.getState().setOpen(typeof v === 'function' ? v(usePanelStore.getState().open) : v);
-  const setTab = usePanelStore.getState().setTab;
+  const maximized = usePanelStore(p => p.maximized);
+  const toggle = () => usePanelStore.getState().setOpen(!usePanelStore.getState().open);
 
   return (
     <section
       aria-label={t('td.title')}
-      style={{ flexShrink: 0, borderTop: '1px solid var(--chrome-border)', background: 'var(--chrome-surface)', display: 'flex', flexDirection: 'column', maxHeight: '55%' }}
+      style={{
+        flexShrink: 0, borderTop: '1px solid var(--chrome-border)', background: 'var(--chrome-surface)', display: 'flex', flexDirection: 'column',
+        ...(open ? { height: maximized ? '100%' : '52%', minHeight: 0 } : {}),
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', minHeight: 32, flexWrap: 'wrap' }}>
         <button
           type="button" className="chrome-btn chrome-btn-ghost" aria-expanded={open} data-testid="td-toggle"
-          title={open ? t('td.toggleClose') : t('td.toggleOpen')} onClick={() => setOpen(o => !o)}
+          title={open ? t('td.toggleClose') : t('td.toggleOpen')} onClick={toggle}
         >
-          {open ? '▼' : '▲'} {t('td.title')} · {count === 1 ? t('td.count1') : t('td.count', { n: count })}
+          {open ? '▼' : '▲'} {t('td.title')} · {count === 1 ? t('td.count1') : t('td.count', { n: count })}{stale ? ' •' : ''}
         </button>
+        {open && <span style={{ fontSize: 10, color: 'var(--chrome-text-faint)' }}>{t('td.flow')}</span>}
+        <span style={{ flex: 1 }} />
         {open && (
-          <>
-            {(['data', 'sim'] as const).map(k => (
-              <button
-                key={k} type="button" role="tab" aria-selected={tab === k} data-testid={`td-tab-${k}`}
-                className={`chrome-btn ${tab === k ? 'chrome-btn-primary' : 'chrome-btn-ghost'}`} onClick={() => setTab(k)}
-              >
-                {t(k === 'data' ? 'td.tabData' : 'td.tabSim')}{k === 'sim' && stale ? ' •' : ''}
-              </button>
-            ))}
-            <span style={{ fontSize: 10, color: 'var(--chrome-text-faint)' }}>{t('td.flow')}</span>
-          </>
+          <button
+            type="button" className="chrome-btn chrome-btn-ghost" data-testid="td-maximize" aria-pressed={maximized}
+            title={maximized ? t('td.restore') : t('td.maximize')} onClick={() => usePanelStore.getState().setMaximized(!maximized)}
+          >
+            {maximized ? '⤡' : '⤢'} {maximized ? t('td.restore') : t('td.maximize')}
+          </button>
         )}
       </div>
       {open && (
-        <div style={{ padding: '4px 12px 12px', overflowY: 'auto' }} data-testid="td-body">
-          {tab === 'data' ? <DataTab /> : <SimulationTab />}
+        <div
+          data-testid="td-body"
+          style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr)', flex: 1, minHeight: 0, borderTop: '1px solid var(--chrome-border)' }}
+        >
+          <div data-testid="td-left" style={{ overflowY: 'auto', padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+            <TestValues />
+            <RecordsSection gridHeight={maximized ? 420 : 200} />
+          </div>
+          <div data-testid="td-right" style={{ overflowY: 'auto', padding: '8px 12px 12px', borderLeft: '1px solid var(--chrome-border)', minHeight: 0 }}>
+            <PreviewSection maximized={maximized} />
+          </div>
         </div>
       )}
     </section>

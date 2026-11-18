@@ -6,12 +6,12 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { TabSwitcher } from './components/TabSwitcher';
 import { CodeEditor } from './components/CodeEditor';
 import { SaveDesignModal } from './components/SaveDesignModal';
-import { PreviewPanel } from './components/PreviewPanel';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { Toasts } from './components/Toasts';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { TestDataPanel } from './components/TestDataPanel';
 import { useDesignerStore } from './store/useDesignerStore';
+import { usePanelStore } from './store/usePanelStore';
 import { useAuthStore } from './store/useAuthStore';
 import { useDesignsStore } from './store/useDesignsStore';
 import { useWarnBeforeUnload } from './hooks/useUnsavedChanges';
@@ -22,14 +22,14 @@ import { TokensPage } from './pages/TokensPage';
 import { navigate, useView } from './utils/navigation';
 
 export default function App() {
-  const { activeTab, previewUrl, previewLoading, previewError } = useDesignerStore();
+  const activeTab = useDesignerStore(s => s.activeTab);
+  // The Test data environment can take the whole editor area: the canvas keeps its state, it is only hidden
+  const maximized = usePanelStore(s => s.maximized);
   const { token } = useAuthStore();
   const { showSaveModal } = useDesignsStore();
   const currentView = useView();
   const goEditor = () => navigate('designer');
   useWarnBeforeUnload();
-
-  const previewActive = !!(previewUrl || previewLoading || previewError);
 
   let content: React.ReactNode;
   if (!token) {
@@ -49,14 +49,11 @@ export default function App() {
           <Sidebar onNavigateToMyDesigns={() => navigate('my-designs')} onNavigateToTemplates={() => navigate('templates')} onNavigateToTokens={() => navigate('tokens')} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <TabSwitcher />
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden" style={maximized && activeTab !== 'code' ? { display: 'none' } : undefined}>
               {activeTab !== 'code' && (
-                <>
-                  <div className="flex-1 overflow-hidden">
-                    <Canvas />
-                  </div>
-                  <PreviewPanel />
-                </>
+                <div className="flex-1 overflow-hidden">
+                  <Canvas />
+                </div>
               )}
               {activeTab === 'split' && (
                 <div style={{ width: '40%', minWidth: 320, borderLeft: '1px solid var(--chrome-border)' }}>
@@ -67,7 +64,7 @@ export default function App() {
             </div>
             {activeTab !== 'code' && <TestDataPanel />}
           </div>
-          {activeTab !== 'code' && !previewActive && <PropertiesPanel />}
+          {activeTab !== 'code' && <PropertiesPanel />}
         </div>
         {showSaveModal && <SaveDesignModal />}
       </div>

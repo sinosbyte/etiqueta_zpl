@@ -535,12 +535,20 @@ describe('values per label (Volumes, UC)', () => {
   });
 });
 
-describe('the test data bar can be opened from elsewhere', () => {
-  test('show() opens it on the tab asked for (what the Preview and Export buttons do)', () => {
-    usePanelStore.setState({ open: false, tab: 'data' });
-    usePanelStore.getState().show('sim');
-    expect(usePanelStore.getState()).toMatchObject({ open: true, tab: 'sim' });
+describe('the test data environment can be opened from elsewhere', () => {
+  test('show() opens it (what the Preview button of the top bar does) and closing gives the canvas its room back', () => {
+    usePanelStore.setState({ open: false, maximized: false });
+    usePanelStore.getState().show();
+    expect(usePanelStore.getState()).toMatchObject({ open: true, maximized: false });
+    usePanelStore.getState().setMaximized(true);
+    expect(usePanelStore.getState()).toMatchObject({ open: true, maximized: true });
     usePanelStore.getState().setOpen(false);
-    expect(usePanelStore.getState().open).toBe(false);
+    expect(usePanelStore.getState()).toMatchObject({ open: false, maximized: false });   // closing also restores
+  });
+
+  test('maximizing opens it too', () => {
+    usePanelStore.setState({ open: false, maximized: false });
+    usePanelStore.getState().setMaximized(true);
+    expect(usePanelStore.getState()).toMatchObject({ open: true, maximized: true });
   });
 });

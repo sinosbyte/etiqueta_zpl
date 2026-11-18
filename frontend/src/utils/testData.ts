@@ -1,4 +1,5 @@
-import { DataRecord, DesignElement } from '../types';
+import { DataRecord, DesignElement, ElementType } from '../types';
+import { variableCatalog } from './variableCatalog';
 import { TABLE_FIELD_PATTERN, tableColumns } from './tableEdit';
 import { recordValue } from './recordValue';
 import { designVariables } from './unsaved';
@@ -159,4 +160,40 @@ export function addLabelField(records: DataRecord[], name: string): DataRecord[]
 export function labelValueConflicts(labelRecords: DataRecord[], names: string[]): string[] {
   if (labelRecords.length < 2) return [];
   return names.filter(n => new Set(labelRecords.map(r => recordValue(r, n)).filter(v => v !== '')).size > 1);
+}
+
+// ---- The single list of values of the label: every variable outside the tables, once, whichever elements use it
+
+export interface ValueRow {
+  name: string;
+  elementIds: string[];     // the elements that use it, in layer order
+  types: ElementType[];     // their kinds, each once (Texto, QR Code...)
+}
+
+/** One row per variable that is not a cell of a table: a variable several elements share is one row. */
+export function valueRows(elements: DesignElement[]): ValueRow[] {
+  const byName = new Map(variableCatalog(elements).map(v => [v.name, v] as const));
+  const byId = new Map(elements.map(e => [e.id, e] as const));
+  return labelVariables(elements).map(name => {
+    const elementIds = byName.get(name)?.elementIds ?? [];
+    const types = [...new Set(elementIds.map(id => byId.get(id)?.type).filter((t): t is ElementType => !!t))];
+    return { name, elementIds, types };
+  });
+}
+
+/**
+ * Takes the per-label column of a variable out of every record. `filled` is how many values were in it, so the
+ * caller can ask before a column with data is dropped (nothing is removed silently).
+ */
+export function removeLabelField(records: DataRecord[], name: string): { records: DataRecord[]; filled: number } {
+  const upper = name.toUpperCase();
+  let filled = 0;
+  const next = records.map(r => {
+    const out: DataRecord = {};
+    for (const [k, v] of Object.entries(r)) {
+      if (k.toUpperCase() === upper) { if (v !== '') filled++; } else out[k] = v;
+    }
+    return out;
+  });
+  return { records: next, filled };
 }

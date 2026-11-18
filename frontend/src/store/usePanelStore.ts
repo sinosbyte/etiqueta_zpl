@@ -1,23 +1,21 @@
 import { create } from 'zustand';
 
-// Whether the test data bar under the canvas is open, and on which tab. It lives here (not in the panel) so other
-// parts of the editor, such as the Preview and Export buttons of the top bar, can take the user to the simulation.
-
-export type PanelTab = 'data' | 'sim';
+// The Test data environment under the canvas: whether it is open and whether it takes the whole editor area. It
+// lives here (not in the panel) so other parts of the editor, such as the Preview button of the top bar, can open it.
 
 interface PanelStore {
   open: boolean;
-  tab: PanelTab;
+  maximized: boolean;
   setOpen(open: boolean): void;
-  setTab(tab: PanelTab): void;
-  /** Opens the bar on a tab. */
-  show(tab: PanelTab): void;
+  setMaximized(maximized: boolean): void;
+  /** Opens the environment. */
+  show(): void;
 }
 
 export const usePanelStore = create<PanelStore>(set => ({
   open: false,
-  tab: 'data',
-  setOpen: open => set({ open }),
-  setTab: tab => set({ tab }),
-  show: tab => set({ open: true, tab }),
+  maximized: false,
+  setOpen: open => set(open ? { open } : { open, maximized: false }),   // closing also gives the canvas its room back
+  setMaximized: maximized => set(maximized ? { open: true, maximized } : { maximized }),
+  show: () => set({ open: true }),
 }));

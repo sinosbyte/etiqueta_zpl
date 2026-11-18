@@ -1,11 +1,10 @@
 import { create } from 'zustand';
 import { t } from '../i18n';
 import { ZOOM_100 } from '../utils/units';
-import { substituteVariables } from '../utils/variables';
 import { temporal } from 'zundo';
 import { DataRecord, DesignElement, ElementType, PageConfig } from '../types';
 import { isStructured, isValidPages, MAX_PAGES, pageOf, singlePage } from '../utils/pages';
-import { generateZpl, parseZpl, previewZpl } from '../utils/zplClient';
+import { generateZpl, parseZpl } from '../utils/zplClient';
 import { elementBox } from '../utils/zplText';
 import { newTableFields, tableOnPage } from '../utils/tableEdit';
 import { Box, Guide, SNAP_DISTANCE_PX, SnapOptions, snappingSuspended } from '../utils/snap';
@@ -47,10 +46,6 @@ interface DesignerStore {
   activeTab: 'design' | 'code' | 'split';
   zplCode: string;
   zplError: string;
-  previewUrl: string | null;
-  previewLoading: boolean;
-  previewError: string;
-  previewSource: string;                 // ZPL the open preview was rendered from (to tell when it is out of date)
   zoom: number;
   snapToGrid: boolean;
   snapToElements: boolean;               // magnetic: edges and centres snap to other elements and the label
@@ -94,10 +89,6 @@ interface DesignerStore {
   setRecords(records: DataRecord[]): void;
   onCodeChange(code: string): void;
   syncToCode(): Promise<void>;
-  setPreviewUrl(url: string | null): void;
-  fetchPreview(zplOverride?: string): Promise<void>;
-  refreshPreview(): Promise<void>;
-  closePreview(): void;
 }
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -106,7 +97,6 @@ let syncAbort: AbortController | null = null;
 let parseAbort: AbortController | null = null;
 
 let lastCanvasZpl = '';
-let lastPreviewZpl = '';
 
 // Snapping settings are remembered in this browser (storage may be unavailable)
 type SnapSettings = Partial<Pick<DesignerStore, 'snapToGrid' | 'snapToElements' | 'gridSize'>>;
@@ -156,10 +146,6 @@ export const useDesignerStore = create<DesignerStore>()(
   activeTab: 'design',
   zplCode: '^XA\n^PW800\n^LL1200\n^XZ',
   zplError: '',
-  previewUrl: null,
-  previewLoading: false,
-  previewError: '',
-  previewSource: '',
   zoom: ZOOM_100,
   snapToGrid: savedSnap.snapToGrid ?? false,
   snapToElements: savedSnap.snapToElements ?? true,
@@ -542,7 +528,6 @@ export const useDesignerStore = create<DesignerStore>()(
       const zpl = await generateZpl({ labelWidth, labelHeight, elements, ...(pages.length > 1 && { pages }) }, signal);
       if (signal.aborted) return;
       lastCanvasZpl = zpl;
-      lastPreviewZpl = ''; // invalidate preview cache when canvas changes
       set({ zplCode: zpl, zplError: '' });
     } catch (e) {
       if (signal.aborted) return;
@@ -550,43 +535,6 @@ export const useDesignerStore = create<DesignerStore>()(
     }
   },
 
-  setPreviewUrl(url) {
-    set({ previewUrl: url });
-  },
-
-  async fetchPreview(zplOverride?: string) {
-    const { zplCode, labelWidth, labelHeight, previewUrl } = get();
-    const zpl = zplOverride ?? zplCode;
-
-    // Skip fetch if ZPL hasn't changed since last successful preview
-    if (!zplOverride && zpl === lastPreviewZpl && previewUrl) return;
-
-    set({ previewLoading: true, previewError: '' });
-    try {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      const url = await previewZpl(zpl, labelWidth, labelHeight);
-      lastPreviewZpl = zpl;
-      set({ previewUrl: url, previewLoading: false, previewSource: get().zplCode });
-    } catch (e) {
-      set({
-        previewLoading: false,
-        previewError: e instanceof Error ? e.message : t('preview.failed'),
-      });
-    }
-  },
-
-  // Render the preview again from the current ZPL, with the example values filled in
-  async refreshPreview() {
-    const { zplCode, sampleValues } = get();
-    await get().fetchPreview(substituteVariables(zplCode, sampleValues));
-  },
-
-  closePreview() {
-    const { previewUrl } = get();
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    lastPreviewZpl = '';
-    set({ previewUrl: null, previewError: '' });
-  },
     }),
     {
       limit: 100,

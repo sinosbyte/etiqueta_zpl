@@ -127,7 +127,6 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
 
   async loadVersion(designId: number, versionNumber: number) {
     const version = await apiGetVersion(designId, versionNumber);
-    useDesignerStore.getState().closePreview();  // it shows the previous design
     useDesignerStore.setState({
       elements: version.elements,
       zplCode: version.zpl,
@@ -148,7 +147,6 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
 
   // A template opens as a new design: nothing is saved until the user saves it under their own name
   openTemplate(template: TemplateDetail) {
-    useDesignerStore.getState().closePreview();
     useDesignerStore.setState({
       elements: template.elements,
       zplCode: template.zpl,

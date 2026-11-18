@@ -6,7 +6,6 @@ import { useHistory } from '../hooks/useHistory';
 import { useMeasure } from '../store/useUnitStore';
 import { UnitToggle } from './UnitToggle';
 import { NumberInput } from './NumberInput';
-import { SampleValuesModal } from './SampleValuesModal';
 import { extractVariables, substituteVariables } from '../utils/variables';
 import { useIsDirty } from '../hooks/useUnsavedChanges';
 import { GRID_STEPS } from '../utils/snap';
@@ -14,7 +13,7 @@ import { useLangStore, useT } from '../i18n';
 import { LanguageSelect } from './LanguageSelect';
 import { MAX_PAGES, isStructured } from '../utils/pages';
 import { usePanelStore } from '../store/usePanelStore';
-import { toast } from '../store/useToastStore';
+import { useSimulationStore } from '../store/useSimulationStore';
 
 interface Props {
   onNavigateToMyDesigns: () => void;
@@ -26,8 +25,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
     elements, selectedIds, selectedId,
     snapToGrid, toggleSnapToGrid, snapToElements, toggleSnapToElements, gridSize, setGridSize,
     alignElements, distributeElements,
-    fetchPreview, closePreview, previewUrl, previewLoading, zplCode,
-    sampleValues, setSampleValues,
+    zplCode, sampleValues,
     pages, addPage,
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
@@ -39,47 +37,21 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const { undo, redo, canUndo, canRedo } = useHistory();
   const [showExport, setShowExport] = React.useState(false);
   const [exportZplOverride, setExportZplOverride] = React.useState<string | undefined>(undefined);
-  const [samplesFor, setSamplesFor] = React.useState<null | 'preview' | 'export'>(null);
 
   const multiSelected = selectedIds.length >= 2;
-  const previewActive = !!(previewUrl || previewLoading);
   // Every {{name}} in the ZPL, including ones mixed with fixed text in a field
   const variables = extractVariables(zplCode);
 
+  // One click: open the Test data environment and make the preview there (unless a valid one is already there)
   const handlePreview = () => {
-    if (previewActive) {
-      closePreview();
-    } else if (isStructured(pages, elements)) {
-      // More than one label: this preview is of the first page only, so it leads to the one that shows them all
-      usePanelStore.getState().show('sim');
-      toast.info(t('toolbar.previewMoved'));
-    } else if (variables.length > 0) {
-      setSamplesFor('preview');
-    } else {
-      fetchPreview();
-    }
+    usePanelStore.getState().show();
+    void useSimulationStore.getState().ensure();
   };
 
+  // The values come from the Test data (nothing is asked here): variables without a value print their name
   const handleExport = () => {
-    if (variables.length > 0) {
-      setSamplesFor('export');
-    } else {
-      setExportZplOverride(undefined);
-      setShowExport(true);
-    }
-  };
-
-  const handleSamplesConfirm = (values: Record<string, string>) => {
-    setSampleValues(values);
-    const finalZpl = substituteVariables(zplCode, values);
-    const action = samplesFor;
-    setSamplesFor(null);
-    if (action === 'preview') {
-      fetchPreview(finalZpl);
-    } else if (action === 'export') {
-      setExportZplOverride(finalZpl);
-      setShowExport(true);
-    }
+    setExportZplOverride(variables.length > 0 ? substituteVariables(zplCode, sampleValues) : undefined);
+    setShowExport(true);
   };
 
   // Lazy-load ExportModal to avoid circular deps
@@ -312,15 +284,16 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         </button>
 
         <button
-          className={`chrome-btn ${previewActive ? 'chrome-btn-primary' : 'chrome-btn-ghost'}`}
+          className="chrome-btn chrome-btn-ghost"
           onClick={handlePreview}
           title={t('toolbar.previewTitle')}
+          data-testid="toolbar-preview"
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
             <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.3"/>
             <circle cx="6.5" cy="6.5" r="2" fill="currentColor"/>
           </svg>
-          {previewActive ? t('common.close') : t('toolbar.preview')}
+          {t('toolbar.preview')}
         </button>
 
         <button
@@ -353,15 +326,6 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
 
       {showExport && ExportModal && (
         <ExportModal zplOverride={exportZplOverride} onClose={() => setShowExport(false)} />
-      )}
-      {samplesFor && (
-        <SampleValuesModal
-          variables={variables}
-          initialValues={sampleValues}
-          confirmLabel={samplesFor === 'preview' ? t('toolbar.preview') : t('toolbar.continue')}
-          onConfirm={handleSamplesConfirm}
-          onClose={() => setSamplesFor(null)}
-        />
       )}
     </>
   );

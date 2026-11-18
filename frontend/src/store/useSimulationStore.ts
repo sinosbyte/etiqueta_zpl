@@ -23,6 +23,8 @@ interface SimulationStore {
   viewing: boolean;            // the canvas shows the selected label
   view: SimulationView | null; // what the canvas draws: set only while the result is valid and being viewed
   run(): Promise<void>;
+  /** The preview of what is on screen: nothing is sent when a valid one is already there or one is being made. */
+  ensure(): Promise<void>;
   select(index: number): void;
   setViewing(on: boolean): void;
   reset(): void;
@@ -67,6 +69,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       if (id !== runId) return;
       set({ status: 'error', error: e instanceof Error ? e.message : String(e), result: null, sent: [], size: null, selected: 0, viewing: false, view: null });
     }
+  },
+
+  async ensure() {
+    const s = get();
+    if (s.status === 'loading' || (s.result && !s.stale)) return;
+    await get().run();
   },
 
   select(index) {
