@@ -68,6 +68,8 @@ const API_MESSAGES: Record<string, MessageKey> = {
   'No refresh token': 'api.noRefreshToken',
   'Invalid or expired refresh token': 'api.invalidRefreshToken',
   'Design name already taken': 'api.designNameTaken',
+  'Variant name already taken': 'api.variantNameTaken',
+  'A design can have at most 50 test variants': 'api.variantLimit',
   'Invalid pagination parameters': 'api.badPagination',
   'Invalid design ID': 'api.badDesignId',
   'Invalid version number': 'api.badVersion',

@@ -232,7 +232,7 @@ describe('migration 0007', () => {
     const tags = journal.entries.map(e => e.tag).sort();
     const files = fs.readdirSync(drizzleDir).filter(f => f.endsWith('.sql')).map(f => f.replace(/\.sql$/, '')).sort();
     expect(tags).toEqual(files);
-    expect(journal.entries[journal.entries.length - 1].tag).toBe('0007_design_pages_config');
+    expect(journal.entries[journal.entries.length - 1].tag).toBe('0008_design_test_variants');
   });
 
   test('adds one empty jsonb column and nothing else', async () => {

@@ -12,6 +12,7 @@ import { labelRecords, labelSummary, unplacedRecords, firstUnplaced } from '../u
 import { RenderedLabel } from './RenderedLabel';
 import { PdfExportBar } from './PdfExportBar';
 import { TestValues } from './TestValues';
+import { VariantsBar } from './VariantsBar';
 
 const WARN = '#dc2626';
 const AMBER = 'var(--status-warning)';
@@ -399,16 +400,18 @@ export function TestDataPanel() {
         )}
       </div>
       {open && (
-        <div
-          data-testid="td-body"
-          style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr)', flex: 1, minHeight: 0, borderTop: '1px solid var(--chrome-border)' }}
-        >
-          <div data-testid="td-left" style={{ overflowY: 'auto', padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
-            <TestValues />
-            <RecordsSection gridHeight={maximized ? 420 : 200} />
+        <div data-testid="td-body" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, borderTop: '1px solid var(--chrome-border)' }}>
+          <div data-testid="td-variants" style={{ flexShrink: 0, padding: '6px 12px', borderBottom: '1px solid var(--chrome-border)' }}>
+            <VariantsBar />
           </div>
-          <div data-testid="td-right" style={{ overflowY: 'auto', padding: '8px 12px 12px', borderLeft: '1px solid var(--chrome-border)', minHeight: 0 }}>
-            <PreviewSection maximized={maximized} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr)', flex: 1, minHeight: 0 }}>
+            <div data-testid="td-left" style={{ overflowY: 'auto', padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+              <TestValues />
+              <RecordsSection gridHeight={maximized ? 420 : 200} />
+            </div>
+            <div data-testid="td-right" style={{ overflowY: 'auto', padding: '8px 12px 12px', borderLeft: '1px solid var(--chrome-border)', minHeight: 0 }}>
+              <PreviewSection maximized={maximized} />
+            </div>
           </div>
         </div>
       )}
