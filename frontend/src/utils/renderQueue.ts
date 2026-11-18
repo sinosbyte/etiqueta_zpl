@@ -15,6 +15,7 @@ export interface RenderJob {
   priority?: number;           // higher goes first; default 0
   group?: string;              // for cancelling a whole simulation's jobs at once
   bulk?: boolean;              // part of a mass export: the server serves single previews first
+  hold?: string;               // room the server kept for this export (see utils/labelaryClient.ts)
 }
 
 export type Fetcher = (zpl: string, width: number, height: number, signal: AbortSignal, job: RenderJob) => Promise<Blob>;
@@ -32,7 +33,7 @@ export interface QueueOptions {
 
 /** How a failure is told from the outside: the HTTP status (0 = no answer) and whether another try could help. */
 export class RenderError extends Error {
-  constructor(message: string, readonly status: number, readonly retriable: boolean, readonly cancelled = false) {
+  constructor(message: string, readonly status: number, readonly retriable: boolean, readonly cancelled = false, readonly code?: string) {
     super(message);
     this.name = 'RenderError';
   }
@@ -50,10 +51,20 @@ interface Pending {
   controller: AbortController | null;
 }
 
-const statusOf = (e: unknown): { status: number; retryAfterMs?: number } => {
-  const x = e as { status?: unknown; retryAfterMs?: unknown };
-  return { status: typeof x?.status === 'number' ? x.status : 0, retryAfterMs: typeof x?.retryAfterMs === 'number' ? x.retryAfterMs : undefined };
+const statusOf = (e: unknown): { status: number; retryAfterMs?: number; code?: string } => {
+  const x = e as { status?: unknown; retryAfterMs?: unknown; code?: unknown };
+  return {
+    status: typeof x?.status === 'number' ? x.status : 0,
+    retryAfterMs: typeof x?.retryAfterMs === 'number' ? x.retryAfterMs : undefined,
+    code: typeof x?.code === 'string' ? x.code : undefined,
+  };
 };
+
+// Why the server refused, when asking again would only spend the quota or cannot help: the label itself was refused by the
+// service (422), or the quota is used up or cannot be checked. A try is not repeated, and the rest of the labels waiting
+// are not sent either: they would only be refused for the same reason.
+const FINAL_CODES: ReadonlySet<string> = new Set(['zpl-rejected', 'quota-internal', 'quota-external', 'quota-unavailable']);
+const QUOTA_STOP: ReadonlySet<string> = new Set(['quota-internal', 'quota-external', 'quota-unavailable']);
 
 export class RenderQueue {
   private waiting: Pending[] = [];
@@ -163,9 +174,11 @@ export class RenderQueue {
       if (controller.signal.aborted && !timedOut) {
         this.settle(p, null, new RenderError('Cancelled', 0, false, true));
       } else {
-        const { status, retryAfterMs } = timedOut ? { status: 0, retryAfterMs: undefined } : statusOf(e);
-        // 429, 5xx, no answer and timeouts are worth another try; a 4xx is the request itself being wrong
-        const retriable = timedOut || status === 0 || status === 429 || status >= 500;
+        const { status, retryAfterMs, code } = timedOut ? { status: 0, retryAfterMs: undefined, code: undefined } : statusOf(e);
+        // 429, 5xx, no answer and timeouts are worth another try; a 4xx is the request itself being wrong, and what the
+        // server says is final (a label the service refused, a quota that is used up) is not asked again
+        const final = code !== undefined && FINAL_CODES.has(code);
+        const retriable = !final && (timedOut || status === 0 || status === 429 || status >= 500);
         if (retriable && p.attempts <= this.o.maxRetries && (retryAfterMs ?? 0) <= this.o.maxRetryAfterMs) {
           const wait = retryAfterMs ?? this.o.backoffBaseMs * 2 ** (p.attempts - 1);
           // A 429 stops everything: the other jobs would only be refused too
@@ -175,7 +188,14 @@ export class RenderQueue {
           this.waiting.push(p);
         } else {
           const message = timedOut ? 'Timeout' : e instanceof Error ? e.message : String(e);
-          this.settle(p, null, new RenderError(message, timedOut ? 0 : status, retriable));
+          const error = new RenderError(message, timedOut ? 0 : status, retriable, false, code);
+          this.settle(p, null, error);
+          // The quota is out: the jobs still waiting would be refused for the same reason, so they are told now
+          if (code !== undefined && QUOTA_STOP.has(code)) {
+            const rest = this.waiting;
+            this.waiting = [];
+            for (const w of rest) this.settle(w, null, new RenderError(message, status, false, false, code));
+          }
         }
       }
     } finally {

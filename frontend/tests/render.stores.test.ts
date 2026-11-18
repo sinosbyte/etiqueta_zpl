@@ -4,6 +4,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const mockSim = { labels: 8, zplOf: (i: number) => `^XA^FD${i}^FS^XZ` };
 
+// The api client reads the build's environment (import.meta), which the tests do not have: the sign-in module is replaced
+jest.mock('../src/utils/authClient', () => ({ API_BASE: '', getToken: () => null, triggerOn401: jest.fn(), refreshAccessToken: jest.fn() }));
+
+// The export keeps room in the quota before it starts (utils/labelaryClient.ts); here the server always has room
+const mockHolds = { kept: [] as number[], released: [] as string[] };
+jest.mock('../src/utils/labelaryClient', () => ({
+  HoldDenied: class HoldDenied extends Error {
+    constructor(message: string, readonly code: string, readonly remaining: number) { super(message); }
+  },
+  holdForExport: jest.fn(async (n: number) => { mockHolds.kept.push(n); return { holdId: 'hold-1', slots: n }; }),
+  releaseHold: jest.fn(async (id: string) => { mockHolds.released.push(id); }),
+  fetchStatus: jest.fn(),
+}));
+
 jest.mock('../src/utils/zplClient', () => ({
   generateZpl: jest.fn(async () => 'ZPL'),
   parseZpl: jest.fn(), previewZpl: jest.fn(), exportZpl: jest.fn(), previewBlob: jest.fn(),
@@ -300,5 +314,176 @@ describe('the PDF export', () => {
     await pdf().start();
     expect(sim().result!.labels).toHaveLength(3);
     expect(Buffer.from((downloadPdf as jest.Mock).mock.calls[0][0]).toString('latin1')).toContain('/Count 3');
+  });
+});
+
+// ── Etapa 4: the quota of the preview service ───────────────────────────────────────────────────────────────────
+import { useLabelaryStore } from '../src/store/useLabelaryStore';
+
+const holdMock = () => (jest.requireMock('../src/utils/labelaryClient').holdForExport as jest.Mock);
+const releaseMock = () => (jest.requireMock('../src/utils/labelaryClient').releaseHold as jest.Mock);
+const HoldDenied = () => jest.requireMock('../src/utils/labelaryClient').HoldDenied;
+
+describe('the neighbours are not asked ahead of time when the quota is low', () => {
+  beforeEach(() => useLabelaryStore.setState({ availability: 'ok', remaining: 3000, retryAt: null }));
+  afterEach(() => useLabelaryStore.setState({ availability: 'unknown', remaining: null, retryAt: null }));
+
+  test('comfortable: the selected label and its neighbours (as before)', async () => {
+    await sim().run();
+    useLabelRenderStore.getState().show(3);
+    await wait(() => pictures()[2]?.status === 'ready' && pictures()[3]?.status === 'ready' && pictures()[4]?.status === 'ready');
+    expect(requested().sort()).toEqual([2, 3, 4]);
+  });
+
+  test.each(['low', 'blocked', 'unavailable'] as const)('%s: only the label that is being looked at', async availability => {
+    useLabelaryStore.setState({ availability, remaining: 5, retryAt: null });
+    await sim().run();
+    useLabelRenderStore.getState().show(3);
+    await wait(() => pictures()[3]?.status === 'ready');
+    await new Promise(r => setTimeout(r, 30));
+    expect(requested()).toEqual([3]);
+    expect(pictures()[2]).toBeUndefined();
+    expect(pictures()[4]).toBeUndefined();
+  });
+
+  test('not known yet (nothing was asked of the server): as before', async () => {
+    useLabelaryStore.setState({ availability: 'unknown' });
+    await sim().run();
+    useLabelRenderStore.getState().show(1);
+    await wait(() => pictures()[2]?.status === 'ready');
+    expect(requested().sort()).toEqual([1, 2]);
+  });
+
+  test('a label that is looked at still goes when the quota is low: only the extras stop', async () => {
+    useLabelaryStore.setState({ availability: 'low', remaining: 5, retryAt: null });
+    await sim().run();
+    for (const n of [1, 2, 3]) { sim().select(n); useLabelRenderStore.getState().show(n); }
+    await wait(() => [1, 2, 3].every(n => pictures()[n]?.status === 'ready'));
+    expect(requested().sort()).toEqual([1, 2, 3]);
+  });
+});
+
+describe('a mass export keeps room in the quota before it starts', () => {
+  beforeEach(() => { holdMock().mockClear(); releaseMock().mockClear(); });
+
+  test('asks for room for the labels it will render, before any of them is sent, and gives back the rest at the end', async () => {
+    holdMock().mockImplementationOnce(async (n: number) => { expect(fetchMock).not.toHaveBeenCalled(); return { holdId: 'h-9', slots: n }; });
+    await sim().run();
+    await pdf().start();
+    expect(pdf().status).toBe('done');
+    expect(holdMock()).toHaveBeenCalledTimes(1);
+    expect(holdMock().mock.calls[0][0]).toBe(8);                                     // 8 labels, none known yet
+    expect(releaseMock()).toHaveBeenCalledWith('h-9');
+    // every picture of the export takes a place of that room, and says it is part of a mass export
+    expect(fetchMock.mock.calls.length).toBe(8);
+    expect(fetchMock.mock.calls.every(c => c[4].hold === 'h-9' && c[4].bulk === true)).toBe(true);
+  });
+
+  test('the pictures already known cost no request, so they are not kept room for', async () => {
+    await sim().run();
+    useLabelRenderStore.getState().show(1);
+    await wait(() => pictures()[1]?.status === 'ready' && pictures()[2]?.status === 'ready');
+    await pdf().start();
+    expect(holdMock().mock.calls[0][0]).toBe(6);                                     // 8 - the 2 in the cache
+  });
+
+  test('every label already in the cache: no room is asked for at all', async () => {
+    mockSim.labels = 2;
+    await sim().run();
+    useLabelRenderStore.getState().show(1);
+    await wait(() => pictures()[1]?.status === 'ready' && pictures()[2]?.status === 'ready');
+    await pdf().start();
+    expect(holdMock()).not.toHaveBeenCalled();
+    expect(pdf().status).toBe('done');
+  });
+
+  test('not enough room: the export does not start, nothing is rendered and nothing is spent', async () => {
+    holdMock().mockImplementationOnce(async () => { throw new (HoldDenied())('No room', 'quota-internal', 5); });
+    await sim().run();
+    await pdf().start();
+    expect(pdf().status).toBe('quota');
+    expect(pdf().error).toMatch(/8/);                                                // what it needs
+    expect(pdf().error).toMatch(/5/);                                                // what there is
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(downloadPdf).not.toHaveBeenCalled();
+    expect(releaseMock()).not.toHaveBeenCalled();                                    // nothing was kept
+  });
+
+  test('the quota used up or blocked: the export does not start and says why (the message of the server)', async () => {
+    holdMock().mockImplementationOnce(async () => { throw new (HoldDenied())('Preview unavailable. Back at 14:05.', 'quota-external', 0); });
+    await sim().run();
+    await pdf().start();
+    expect(pdf().status).toBe('quota');
+    expect(pdf().error).toBe('Preview unavailable. Back at 14:05.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('another export of the same user is running: this one is refused before it starts, says so, and spends and releases nothing', async () => {
+    holdMock().mockImplementationOnce(async () => { throw new (HoldDenied())('Já há uma exportação sua em andamento.', 'hold-active', 0); });
+    await sim().run();
+    await pdf().start();
+    expect(pdf().status).toBe('quota');
+    expect(pdf().error).toBe('Já há uma exportação sua em andamento.');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(downloadPdf).not.toHaveBeenCalled();
+    expect(releaseMock()).not.toHaveBeenCalled();                                    // the other export's room is not touched
+  });
+
+  test('the room for exports is all taken: refused with the message of the server, nothing rendered', async () => {
+    holdMock().mockImplementationOnce(async () => { throw new (HoldDenied())('A capacidade de exportações em lote está ocupada.', 'hold-capacity', 120); });
+    await sim().run();
+    await pdf().start();
+    expect(pdf().status).toBe('quota');
+    expect(pdf().error).toBe('A capacidade de exportações em lote está ocupada.');   // not the "needs N, has M" text: that is for the quota
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('cancelled: what it did not use goes back at once', async () => {
+    gate.hold = true;
+    await sim().run();
+    const started = pdf().start();
+    await wait(() => fetchMock.mock.calls.length > 0);
+    pdf().cancel();
+    gate.release.splice(0).forEach(r => r());
+    await started;
+    expect(pdf().status).toBe('idle');
+    expect(releaseMock()).toHaveBeenCalledWith('hold-1');
+    expect(downloadPdf).not.toHaveBeenCalled();
+  });
+
+  test('a label that fails: the room is given back, and the retry keeps room for only the labels that failed', async () => {
+    failing = new Set([3, 5]);
+    await sim().run();
+    await pdf().start();
+    expect(pdf().status).toBe('failed');
+    expect(releaseMock()).toHaveBeenCalledTimes(1);
+    failing = new Set();
+    await pdf().retry();
+    expect(pdf().status).toBe('done');
+    expect(holdMock().mock.calls.map(c => c[0])).toEqual([8, 2]);                    // 8 the first time; the 2 that failed the second
+    expect(releaseMock()).toHaveBeenCalledTimes(2);
+  });
+
+  test('the simulation going out of date stops it, and the room goes back', async () => {
+    gate.hold = true;
+    await sim().run();
+    const started = pdf().start();
+    await wait(() => fetchMock.mock.calls.length > 0);
+    designer().setLabelSize(800, 300);
+    useSimulationStore.setState({ stale: true });
+    gate.release.splice(0).forEach(r => r());
+    await started;
+    expect(releaseMock()).toHaveBeenCalledWith('hold-1');
+    expect(downloadPdf).not.toHaveBeenCalled();
+  });
+
+  test('the quota running out in the middle is reported, the rest is not sent, and the room is returned', async () => {
+    fetchMock.mockImplementation(async () => { throw Object.assign(new Error('Preview limit reached'), { status: 429, code: 'quota-internal' }); });
+    await sim().run();
+    await pdf().start();
+    expect(pdf().status).toBe('failed');
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(2);                      // the two that were already in flight; the rest were not sent
+    expect(pdf().failed).toHaveLength(8);                                            // and every label is reported as not rendered
+    expect(releaseMock()).toHaveBeenCalledTimes(1);
   });
 });

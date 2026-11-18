@@ -23,7 +23,8 @@ export type Priority = 'interactive' | 'bulk';
 export type Outcome<T> =
   | { kind: 'ok'; value: T }
   | { kind: 'rate-limited'; retryAfterMs: number }   // the service said 429
-  | { kind: 'failed'; value: T };                      // anything else that went wrong (the caller maps it)
+  | { kind: 'failed'; value: T }                       // anything else that went wrong (the caller maps it)
+  | { kind: 'denied'; value: T };                      // refused before anything was sent (the quota; the caller maps it)
 
 export type GateResult<T> =
   | Outcome<T>

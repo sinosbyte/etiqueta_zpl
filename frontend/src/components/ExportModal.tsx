@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { exportZpl, ExportFormat } from '../utils/zplClient';
 import { useT, MessageKey } from '../i18n';
 import { isStructured } from '../utils/pages';
 import { usePanelStore } from '../store/usePanelStore';
+import { previewBlocked, useLabelaryStore } from '../store/useLabelaryStore';
+import { LabelaryNotice } from './LabelaryNotice';
 
 interface Props { onClose(): void; zplOverride?: string; }
 
@@ -22,6 +24,10 @@ export function ExportModal({ onClose, zplOverride }: Props) {
   const [format, setFormat] = useState<ExportFormat>('png');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Every format goes through the rendering service, so its state is asked for when the window opens
+  const quota = useLabelaryStore();
+  useEffect(() => { void useLabelaryStore.getState().refresh(); }, []);
+  const quotaBlocked = previewBlocked(quota);
 
   const handleDownload = async () => {
     setLoading(true);
@@ -106,6 +112,8 @@ export function ExportModal({ onClose, zplOverride }: Props) {
           ))}
         </div>
 
+        <LabelaryNotice forExport />
+
         {error && (
           <p style={{ fontSize: 11, color: 'var(--status-error)', marginBottom: 12 }}>{error}</p>
         )}
@@ -113,7 +121,7 @@ export function ExportModal({ onClose, zplOverride }: Props) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={handleDownload}
-            disabled={loading}
+            disabled={loading || quotaBlocked}
             className="chrome-btn chrome-btn-success"
             style={{ flex: 1, justifyContent: 'center', opacity: loading ? 0.6 : 1 }}
           >

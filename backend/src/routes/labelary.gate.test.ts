@@ -9,8 +9,8 @@ process.env.LABELARY_QUEUE_MAX_WAIT_MS = '4000';
 import request from 'supertest';
 import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
-import { designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
-import { labelaryGate } from '../labelary';
+import { designsTable, designVersionsTable, labelaryBlockTable, labelaryHoldsTable, labelaryRequestsTable, templatesTable, usersTable } from '../db/schema';
+import { labelaryGate, labelaryQuota } from '../labelary';
 
 // The routes that reach Labelary, with a pretend Labelary and several real users: what each client is told, and that
 // they all go through the one gate.
@@ -48,6 +48,10 @@ beforeEach(async () => {
   await db.delete(designVersionsTable);
   await db.delete(designsTable);
   await db.delete(usersTable);
+  // The use of the service is kept in the database (labelary/quota.ts): every test starts with none used and no block
+  await db.delete(labelaryRequestsTable);
+  await db.delete(labelaryHoldsTable);
+  await db.delete(labelaryBlockTable);
   await request(app).post('/api/auth/register').send({ username: 'alice', password: 'password123' }).expect(201);
   await request(app).post('/api/auth/register').send({ username: 'bob', password: 'password123' }).expect(201);
   alice = (await request(app).post('/api/auth/login').send({ username: 'alice', password: 'password123' }).expect(200)).body.token;
@@ -79,9 +83,9 @@ describe('what already worked still does', () => {
 
   test('other failures of the service are still a 502 with the same messages', async () => {
     pretendLabelary(() => new Response('oops', { status: 500 }));
-    expect((await preview(alice).expect(502)).body).toEqual({ error: 'Labelary API error' });
+    expect((await preview(alice).expect(502)).body).toEqual({ error: 'Labelary API error', code: 'upstream' });
     pretendLabelary(() => { throw new TypeError('fetch failed'); });
-    expect((await preview(alice).expect(502)).body).toEqual({ error: 'Could not reach Labelary API' });
+    expect((await preview(alice).expect(502)).body).toEqual({ error: 'Could not reach Labelary API', code: 'network' });
   });
 
   test('a bad request is still a 400 and never reaches the service', async () => {
@@ -101,7 +105,7 @@ describe('HTTP 429 from the service', () => {
   test('a service that keeps refusing: the client gets 429 (not 502) with the Retry-After, after one more try, not a loop', async () => {
     pretendLabelary(() => new Response('slow down', { status: 429, headers: { 'Retry-After': '1' } }));
     const res = await preview(alice).expect(429);
-    expect(res.body).toEqual({ error: 'Labelary rate limit reached, please retry later' });
+    expect(res.body).toEqual({ error: 'Labelary rate limit reached, please retry later', code: 'rate-limited' });
     expect(Number(res.headers['retry-after'])).toBeGreaterThanOrEqual(1);
     expect(calls).toHaveLength(2);
   }, 15_000);
@@ -110,9 +114,11 @@ describe('HTTP 429 from the service', () => {
     pretendLabelary(() => new Response('quota', { status: 429, headers: { 'Retry-After': '3600' } }));
     const first = await preview(alice).expect(429);
     expect(Number(first.headers['retry-after'])).toBe(3600);
+    expect(first.body.code).toBe('quota-external');                                 // the daily quota, not the pace
     expect(calls).toHaveLength(1);
-    const next = await preview(bob).expect(429);                                    // another user: the gate is closed for all
-    expect(next.body.error).toMatch(/rate limit/);
+    const next = await preview(bob).expect(429);                                    // another user: blocked for all, from the database
+    expect(next.body.code).toBe('quota-external');
+    expect(next.body.error).toMatch(/quota/);
     expect(Number(next.headers['retry-after'])).toBeGreaterThan(3500);
     expect(calls).toHaveLength(1);
   });
@@ -139,6 +145,9 @@ describe('HTTP 429 from the service', () => {
 
 describe('several users at once', () => {
   test('everybody is served, one gate: starts are paced and never more than the concurrency are in flight', async () => {
+    // This is about the pace of the gate. The quota (a few ms in the database, now and then 40) is taken just before each send
+    // and would blur the 100 ms between sends this test measures, so here it answers at once (it has its own tests)
+    const noQuota = jest.spyOn(labelaryQuota, 'reserve').mockResolvedValue({ ok: true });
     let active = 0;
     let most = 0;
     pretendLabelary(async () => { active++; most = Math.max(most, active); await sleep(120); active--; return png(); });
@@ -151,6 +160,7 @@ describe('several users at once', () => {
     expect(most).toBeLessThanOrEqual(2);
     const times = calls.map(c => c.at).sort((a, b) => a - b);
     expect(times.slice(1).every((t, i) => t - times[i] >= 80)).toBe(true);          // 10 a second: no bursts, from two users together
+    noQuota.mockRestore();
   }, 20_000);
 
   test('both users are served in turn: neither waits for the other to finish', async () => {
@@ -235,7 +245,7 @@ describe('cancelling and waiting too long', () => {
     holders.forEach(h => h.then(() => undefined, () => undefined));
     await sleep(300);
     const res = await preview(bob, 'tooLate').expect(503);
-    expect(res.body).toEqual({ error: 'Labelary API busy, please retry later' });
+    expect(res.body).toEqual({ error: 'Labelary API busy, please retry later', code: 'busy' });
     expect(Number(res.headers['retry-after'])).toBeGreaterThanOrEqual(1);
     expect(calls.map(c => c.marker)).toEqual(['hold1', 'hold2']);                   // it was never sent
     release.splice(0).forEach(r => r());

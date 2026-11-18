@@ -3,6 +3,7 @@ import { ExpandResult } from '../types';
 import { LabelRenderer, activeRenderer, setActiveRenderer } from '../utils/labelRenderer';
 import { RenderError } from '../utils/renderQueue';
 import { useSimulationStore } from './useSimulationStore';
+import { mayPrefetch, useLabelaryStore } from './useLabelaryStore';
 
 // The rendered picture of each label of the simulation on screen, asked for as the user looks at them: the
 // selected label first, its neighbours after it, the rest only when selected (a long simulation would otherwise spend
@@ -69,6 +70,9 @@ export const useLabelRenderStore = create<LabelRenderStore>(() => ({
 
   show(index) {
     request(index, SELECTED);
+    // The neighbours are asked for ahead of time only while the quota of the service is comfortable: when it is low,
+    // what nobody looked at is not worth a request
+    if (!mayPrefetch(useLabelaryStore.getState())) return;
     request(index + 1, NEIGHBOUR);
     request(index - 1, NEIGHBOUR);
   },

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, unique, jsonb, index, boolean, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, serial, bigserial, smallint, text, integer, timestamp, unique, jsonb, index, boolean, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import type { PagesConfig } from '../zpl/types';
 
@@ -84,3 +84,26 @@ export const designTestVariantsTable = pgTable('design_test_variants', {
   uniqueIndex('uq_design_test_variants_name').on(t.designId, sql`lower(${t.name})`),
   index('idx_design_test_variants_design').on(t.designId),
 ]);
+
+// Use of the Labelary service (see labelary/quota.ts and drizzle/0009_labelary_quota.sql): one row per request sent,
+// the block the service asked for when its own quota ran out, and the room kept for a mass export.
+export const labelaryRequestsTable = pgTable('labelary_requests', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull(),
+  userId: integer('user_id'),
+}, (t) => [index('idx_labelary_requests_sent_at').on(t.sentAt)]);
+
+export const labelaryBlockTable = pgTable('labelary_block', {
+  id: smallint('id').primaryKey(),
+  until: timestamp('until', { withTimezone: true }).notNull(),
+  reason: text('reason').notNull(),
+  setAt: timestamp('set_at', { withTimezone: true }).notNull(),
+});
+
+export const labelaryHoldsTable = pgTable('labelary_holds', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: integer('user_id').notNull(),
+  slots: integer('slots').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+}, (t) => [uniqueIndex('uq_labelary_holds_user').on(t.userId)]);

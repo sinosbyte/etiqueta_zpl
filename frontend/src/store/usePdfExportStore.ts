@@ -1,13 +1,15 @@
 import { create } from 'zustand';
 import { ExpandResult } from '../types';
 import { activeRenderer } from '../utils/labelRenderer';
-import { LabelFailure, PdfExport, downloadPdf, encodePng } from '../utils/pdfExport';
+import { ExportRefused, LabelFailure, PdfExport, downloadPdf, encodePng } from '../utils/pdfExport';
+import { HoldDenied, holdForExport, releaseHold } from '../utils/labelaryClient';
+import { t } from '../i18n';
 import { useSimulationStore } from './useSimulationStore';
 
 // The PDF export of the simulation on screen. It works only from a valid simulation: out of date, it does not
 // start, and a simulation that goes out of date (or is replaced) during the export stops it.
 
-export type ExportStatus = 'idle' | 'running' | 'failed' | 'done' | 'invalid' | 'error';
+export type ExportStatus = 'idle' | 'running' | 'failed' | 'done' | 'invalid' | 'error' | 'quota';
 
 interface PdfExportStore {
   status: ExportStatus;
@@ -48,7 +50,14 @@ async function work(): Promise<void> {
     downloadPdf(mine.build(), FILENAME);
     usePdfExportStore.setState({ status: 'done' });
   } catch (e) {
-    if (mine === session) usePdfExportStore.setState({ status: 'error', error: e instanceof Error ? e.message : String(e) });
+    if (mine !== session) return;
+    // The quota could not keep room for the whole export: it was not started (and nothing was rendered or spent)
+    if (e instanceof ExportRefused) {
+      const noRoom = e.code === 'quota-internal' && e.remaining > 0 && e.remaining < e.needed;
+      usePdfExportStore.setState({ status: 'quota', error: noRoom ? t('pdf.noRoom', { n: e.needed, remaining: e.remaining }) : e.message });
+    } else {
+      usePdfExportStore.setState({ status: 'error', error: e instanceof Error ? e.message : String(e) });
+    }
   } finally {
     controller = null;
   }
@@ -69,7 +78,23 @@ export const usePdfExportStore = create<PdfExportStore>(() => ({
     session = new PdfExport(
       sim.result.labels.map(l => ({ index: l.index, zpl: l.zpl })),
       sim.size.width, sim.size.height,
-      { render: r => activeRenderer().render(r), cancel: g => activeRenderer().cancel(g), encode: encodePng, isValid: validNow },
+      {
+        render: r => activeRenderer().render(r),
+        cancel: g => activeRenderer().cancel(g),
+        encode: encodePng,
+        isValid: validNow,
+        isCached: (zpl, w, h) => !!activeRenderer().peek(zpl, w, h),
+        // Room for all the export before it starts; a refusal is told as such (see utils/pdfExport.ts)
+        hold: async needed => {
+          try {
+            return await holdForExport(needed);
+          } catch (e) {
+            if (e instanceof HoldDenied) throw new ExportRefused(e.message, e.code, needed, e.remaining);
+            throw e;
+          }
+        },
+        release: releaseHold,
+      },
     );
     usePdfExportStore.setState({ done: 0, total: session.total });
     await work();

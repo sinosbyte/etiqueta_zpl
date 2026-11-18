@@ -43,11 +43,12 @@ export async function parseZpl(zpl: string, signal?: AbortSignal): Promise<Parse
 }
 
 /** The PNG of one label, as a Blob (the caller decides what to do with it; see utils/labelRenderer.ts). */
-export async function previewBlob(zpl: string, labelWidth: number, labelHeight: number, signal?: AbortSignal, bulk = false): Promise<Blob> {
-  // A mass export says so, and the server serves the single previews of the users before it (labelary/gate.ts)
+export async function previewBlob(zpl: string, labelWidth: number, labelHeight: number, signal?: AbortSignal, bulk = false, hold?: string): Promise<Blob> {
+  // A mass export says so, and the server serves the single previews of the users before it (labelary/gate.ts); with the
+  // room it kept for the export, each picture takes one of its places instead of asking for room of its own
   return apiFetchBlob('/api/preview', {
     method: 'POST', body: JSON.stringify({ zpl, labelWidth, labelHeight }), signal,
-    ...(bulk && { headers: { 'X-Render-Priority': 'bulk' } }),
+    ...((bulk || hold) && { headers: { ...(bulk && { 'X-Render-Priority': 'bulk' }), ...(hold && { 'X-Render-Hold': hold }) } }),
   });
 }
 
