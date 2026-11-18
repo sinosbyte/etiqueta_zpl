@@ -25,6 +25,8 @@ import { VariablesCatalog } from './VariablesCatalog';
 import { TablePanel } from './TablePanel';
 import { resizeTablePatch, TABLE_DEFAULT_ROW_HEIGHT } from '../utils/tableEdit';
 import { boundsIssue, issueSides, tableRowsThatFit } from '../utils/labelBounds';
+import { pageOf } from '../utils/pages';
+import { requestTransfer } from '../utils/pageTransferActions';
 
 export function PropertiesPanel() {
   const t = useT();
@@ -32,6 +34,9 @@ export function PropertiesPanel() {
   const encoder = useEncoder();  // a Data Matrix has its size only once the encoder is loaded
   const { elements, selectedId, showSamples, sampleValues, labelWidth, labelHeight, updateElement, deleteElement, duplicateSelected, bringForward, sendBackward, bringToFront, sendToBack } = useDesignerStore();
   const el = elements.find(e => e.id === selectedId);
+  // Moving and copying between pages: only a design of two pages has another page to go to
+  const pageCount = useDesignerStore(st => st.pages.length);
+  const selectedCount = useDesignerStore(st => st.selectedIds.length);
 
   const sectionStyle: React.CSSProperties = {
     borderTop: '1px solid var(--chrome-border)',
@@ -654,6 +659,34 @@ export function PropertiesPanel() {
           ))}
         </div>
       </div>
+
+      {/* Move or copy to the other page: acts on the whole selection (which is always on one page) */}
+      {pageCount > 1 && (() => {
+        const from = pageOf(el);
+        const to = from === 0 ? 1 : 0;
+        return (
+          <div style={sectionStyle} data-testid="transfer-section">
+            <label style={labelStyle}>{t('transfer.title')}</label>
+            <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginTop: 0, marginBottom: 8, lineHeight: 1.5 }}>
+              {selectedCount > 1 ? t('transfer.onN', { n: selectedCount, page: from + 1 }) : t('transfer.on1', { page: from + 1 })}
+            </p>
+            <button
+              onClick={() => requestTransfer('move', to)}
+              className="chrome-btn chrome-btn-ghost"
+              style={{ width: '100%', justifyContent: 'center', marginBottom: 6 }}
+            >
+              {t('transfer.move', { page: to + 1 })}
+            </button>
+            <button
+              onClick={() => requestTransfer('copy', to)}
+              className="chrome-btn chrome-btn-ghost"
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              {t('transfer.copy', { page: to + 1 })}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Duplicate & Delete */}
       <div style={sectionStyle}>

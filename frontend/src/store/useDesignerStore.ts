@@ -8,6 +8,7 @@ import { generateZpl, parseZpl } from '../utils/zplClient';
 import { elementBox } from '../utils/zplText';
 import { newTableFields, tableOnPage } from '../utils/tableEdit';
 import { Box, Guide, SNAP_DISTANCE_PX, SnapOptions, snappingSuspended } from '../utils/snap';
+import { cloneElement, planTransfer, TransferMode, TransferPlan } from '../utils/pageTransfer';
 
 let idCounter = 0;
 const nextId = () => `el-${Date.now()}-${++idCounter}`;
@@ -64,6 +65,8 @@ interface DesignerStore {
   deleteSelected(): void;
   clearAll(): void;
   duplicateSelected(): void;
+  moveSelectedToPage(target: number): TransferPlan | null;
+  copySelectedToPage(target: number): TransferPlan | null;
   bringForward(): void;
   sendBackward(): void;
   bringToFront(): void;
@@ -133,6 +136,83 @@ export function snapContext(
     label: { width: labelWidth, height: labelHeight },
     opts: { grid: snapToGrid ? gridSize : null, magnet: snapToElements, threshold: SNAP_DISTANCE_PX / zoom },
   };
+}
+
+// ── History ─────────────────────────────────────────────────────────────────────────────────────────────
+// What is tracked for undo/redo, and when two states are the same one
+const HISTORY_LIMIT = 100;
+const HISTORY_DELAY_MS = 300;
+
+const tracked = (state: DesignerStore) => ({
+  elements: state.elements,
+  labelWidth: state.labelWidth,
+  labelHeight: state.labelHeight,
+  pages: state.pages,
+  activePage: state.activePage,
+  records: state.records,
+});
+type Tracked = ReturnType<typeof tracked>;
+
+// A change that leaves what is tracked as it was is not a step of the history: the ZPL arriving after
+// an edit (it is not tracked, but it is a change of the store) and switching the page being edited used
+// to leave an empty step, so the first undo after any edit did nothing
+const sameTracked = (a: Tracked, b: Tracked): boolean =>
+  a.elements === b.elements && a.labelWidth === b.labelWidth && a.labelHeight === b.labelHeight
+  && a.pages === b.pages && a.records === b.records;
+
+// The history waits HISTORY_DELAY_MS after a change before it keeps the step, so a drag or typing is one
+// step; two changes inside that time are one step (the first one cannot be undone on its own).
+let historyTimer: ReturnType<typeof setTimeout> | null = null;
+let historyPending: (() => void) | null = null;
+
+function runPendingStep() {
+  const run = historyPending;
+  historyTimer = null;
+  historyPending = null;
+  run?.();
+}
+
+/** Keeps now the step that is waiting out the delay, if there is one, so what comes next cannot be joined to it. */
+function flushHistory() {
+  if (historyTimer) clearTimeout(historyTimer);
+  runPendingStep();
+}
+
+/**
+ * Makes `apply` (one change of the store) a step of the history of its own, at once: the step that was
+ * waiting is kept first, the change is not left to the delay, and what it changed is one step however soon
+ * the next change comes. Only the operations that ask for it use this (moving and copying between pages);
+ * every other change goes through the delay as before.
+ */
+function applyAsOwnStep(apply: () => void) {
+  flushHistory();
+  const history = useDesignerStore.temporal;
+  const before = tracked(useDesignerStore.getState());
+  const wasTracking = history.getState().isTracking;
+  history.getState().pause();   // so the delayed path does not keep this change a second time
+  try { apply(); } finally { if (wasTracking) history.getState().resume(); }
+  if (!wasTracking) return;
+  if (sameTracked(before, tracked(useDesignerStore.getState()))) return;
+  history.setState(h => ({
+    pastStates: [...(h.pastStates.length >= HISTORY_LIMIT ? h.pastStates.slice(1) : h.pastStates), before],
+    futureStates: [],
+  }));
+}
+
+/** Moves or copies the selection to the page `target` as one step; null when there is nothing to do it with. */
+function transferSelected(mode: TransferMode, target: number): TransferPlan | null {
+  const { selectedId, selectedIds, elements, pages } = useDesignerStore.getState();
+  if (!Number.isInteger(target) || target < 0 || target >= pages.length) return null;
+  const ids = selectedIds.length ? selectedIds : selectedId ? [selectedId] : [];
+  if (ids.length === 0) return null;
+  const plan = planTransfer(elements, ids, target, mode, nextId);
+  if (plan.done.length === 0) return plan;
+  const doneIds = plan.done.map(el => el.id);
+  applyAsOwnStep(() => useDesignerStore.setState({
+    elements: plan.elements, activePage: target, selectedId: doneIds[doneIds.length - 1], selectedIds: doneIds,
+  }));
+  useDesignerStore.getState().syncToCode();
+  return plan;
 }
 
 export const useDesignerStore = create<DesignerStore>()(
@@ -232,7 +312,7 @@ export const useDesignerStore = create<DesignerStore>()(
     const newEls = elements
       // A page holds one table: a table is not duplicated (it would be a second one on the same page)
       .filter(e => ids.includes(e.id) && e.type !== 'table')
-      .map(e => ({ ...e, id: nextId(), x: e.x + offset, y: e.y + offset }));
+      .map(e => ({ ...cloneElement(e), id: nextId(), x: e.x + offset, y: e.y + offset }));
     if (newEls.length === 0) return;
     const newSelectedId = newEls[newEls.length - 1].id;
     const newSelectedIds = newEls.map(e => e.id);
@@ -242,6 +322,16 @@ export const useDesignerStore = create<DesignerStore>()(
       selectedIds: newSelectedIds,
     }));
     get().syncToCode();
+  },
+
+  // Moves the selected elements to another page (same ids, same properties, on top of that page)
+  moveSelectedToPage(target) {
+    return transferSelected('move', target);
+  },
+
+  // Copies the selected elements to another page (new ids, deep copies; the originals stay)
+  copySelectedToPage(target) {
+    return transferSelected('copy', target);
   },
 
   bringForward() {
@@ -537,27 +627,13 @@ export const useDesignerStore = create<DesignerStore>()(
 
     }),
     {
-      limit: 100,
-      partialize: (state) => ({
-        elements: state.elements,
-        labelWidth: state.labelWidth,
-        labelHeight: state.labelHeight,
-        pages: state.pages,
-        activePage: state.activePage,
-        records: state.records,
-      }),
-      // A change that leaves what is tracked as it was is not a step of the history: the ZPL arriving after
-      // an edit (it is not tracked, but it is a change of the store) and switching the page being edited used
-      // to leave an empty step, so the first undo after any edit did nothing
-      equality: (a, b) =>
-        a.elements === b.elements && a.labelWidth === b.labelWidth && a.labelHeight === b.labelHeight
-        && a.pages === b.pages && a.records === b.records,
-      handleSet: (handleSet) => {
-        let t: ReturnType<typeof setTimeout> | null = null;
-        return (...args: Parameters<typeof handleSet>) => {
-          if (t) clearTimeout(t);
-          t = setTimeout(() => handleSet(...args), 300);
-        };
+      limit: HISTORY_LIMIT,
+      partialize: tracked,
+      equality: sameTracked,
+      handleSet: (handleSet) => (...args: Parameters<typeof handleSet>) => {
+        if (historyTimer) clearTimeout(historyTimer);
+        historyPending = () => handleSet(...args);
+        historyTimer = setTimeout(runPendingStep, HISTORY_DELAY_MS);
       },
     },
   ),
