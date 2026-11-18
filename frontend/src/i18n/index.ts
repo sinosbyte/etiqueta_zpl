@@ -88,6 +88,8 @@ const API_MESSAGES: Record<string, MessageKey> = {
   'Could not reach Labelary API': 'api.labelaryUnreachable',
   'Labelary rate limit reached, please retry later': 'api.labelaryRateLimited',
   'Labelary API busy, please retry later': 'api.labelaryBusy',
+  'Too many labels: the records need more labels than one simulation can hold': 'api.expandTooManyLabels',
+  'The labels are too large: together they would exceed the size limit of one simulation': 'api.expandTooLarge',
 };
 
 /** The error text of an API response: known messages translated, validation objects as a generic text. */

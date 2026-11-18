@@ -49,6 +49,23 @@ export interface ExpandResult {
 export class ExpandError extends Error {}
 
 /**
+ * Limits of one expansion. They exist so that a request cannot make the server build an answer of any
+ * size, and they are set from what the rest of the system already accepts:
+ *
+ *  - Labels: the records are limited to 500 (RecordsSchema) and the first label is always printed, so
+ *    501 is the most a valid request can ask for. The check keeps that true for any caller.
+ *  - Characters of ZPL: the answer holds every label twice (in `labels` and in `zpl`), and the whole
+ *    thing is read by the browser. 10,000,000 characters lets the largest ZPL the app takes
+ *    (MAX_ZPL_LENGTH, 100,000) repeat 100 times, and a typical label of a few KB fill all 501.
+ *
+ * The messages are fixed texts: the editor translates them (frontend i18n, API_MESSAGES).
+ */
+export const MAX_EXPAND_LABELS = 501;
+export const MAX_EXPAND_ZPL_CHARS = 10_000_000;
+export const EXPAND_TOO_MANY_LABELS = 'Too many labels: the records need more labels than one simulation can hold';
+export const EXPAND_TOO_LARGE = 'The labels are too large: together they would exceed the size limit of one simulation';
+
+/**
  * Which labels, and which records on each. `capacityFirst` is the records page 1 holds (0 without
  * a table), `capacityRepeat` the ones page 2 holds (0 without a table or without page 2).
  * The first label is always printed, whatever the number of records.
@@ -98,11 +115,13 @@ export function expandLabels(req: ExpandRequest): ExpandResult {
 
   const { plans, unplaced } = planLabels(records.length, capacityFirst, hasRepeat, capacityRepeat);
   if (unplaced > 0) warnings.push('unplaced-records');
+  if (plans.length > MAX_EXPAND_LABELS) throw new ExpandError(EXPAND_TOO_MANY_LABELS);
 
   const common = new Map(Object.entries(req.values ?? {}).map(([k, v]) => [k.toUpperCase(), v] as const));
   const upperKeys = (record: DataRecord): Map<string, string> =>
     new Map(Object.entries(record).map(([k, v]) => [k.toUpperCase(), v] as const));
   const templates = new Map<number, string>();
+  let totalChars = 0;
 
   const labels: ExpandedLabel[] = plans.map((plan, i) => {
     if (!templates.has(plan.page)) templates.set(plan.page, generatePageZpl(req, plan.page));
@@ -134,6 +153,9 @@ export function expandLabels(req: ExpandRequest): ExpandResult {
       const value = common.get(key);
       return value !== undefined && value !== '' ? clean(value) : name;
     });
+    // Stops as soon as the total passes the limit, so the memory used stays near it
+    totalChars += zpl.length;
+    if (totalChars > MAX_EXPAND_ZPL_CHARS) throw new ExpandError(EXPAND_TOO_LARGE);
     return { index: i + 1, page: plan.page, recordStart: plan.start, recordCount: plan.count, zpl };
   });
 

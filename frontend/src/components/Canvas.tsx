@@ -25,6 +25,7 @@ import { useElementResize } from '../hooks/useElementResize';
 import { extractVariables, substituteVariables } from '../utils/variables';
 import { useT, t as translate } from '../i18n';
 import { barcodeFit } from '../utils/barcodeFit';
+import { boundsIssue, boundsIssues } from '../utils/labelBounds';
 import { turnedSize } from '../utils/rotation';
 
 const GUIDE_COLOR = '#ec4899';
@@ -133,6 +134,15 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
     return fit && (fit.overlaps.length > 0 || fit.outside) ? fit.length : 0;
   });
 
+  // An element that runs past the edge of the label (what is outside is not printed): its size as "WxH"
+  // ('' = it is inside), drawn as a dashed amber box. The editor only shows it, it never moves the element.
+  const outsideBox = useDesignerStore(s => {
+    const samples = s.showSamples ? s.sampleValues : null;
+    if (!boundsIssue(element, s.labelWidth, s.labelHeight, samples)) return '';
+    const box = elementBox(element, samples);
+    return `${box.width}x${box.height}`;
+  });
+
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: element.id });
   const { handleResizeStart, handleResize, handleResizeEnd } = useElementResize(element, scale, updateElement);
 
@@ -192,6 +202,20 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
           }}
         />
       )}
+      {outsideBox !== '' && misfitLength === 0 && (() => {
+        const [w, h] = outsideBox.split('x').map(Number);
+        return (
+          <div
+            data-testid="out-of-bounds"
+            title={translate('canvas.outOfBounds')}
+            style={{
+              position: 'absolute', left: 0, top: 0, pointerEvents: 'none', boxSizing: 'border-box',
+              border: '2px dashed #d97706', background: 'rgba(217, 119, 6, 0.10)',
+              width: w * scale, height: h * scale,
+            }}
+          />
+        );
+      })()}
       {isSelected && (
         <>
           {(['n','s','e','w','ne','nw','se','sw'] as const).map(d => (
@@ -232,6 +256,30 @@ function PageSurface({ index, elements, zoom, gridStep, groupOffset, showHeader 
   const canvasWidth = labelWidth * zoom;
   const canvasHeight = labelHeight * zoom;
   const activate = () => useDesignerStore.getState().setActivePage(index);
+
+  // Elements of this page that run past the label: said below it, with a way to find the first one
+  const samples = useDesignerStore(s => (s.showSamples ? s.sampleValues : null));
+  const outside = boundsIssues(elements, labelWidth, labelHeight, samples);
+  const notice = outside.length > 0 && (
+    <div
+      role="status"
+      data-testid="bounds-notice"
+      style={{
+        width: Math.max(canvasWidth, 260), maxWidth: '100%', margin: '8px auto 0', padding: '6px 10px', fontSize: 12, lineHeight: 1.4,
+        borderRadius: 6, border: '1px solid #d97706', background: 'var(--chrome-surface)', color: 'var(--chrome-text)',
+        boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+      }}
+    >
+      <span style={{ flex: 1 }}>{outside.length === 1 ? t('bounds.summary1') : t('bounds.summaryN', { n: outside.length })}</span>
+      <button
+        type="button"
+        className="chrome-btn chrome-btn-ghost"
+        onClick={() => { activate(); useDesignerStore.getState().selectElement(outside[0].id); }}
+      >
+        {t('bounds.select')}
+      </button>
+    </div>
+  );
 
   const label = (
     <div
@@ -283,7 +331,7 @@ function PageSurface({ index, elements, zoom, gridStep, groupOffset, showHeader 
     </div>
   );
 
-  if (!showHeader) return label;
+  if (!showHeader) return notice ? <>{label}{notice}</> : label;
 
   return (
     <section style={{ width: canvasWidth, margin: index === 0 ? '0 auto' : '28px auto 0' }}>
@@ -320,6 +368,7 @@ function PageSurface({ index, elements, zoom, gridStep, groupOffset, showHeader 
         )}
       </div>
       {label}
+      {notice}
     </section>
   );
 }

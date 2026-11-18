@@ -23,7 +23,8 @@ import { toast } from '../store/useToastStore';
 import { t as translate, useT, MessageKey } from '../i18n';
 import { VariablesCatalog } from './VariablesCatalog';
 import { TablePanel } from './TablePanel';
-import { resizeTablePatch } from '../utils/tableEdit';
+import { resizeTablePatch, TABLE_DEFAULT_ROW_HEIGHT } from '../utils/tableEdit';
+import { boundsIssue, issueSides, tableRowsThatFit } from '../utils/labelBounds';
 
 export function PropertiesPanel() {
   const t = useT();
@@ -87,6 +88,8 @@ export function PropertiesPanel() {
   const box = elementBox(el, samples);
   // Where a Code 128 with a {{variable}} would print, for the warning
   const fit = barcodeFit(el, elements, sampleValues, showSamples, labelWidth, labelHeight);
+  // How far the element runs past the label (null = inside)
+  const outOfBounds = boundsIssue(el, labelWidth, labelHeight, samples);
   // An image keeps its proportions.
   const sizedByFont = el.type === 'text' && !el.block;
   const sizedByBars = el.type === 'barcode128' && !!el.moduleWidth;
@@ -273,6 +276,36 @@ export function PropertiesPanel() {
           />
         </div>
       </div>
+
+      {/* Past the edge of the label: what is outside does not print. Only said, nothing is moved. */}
+      {outOfBounds && (
+        <div
+          role="alert"
+          data-testid="bounds-alert"
+          style={{
+            fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 6, marginBottom: 8,
+            background: 'rgba(217, 119, 6, 0.12)', border: '1px solid rgba(217, 119, 6, 0.5)',
+            color: 'var(--chrome-text)',
+          }}
+        >
+          {t('bounds.panel', {
+            sides: issueSides(outOfBounds)
+              .map(s => t(`bounds.side.${s.side}` as MessageKey, { n: `${m.show(s.dots).toLocaleString()} ${m.short}` }))
+              .join(', '),
+          })}
+          {el.type === 'table' && outOfBounds.bottom > 0 && (
+            <>
+              {' '}
+              {t('bounds.table', {
+                height: `${m.show(box.height).toLocaleString()} ${m.short}`,
+                rows: (el.rowsPerPage ?? 1) + ((el.headerRow ?? true) ? 1 : 0),
+                rowHeight: `${m.show(Math.max(1, Math.round(el.rowHeight ?? TABLE_DEFAULT_ROW_HEIGHT))).toLocaleString()} ${m.short}`,
+                fit: tableRowsThatFit(el, labelHeight),
+              })}
+            </>
+          )}
+        </div>
+      )}
 
       {el.type === 'rect' && (
         <>
