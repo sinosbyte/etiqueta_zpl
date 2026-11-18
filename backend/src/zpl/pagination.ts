@@ -11,6 +11,8 @@ import { Element, GenerateRequest } from './types';
  *    no table);
  *  - every repetition of page 2 takes the next records that fit in the table of page 2;
  *  - this goes on while records are left, in their original order.
+ *
+ * A label also takes the values of its first record for the variables that are not cells of its table (see expandLabels).
  */
 
 /** A record: the value of each field (the `field` of a table column). */
@@ -119,10 +121,16 @@ export function expandLabels(req: ExpandRequest): ExpandResult {
       }
     }
 
+    // Values that belong to the label as a whole (a volume number, a UC): those of its first record. A variable that
+    // is not a cell of the table is looked up there before the values every label shares.
+    const first = plan.count > 0 ? upperKeys(records[plan.start]) : null;
+
     const zpl = templates.get(plan.page)!.replace(VARIABLE, (_match, name: string) => {
       const key = name.toUpperCase();
       const cell = slots.get(key);
       if (cell !== undefined) return cell;
+      const own = first?.get(key);
+      if (own !== undefined && own !== '') return clean(own);   // an empty value is "not given": the shared one applies
       const value = common.get(key);
       return value !== undefined && value !== '' ? clean(value) : name;
     });

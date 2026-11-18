@@ -1,6 +1,7 @@
 import { DataRecord, DesignElement } from '../types';
 import { TABLE_FIELD_PATTERN, tableColumns } from './tableEdit';
 import { recordValue } from './recordValue';
+import { designVariables } from './unsaved';
 
 export { recordValue };
 
@@ -78,11 +79,12 @@ export function deleteRecord(records: DataRecord[], row: number): DataRecord[] |
  * fields is the header and says which column is which; otherwise the columns follow the order of the fields.
  * Returns the records read and how many lines were left out because they were past the limit.
  */
-export function parsePaste(text: string, fields: string[]): { records: DataRecord[]; skipped: number; header: boolean } {
+export function parsePaste(text: string, fields: string[], extra: string[] = []): { records: DataRecord[]; skipped: number; header: boolean } {
   const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim() !== '');
   if (lines.length === 0 || fields.length === 0) return { records: [], skipped: 0, header: false };
   const rows = lines.map(l => l.split('\t'));
-  const byName = new Map(fields.map(f => [f.toUpperCase(), f] as const));
+  // A header may also name a variable that belongs to the label (see labelFields): it is accepted, but only when it is there
+  const byName = new Map([...extra, ...fields].map(f => [f.toUpperCase(), f] as const));
   const first = rows[0].map(c => c.trim().toUpperCase());
   const header = first.length > 0 && first.every(c => byName.has(c)) && new Set(first).size === first.length;
   const order = header ? first.map(c => byName.get(c)!) : fields;
@@ -118,4 +120,43 @@ export function recordIssues(records: DataRecord[], fields: string[]): RecordIss
     }
   });
   return issues;
+}
+
+// ---- Values per label: a volume number, a UC... The label takes them from its first record (the backend does that)
+
+/** The {{variables}} of the design that are not cells of a table: the ones that can differ from label to label. */
+export function labelVariables(elements: DesignElement[]): string[] {
+  const tableNames = new Set(dataFields(elements).map(f => f.toUpperCase()));
+  const tableSlots = new Set<string>();
+  for (const e of elements) if (e.type === 'table') for (const c of tableColumns(e)) tableSlots.add(c.field.toUpperCase());
+  return designVariables(elements.filter(e => e.type !== 'table'))
+    .filter(n => TABLE_FIELD_PATTERN.test(n) && !tableNames.has(n.toUpperCase()) && !tableSlots.has(n.toUpperCase()))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+const hasKey = (records: DataRecord[], name: string): boolean => {
+  const upper = name.toUpperCase();
+  return records.some(r => Object.keys(r).some(k => k.toUpperCase() === upper));
+};
+
+/** The label variables the records already carry a column for. */
+export function labelFields(elements: DesignElement[], records: DataRecord[]): string[] {
+  return labelVariables(elements).filter(n => hasKey(records, n));
+}
+
+/** The label variables that could get a column but have none yet. */
+export function candidateLabelFields(elements: DesignElement[], records: DataRecord[]): string[] {
+  return labelVariables(elements).filter(n => !hasKey(records, n));
+}
+
+/** A new, empty column for every record (null when there is no record to hold it or the name is not valid). */
+export function addLabelField(records: DataRecord[], name: string): DataRecord[] | null {
+  if (records.length === 0 || !TABLE_FIELD_PATTERN.test(name) || hasKey(records, name)) return null;
+  return records.map(r => ({ ...r, [name]: '' }));
+}
+
+/** Fields whose records, on one label, do not agree: the label uses the first record's value, and the user is told. */
+export function labelValueConflicts(labelRecords: DataRecord[], names: string[]): string[] {
+  if (labelRecords.length < 2) return [];
+  return names.filter(n => new Set(labelRecords.map(r => recordValue(r, n)).filter(v => v !== '')).size > 1);
 }

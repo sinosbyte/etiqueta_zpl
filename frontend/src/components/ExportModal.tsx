@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { exportZpl, ExportFormat } from '../utils/zplClient';
 import { useT, MessageKey } from '../i18n';
+import { isStructured } from '../utils/pages';
+import { usePanelStore } from '../store/usePanelStore';
 
 interface Props { onClose(): void; zplOverride?: string; }
 
@@ -13,7 +15,9 @@ const FORMATS: { value: ExportFormat; label: string; description: MessageKey; ex
 ];
 
 export function ExportModal({ onClose, zplOverride }: Props) {
-  const { zplCode, labelWidth, labelHeight } = useDesignerStore();
+  const { zplCode, labelWidth, labelHeight, pages, elements } = useDesignerStore();
+  // A design of two pages or with a table prints several labels: PNG and PDF here are of the first page only
+  const structured = isStructured(pages, elements);
   const t = useT();
   const [format, setFormat] = useState<ExportFormat>('png');
   const [loading, setLoading] = useState(false);
@@ -51,6 +55,23 @@ export function ExportModal({ onClose, zplOverride }: Props) {
             style={{ fontSize: 18, color: 'var(--chrome-text-faint)' }}
           >×</button>
         </div>
+
+        {structured && (
+          <div
+            role="note" data-testid="export-structured-note"
+            style={{ fontSize: 11, lineHeight: 1.5, padding: '8px 10px', marginBottom: 12, borderRadius: 6, border: '1px solid var(--accent)', color: 'var(--chrome-text)', background: 'var(--accent-subtle)' }}
+          >
+            {t('export.structuredNote')}
+            <div>
+              <button
+                type="button" className="chrome-btn chrome-btn-primary" style={{ marginTop: 6 }} data-testid="export-go-sim"
+                onClick={() => { usePanelStore.getState().show('sim'); onClose(); }}
+              >
+                {t('export.goSimulation')}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
           {FORMATS.map(f => (
