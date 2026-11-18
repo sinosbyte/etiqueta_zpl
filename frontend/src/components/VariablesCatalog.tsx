@@ -3,6 +3,7 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { usePanelStore } from '../store/usePanelStore';
 import { variableCatalog } from '../utils/variableCatalog';
 import { useT } from '../i18n';
+import { pagesText, valueIsUsed } from '../utils/variableOrigin';
 
 // The longest variable name whose test value is saved with the design (backend limit)
 const MAX_SAMPLE_NAME = 60;
@@ -48,7 +49,7 @@ export function VariablesCatalog() {
           <div key={v.name}>
             <button
               type="button"
-              onClick={() => selectElement(v.elementIds[0])}
+              onClick={() => selectElement(v.freeElementIds[0] ?? v.elementIds[0])}
               title={t('vars.select')}
               style={{
                 background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
@@ -59,8 +60,15 @@ export function VariablesCatalog() {
               {`{{${v.name}}}`}
             </button>
             <span style={{ fontSize: 10, color: 'var(--chrome-text-faint)', marginLeft: 6 }}>
-              {v.elementIds.length === 1 ? t('vars.used1') : t('vars.usedN', { n: v.elementIds.length })}
+              {(v.freeElementIds.length || v.elementIds.length) === 1 ? t('vars.used1') : t('vars.usedN', { n: v.freeElementIds.length || v.elementIds.length })}
             </span>
+            {v.conflict && (
+              <p style={{ fontSize: 10, color: 'var(--status-warning)', lineHeight: 1.4, margin: '3px 0 0' }} data-testid={`vars-conflict-${v.name}`}>
+                {v.conflict.severity === 'ambiguous'
+                  ? t('conflict.rowAmbiguous', { pages: pagesText(v.conflict.cellPages) })
+                  : t(valueIsUsed(v.conflict) ? 'conflict.rowCollision' : 'conflict.rowIgnored', { pages: pagesText(v.conflict.collidingPages) })}
+              </p>
+            )}
             {v.clashesWith.length > 0 && (
               <p style={{ fontSize: 10, color: 'var(--status-warning)', lineHeight: 1.4, margin: '3px 0 0' }}>
                 {t('vars.clash', { other: v.clashesWith.map(n => `{{${n}}}`).join(', ') })}

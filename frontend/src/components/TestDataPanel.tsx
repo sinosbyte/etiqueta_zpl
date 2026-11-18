@@ -220,7 +220,7 @@ function RecordsSection({ gridHeight }: { gridHeight: number }) {
   );
 }
 
-const KNOWN_WARNINGS = new Set(['repeat-page-without-table', 'unplaced-records']);
+const KNOWN_WARNINGS = new Set(['repeat-page-without-table', 'unplaced-records', 'variable-collision']);
 
 /**
  * The preview: the real rendering (Labelary, through the simulation, the queue and the cache that already exist) of

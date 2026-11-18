@@ -390,7 +390,7 @@ describe('a design that changed after the variant was saved', () => {
   test('records keep working while the table fields are compatible; unknown and missing columns are reported', () => {
     const elements = design();
     const ok = compatibility(elements, testDataOf({ REMESSA: '1', CLIENTE: 'c' }, rec('A', 'B')));
-    expect(ok).toEqual({ unusedValues: [], missingValues: [], unknownColumns: [], missingColumns: [] });
+    expect(ok).toEqual({ unusedValues: [], missingValues: [], unknownColumns: [], missingColumns: [], ignoredValues: [] });
     const changed = compatibility(elements, testDataOf({ REMESSA: '1', CLIENTE: 'c' }, [{ MATERIAL: 'A', LOTE: 'L1' }]));
     expect(changed.unknownColumns).toEqual(['LOTE']);
     expect(changed.missingColumns).toEqual(['QTD']);

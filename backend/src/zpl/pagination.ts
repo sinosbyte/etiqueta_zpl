@@ -1,5 +1,5 @@
 import { generatePageZpl, pageCountOf } from './generator';
-import { tableGeometry, tableSlotName } from './table';
+import { TableGeometry, tableGeometry, tableSlotName } from './table';
 import { Element, GenerateRequest } from './types';
 
 /**
@@ -84,6 +84,29 @@ export function planLabels(total: number, capacityFirst: number, hasRepeat: bool
   return { plans, unplaced: total - next };
 }
 
+/**
+ * Whether, on a page that prints, some marker of an element that is not the table has the name of a cell of
+ * the table of that page (CAMPO, or CAMPO_1 ... CAMPO_n, without telling upper from lower case). The cell takes the
+ * place of that marker, so the value that was meant for it is not used: the answer reports it instead of
+ * leaving it unsaid. Nothing about how the markers are filled changes.
+ */
+function collidingMarkers(req: ExpandRequest, pages: Set<number>, geometry: (TableGeometry | null)[]): boolean {
+  const withoutTables = { ...req, elements: req.elements.filter(el => el.type !== 'table') };
+  for (const page of pages) {
+    const g = geometry[page];
+    const table = tablesOf(req.elements, page)[0];
+    if (!g || !table) continue;
+    const cells = new Set<string>();
+    for (const col of table.columns ?? []) {
+      for (let slot = 1; slot <= g.capacity; slot++) cells.add(tableSlotName(col.field, slot, g.capacity).toUpperCase());
+    }
+    for (const m of generatePageZpl(withoutTables, page).matchAll(VARIABLE)) {
+      if (cells.has(m[1].toUpperCase())) return true;
+    }
+  }
+  return false;
+}
+
 const tablesOf = (elements: Element[], page: number): Element[] =>
   elements.filter(el => el.type === 'table' && (el.page ?? 0) === page);
 
@@ -116,6 +139,8 @@ export function expandLabels(req: ExpandRequest): ExpandResult {
   const { plans, unplaced } = planLabels(records.length, capacityFirst, hasRepeat, capacityRepeat);
   if (unplaced > 0) warnings.push('unplaced-records');
   if (plans.length > MAX_EXPAND_LABELS) throw new ExpandError(EXPAND_TOO_MANY_LABELS);
+  // Said, not changed: the cell of the table wins (see below) and the value of the other marker is not used
+  if (collidingMarkers(req, new Set(plans.map(plan => plan.page)), geometry)) warnings.push('variable-collision');
 
   const common = new Map(Object.entries(req.values ?? {}).map(([k, v]) => [k.toUpperCase(), v] as const));
   const upperKeys = (record: DataRecord): Map<string, string> =>

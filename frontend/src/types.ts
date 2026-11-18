@@ -34,7 +34,7 @@ export interface ExpandResult {
   labels: ExpandedLabel[];
   totalRecords: number;
   unplaced: number;      // records no label has room for
-  warnings: string[];    // codes: 'repeat-page-without-table', 'unplaced-records'
+  warnings: string[];    // codes: 'repeat-page-without-table', 'unplaced-records', 'variable-collision'
   zpl: string;
 }
 

@@ -149,6 +149,7 @@ export function VariantsBar() {
           <strong>{t('variants.compatTitle')}</strong>
           {compat.unusedValues.length > 0 && <p style={{ margin: '2px 0' }}>{t('variants.compatUnused', { names: compat.unusedValues.map(n => `{{${n}}}`).join(', ') })}</p>}
           {compat.missingValues.length > 0 && <p style={{ margin: '2px 0' }}>{t('variants.compatMissing', { names: compat.missingValues.map(n => `{{${n}}}`).join(', ') })}</p>}
+          {compat.ignoredValues.length > 0 && <p style={{ margin: '2px 0' }}>{t('variants.compatIgnored', { names: compat.ignoredValues.map(n => `{{${n}}}`).join(', ') })}</p>}
           {compat.unknownColumns.length > 0 && <p style={{ margin: '2px 0' }}>{t('variants.compatUnknownCols', { names: compat.unknownColumns.join(', ') })}</p>}
           {compat.missingColumns.length > 0 && <p style={{ margin: '2px 0' }}>{t('variants.compatMissingCols', { names: compat.missingColumns.join(', ') })}</p>}
         </div>
