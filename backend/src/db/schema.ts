@@ -1,4 +1,5 @@
-import { pgTable, serial, text, integer, timestamp, unique, jsonb, index, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, timestamp, unique, jsonb, index, boolean, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import type { PagesConfig } from '../zpl/types';
 
 export const usersTable = pgTable('users', {
@@ -68,3 +69,18 @@ export const apiTokensTable = pgTable('api_tokens', {
   expiresAt: timestamp('expires_at'),
   revokedAt: timestamp('revoked_at'),
 }, (t) => [index('idx_api_tokens_user_id').on(t.userId)]);
+
+// Named sets of test data of a design (values of the variables + the records of its tables). They belong to the
+// design, not to one of its versions, and are saved on their own: loading one never touches the design.
+export const designTestVariantsTable = pgTable('design_test_variants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  designId: integer('design_id').notNull().references(() => designsTable.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  sampleValues: jsonb('sample_values').notNull().$type<Record<string, string>>().default({}),
+  records: jsonb('records').notNull().$type<Record<string, string>[]>().default([]),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('uq_design_test_variants_name').on(t.designId, sql`lower(${t.name})`),
+  index('idx_design_test_variants_design').on(t.designId),
+]);

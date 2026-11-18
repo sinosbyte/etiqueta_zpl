@@ -4,9 +4,13 @@ import {
   createDesign, listDesigns, getDesignWithVersion, deleteDesign, renameDesign,
   createVersion, listVersions, getVersion, updateVersion,
 } from '../designs/designsService';
+import { variantsRouter } from './variants';
 import { ElementSchema, PagesConfigSchema, elementsFitPages } from '../zpl/schema';
 
 export const designsRouter = Router();
+
+// Named sets of test data of a design
+designsRouter.use('/:id/variants', variantsRouter);
 
 /** Coerces and validates a route param that must be a positive integer. */
 const IdParam = z.coerce.number().int().positive();
