@@ -41,9 +41,10 @@ import { useSimulationStore } from '../src/store/useSimulationStore';
 import { isDirtyNow } from '../src/hooks/useUnsavedChanges';
 import { DataRecord, DesignElement } from '../src/types';
 import {
-  MAX_RECORDS, MAX_VALUE_LENGTH, addRecords, dataFields, deleteRecord, orphanFields, parsePaste, recordIssues, recordValue,
-  removeOrphans, setCell,
+  MAX_RECORDS, MAX_VALUE_LENGTH, addLabelField, addRecords, candidateLabelFields, dataFields, deleteRecord, labelFields, labelValueConflicts,
+  labelVariables, orphanFields, parsePaste, recordIssues, recordValue, removeOrphans, setCell,
 } from '../src/utils/testData';
+import { usePanelStore } from '../src/store/usePanelStore';
 import { expandPayload, firstUnplaced, labelRecords, tableData, unplacedRecords, viewOf } from '../src/utils/simulation';
 import { visibleRecords, tableOverflows } from '../src/utils/tableEdit';
 import { variableCatalog } from '../src/utils/variableCatalog';
@@ -446,5 +447,100 @@ describe('what did not change', () => {
     expect(designer().elements.map(e => e.id)).toEqual(['a', 'b']);
     expect(designer().records).toEqual([]);
     expect(sim().result).toBeNull();
+  });
+});
+
+describe('values per label (Volumes, UC)', () => {
+  const text = (id: string, value: string, page?: number): DesignElement => ({ id, type: 'text', x: 1, y: 1, width: 100, height: 20, value, fontSize: 20, ...(page !== undefined && { page }) });
+  const design = (): DesignElement[] => [text('h', 'Remessa {{REMESSA}} vol {{VOL}}', 0), tableEl(0, 1, ['MATERIAL']), text('u', 'UC {{UC}}', 1), tableEl(1, 2, ['MATERIAL'])];
+  const recs = (): DataRecord[] => [1, 2, 3, 4, 5].map(n => ({ MATERIAL: `M${n}` }));
+
+  test('the variables that can differ per label are the ones outside the tables', () => {
+    expect(labelVariables(design())).toEqual(['REMESSA', 'UC', 'VOL']);
+    expect(labelVariables([tableEl(0, 1, ['MATERIAL'])])).toEqual([]);
+    expect(labelVariables([text('a', '{{MATERIAL}} {{OTHER}}', 0), tableEl(0, 1, ['MATERIAL'])])).toEqual(['OTHER']);   // a table field is never a per-label one
+  });
+
+  test('a column exists once the records carry it; before that it is offered', () => {
+    expect(labelFields(design(), recs())).toEqual([]);
+    expect(candidateLabelFields(design(), recs())).toEqual(['REMESSA', 'UC', 'VOL']);
+    const withUc = addLabelField(recs(), 'UC')!;
+    expect(labelFields(design(), withUc)).toEqual(['UC']);
+    expect(candidateLabelFields(design(), withUc)).toEqual(['REMESSA', 'VOL']);
+  });
+
+  test('adding a column keeps every value, adds it empty to all records, and refuses what makes no sense', () => {
+    const before = recs();
+    const after = addLabelField(before, 'UC')!;
+    expect(after.map(r => r.MATERIAL)).toEqual(['M1', 'M2', 'M3', 'M4', 'M5']);
+    expect(after.every(r => r.UC === '')).toBe(true);
+    expect(before[0]).toEqual({ MATERIAL: 'M1' });                                   // the input is not changed
+    expect(addLabelField([], 'UC')).toBeNull();                                     // no record to hold it
+    expect(addLabelField(after, 'uc')).toBeNull();                                  // already there (names match without case)
+    expect(addLabelField(recs(), 'COM ESPACO')).toBeNull();
+  });
+
+  test('such a column is not an orphan; a field no table and no variable asks for still is', () => {
+    const records = [{ MATERIAL: 'a', UC: 'x', ANTIGO: 'y' }];
+    const known = [...dataFields(design()), ...labelFields(design(), records)];
+    expect(orphanFields(records, known)).toEqual(['ANTIGO']);
+  });
+
+  test('pasting a header that names a per-label variable brings its column; one that is not in the header does not appear', () => {
+    const fields = ['MATERIAL'];
+    const extra = candidateLabelFields(design(), recs());
+    const r = parsePaste(['MATERIAL', 'UC'].join('\t') + '\n' + ['M1', 'UC-1'].join('\t') + '\n' + ['M2', 'UC-2'].join('\t'), fields, extra);
+    expect(r.header).toBe(true);
+    expect(r.records).toEqual([{ MATERIAL: 'M1', UC: 'UC-1' }, { MATERIAL: 'M2', UC: 'UC-2' }]);
+    expect(Object.keys(r.records[0])).not.toContain('VOL');
+    expect(parsePaste(['MATERIAL', 'NAOEXISTE'].join('\t') + '\n' + ['M1', 'x'].join('\t'), fields, extra).header).toBe(false);   // an unknown name is not a header
+  });
+
+  test('records of one label that disagree are reported, empty values and a single record are not', () => {
+    expect(labelValueConflicts([{ UC: 'a' }, { UC: 'a' }], ['UC'])).toEqual([]);
+    expect(labelValueConflicts([{ UC: 'a' }, { UC: 'b' }], ['UC'])).toEqual(['UC']);
+    expect(labelValueConflicts([{ UC: 'a' }, { UC: '' }], ['UC'])).toEqual([]);
+    expect(labelValueConflicts([{ UC: 'a' }], ['UC'])).toEqual([]);
+  });
+
+  test('the simulation sends the columns and each label prints the value of its first record (real backend)', async () => {
+    const records = recs().map((r, i) => ({ ...r, UC: `UC-${i + 1}`, VOL: `0000${Math.floor(i / 2) + 1}` }));
+    load(design(), records, two);
+    designer().setSampleValues({ REMESSA: '777', UC: 'comum', VOL: 'comum' });
+    await sim().run();
+    const r = sim().result!;
+    expect(r.labels.map(l => [l.page, l.recordStart, l.recordCount])).toEqual([[0, 0, 1], [1, 1, 2], [1, 3, 2]]);
+    const text = (z: string) => [...z.matchAll(/\^FD([^^]*)\^FS/g)].map(m => m[1]);
+    expect(text(r.labels[0].zpl)).toContain('Remessa 777 vol 00001');
+    expect(text(r.labels[1].zpl)).toContain('UC UC-2');                              // label 2 starts at record 2
+    expect(text(r.labels[2].zpl)).toContain('UC UC-4');
+    expect(mockNet.requests[0].records[1]).toMatchObject({ UC: 'UC-2' });
+  });
+
+  test('the same design without the columns prints the shared values on every label', async () => {
+    load(design(), recs(), two);
+    designer().setSampleValues({ REMESSA: '777', UC: 'comum', VOL: 'comum' });
+    await sim().run();
+    const text = (z: string) => [...z.matchAll(/\^FD([^^]*)\^FS/g)].map(m => m[1]);
+    expect(text(sim().result!.labels[1].zpl)).toContain('UC comum');
+  });
+
+  test('editing the column is a change: the simulation goes out of date and the design is unsaved', async () => {
+    const records = recs().map(r => ({ ...r, UC: 'a' }));
+    load(design(), records, two);
+    await sim().run();
+    expect(sim().stale).toBe(false);
+    designer().setRecords(setCell(designer().records, 1, 'UC', 'b')!);
+    expect(sim().stale).toBe(true);
+  });
+});
+
+describe('the test data bar can be opened from elsewhere', () => {
+  test('show() opens it on the tab asked for (what the Preview and Export buttons do)', () => {
+    usePanelStore.setState({ open: false, tab: 'data' });
+    usePanelStore.getState().show('sim');
+    expect(usePanelStore.getState()).toMatchObject({ open: true, tab: 'sim' });
+    usePanelStore.getState().setOpen(false);
+    expect(usePanelStore.getState().open).toBe(false);
   });
 });

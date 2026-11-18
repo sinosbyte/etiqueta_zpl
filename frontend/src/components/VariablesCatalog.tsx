@@ -3,6 +3,7 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { variableCatalog } from '../utils/variableCatalog';
 import { useT } from '../i18n';
 import { tableVariables } from '../utils/tableEdit';
+import { labelFields } from '../utils/testData';
 
 // The longest variable name whose example value is saved with the design (backend limit)
 const MAX_SAMPLE_NAME = 60;
@@ -15,7 +16,10 @@ export function VariablesCatalog() {
   const setSampleValues = useDesignerStore(s => s.setSampleValues);
   const selectElement = useDesignerStore(s => s.selectElement);
 
+  const records = useDesignerStore(s => s.records);
   const variables = useMemo(() => variableCatalog(elements), [elements]);
+  // Variables the test data gives a value per label (see the Test data bar)
+  const perLabel = useMemo(() => new Set(labelFields(elements, records).map(n => n.toUpperCase())), [elements, records]);
   // Variables only a table prints are filled in by the test data (one record per row): an example value would be ignored
   const tableOnly = useMemo(() => {
     const tables = elements.filter(e => e.type === 'table');
@@ -70,6 +74,9 @@ export function VariablesCatalog() {
               style={{ marginTop: 4 }}
               maxLength={255}
             />
+            )}
+            {perLabel.has(v.name.toUpperCase()) && (
+              <p style={{ fontSize: 10, color: 'var(--chrome-text-faint)', lineHeight: 1.4, margin: '3px 0 0' }} data-testid={`vars-perlabel-${v.name}`}>{t('vars.perLabel')}</p>
             )}
             {v.clashesWith.length > 0 && (
               <p style={{ fontSize: 10, color: 'var(--status-warning)', lineHeight: 1.4, margin: '3px 0 0' }}>

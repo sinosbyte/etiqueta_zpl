@@ -12,7 +12,9 @@ import { useIsDirty } from '../hooks/useUnsavedChanges';
 import { GRID_STEPS } from '../utils/snap';
 import { useLangStore, useT } from '../i18n';
 import { LanguageSelect } from './LanguageSelect';
-import { MAX_PAGES } from '../utils/pages';
+import { MAX_PAGES, isStructured } from '../utils/pages';
+import { usePanelStore } from '../store/usePanelStore';
+import { toast } from '../store/useToastStore';
 
 interface Props {
   onNavigateToMyDesigns: () => void;
@@ -47,6 +49,10 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const handlePreview = () => {
     if (previewActive) {
       closePreview();
+    } else if (isStructured(pages, elements)) {
+      // More than one label: this preview is of the first page only, so it leads to the one that shows them all
+      usePanelStore.getState().show('sim');
+      toast.info(t('toolbar.previewMoved'));
     } else if (variables.length > 0) {
       setSamplesFor('preview');
     } else {

@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { useSimulationStore } from '../store/useSimulationStore';
+import { usePanelStore } from '../store/usePanelStore';
 import { toast } from '../store/useToastStore';
 import { MessageKey, useT } from '../i18n';
 import {
-  MAX_ADD_AT_ONCE, MAX_RECORDS, MAX_VALUE_LENGTH, addRecords, dataFields, deleteRecord, orphanFields, parsePaste,
-  recordIssues, recordValue, removeOrphans, setCell,
+  MAX_ADD_AT_ONCE, MAX_RECORDS, MAX_VALUE_LENGTH, addLabelField, addRecords, candidateLabelFields, dataFields, deleteRecord,
+  labelFields as labelFieldsOf, labelValueConflicts, orphanFields, parsePaste, recordIssues, recordValue, removeOrphans, setCell,
 } from '../utils/testData';
 import { RenderedLabel } from './RenderedLabel';
 import { PdfExportBar } from './PdfExportBar';
@@ -56,7 +57,11 @@ function DataTab() {
   const [pasted, setPasted] = useState('');
 
   const fields = useMemo(() => dataFields(elements), [elements]);
-  const orphans = useMemo(() => orphanFields(records, fields), [records, fields]);
+  // Variables that change from label to label (a volume, a UC): columns of their own, taken from the label's first record
+  const perLabel = useMemo(() => labelFieldsOf(elements, records), [elements, records]);
+  const candidates = useMemo(() => candidateLabelFields(elements, records), [elements, records]);
+  const known = useMemo(() => [...fields, ...perLabel], [fields, perLabel]);
+  const orphans = useMemo(() => orphanFields(records, known), [records, known]);
   const issues = useMemo(() => recordIssues(records, fields), [records, fields]);
   const full = records.length >= MAX_RECORDS;
 
@@ -70,12 +75,12 @@ function DataTab() {
   }
 
   const add = (n: number) => {
-    const next = addRecords(records, fields, n);
+    const next = addRecords(records, known, n);
     if (!next) { toast.error(t('td.limit', { n: MAX_RECORDS })); return; }
     setRecords(next);
   };
   const applyPaste = () => {
-    const { records: read, skipped } = parsePaste(pasted, fields);
+    const { records: read, skipped } = parsePaste(pasted, fields, [...perLabel, ...candidates]);
     const room = MAX_RECORDS - records.length;
     const take = read.slice(0, Math.max(0, room));
     if (take.length === 0) { toast.error(read.length === 0 ? t('td.pasteNothing') : t('td.limit', { n: MAX_RECORDS })); return; }
@@ -95,7 +100,7 @@ function DataTab() {
     }
   };
 
-  const columns = [...fields, ...orphans];
+  const columns = [...known, ...orphans];
   return (
     <div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -114,10 +119,22 @@ function DataTab() {
         <button type="button" className="chrome-btn chrome-btn-ghost" title={t('td.pasteTitle')} onClick={() => setPasting(p => !p)} data-testid="td-paste-toggle">
           {t('td.paste')}
         </button>
+        {candidates.length > 0 && (
+          <select
+            className="chrome-input" value="" data-testid="td-add-label-col" style={{ width: 'auto', maxWidth: 200 }}
+            disabled={records.length === 0} title={records.length === 0 ? t('td.perLabelNeedsRecord') : t('td.perLabelTitle')}
+            aria-label={t('td.perLabelAdd')}
+            onChange={e => { const next = addLabelField(records, e.target.value); if (next) setRecords(next); }}
+          >
+            <option value="">{t('td.perLabelAdd')}</option>
+            {candidates.map(n => <option key={n} value={n}>{`{{${n}}}`}</option>)}
+          </select>
+        )}
         <span style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>
           {t('td.fields')} {fields.map(f => `{{${f}}}`).join(' ')}
         </span>
       </div>
+      {(perLabel.length > 0 || candidates.length > 0) && <p style={note} data-testid="td-perlabel-help">{t('td.perLabelHelp')}</p>}
       {full && <p style={{ ...note, color: AMBER }}>{t('td.limit', { n: MAX_RECORDS })}</p>}
 
       {pasting && (
@@ -139,7 +156,7 @@ function DataTab() {
           {t('td.orphans', { fields: orphans.join(', ') })}{' '}
           <button
             type="button" className="chrome-btn chrome-btn-ghost" style={{ marginLeft: 4 }}
-            onClick={() => setRecords(removeOrphans(records, fields))}
+            onClick={() => setRecords(removeOrphans(records, known))}
           >
             {t('td.orphansRemove')}
           </button>
@@ -155,7 +172,13 @@ function DataTab() {
               <tr>
                 <th style={{ ...th, width: 34 }}>#</th>
                 {columns.map(c => (
-                  <th key={c} style={{ ...th, color: orphans.includes(c) ? AMBER : th.color }} title={orphans.includes(c) ? t('td.orphanColumn') : undefined}>{c}</th>
+                  <th
+                    key={c} style={{ ...th, color: orphans.includes(c) ? AMBER : th.color }}
+                    title={orphans.includes(c) ? t('td.orphanColumn') : perLabel.includes(c) ? t('td.perLabelTitle') : undefined}
+                    data-testid={perLabel.includes(c) ? `td-label-col-${c}` : undefined}
+                  >
+                    {c}{perLabel.includes(c) ? ` · ${t('td.perLabelTag')}` : ''}
+                  </th>
                 ))}
                 <th style={{ ...th, width: 28 }} />
               </tr>
@@ -208,6 +231,7 @@ function SimulationTab() {
   const sim = useSimulationStore();
   const fields = useMemo(() => dataFields(elements), [elements]);
   const hasTable = fields.length > 0;
+  const sentLabelFields = useMemo(() => labelFieldsOf(elements, sim.sent), [elements, sim.sent]);
   const result = sim.result;
 
   const describe = (label: { page: number; recordStart: number; recordCount: number }): string => {
@@ -271,7 +295,8 @@ function SimulationTab() {
             const label = result.labels.find(l => l.index === sim.selected);
             if (!label) return null;
             const rows = labelRecords(label, sim.sent);
-            const cols = [...fields, ...orphanFields(sim.sent, fields)];
+            const cols = [...fields, ...sentLabelFields, ...orphanFields(sim.sent, [...fields, ...sentLabelFields])];
+            const conflicts = labelValueConflicts(rows, sentLabelFields);
             return (
               <div data-testid="sim-detail">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -282,6 +307,9 @@ function SimulationTab() {
                     </button>
                   )}
                 </div>
+                {conflicts.length > 0 && (
+                  <p role="alert" style={{ ...note, color: AMBER }} data-testid="sim-conflict">{t('sim.labelConflict', { fields: conflicts.join(', ') })}</p>
+                )}
                 {rows.length === 0 ? (
                   <p style={note}>{t('sim.noneOnLabel')}</p>
                 ) : (
@@ -314,7 +342,7 @@ function SimulationTab() {
                     {unplacedRecords(result, sim.sent).map((r, i) => (
                       <tr key={i}>
                         <td style={{ ...td, padding: '2px 6px', fontSize: 10 }}>{firstUnplaced(result, sim.sent) + i}</td>
-                        {[...fields, ...orphanFields(sim.sent, fields)].map(c => <td key={c} style={{ ...td, padding: '2px 6px', fontSize: 12 }}>{recordValue(r, c)}</td>)}
+                        {[...fields, ...sentLabelFields, ...orphanFields(sim.sent, [...fields, ...sentLabelFields])].map(c => <td key={c} style={{ ...td, padding: '2px 6px', fontSize: 12 }}>{recordValue(r, c)}</td>)}
                       </tr>
                     ))}
                   </tbody>
@@ -336,8 +364,10 @@ export function TestDataPanel() {
   const t = useT();
   const count = useDesignerStore(s => s.records.length);
   const stale = useSimulationStore(s => s.stale && !!s.result);
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'data' | 'sim'>('data');
+  const open = usePanelStore(p => p.open);
+  const tab = usePanelStore(p => p.tab);
+  const setOpen = (v: boolean | ((o: boolean) => boolean)) => usePanelStore.getState().setOpen(typeof v === 'function' ? v(usePanelStore.getState().open) : v);
+  const setTab = usePanelStore.getState().setTab;
 
   return (
     <section
