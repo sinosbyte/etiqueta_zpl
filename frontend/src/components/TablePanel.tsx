@@ -3,6 +3,7 @@ import { DesignElement, TableColumn } from '../types';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { useMeasure } from '../store/useUnitStore';
 import { useT } from '../i18n';
+import { conflictsOfTable, pagesText } from '../utils/variableOrigin';
 import { NumberInput } from './NumberInput';
 import {
   TABLE_DEFAULT_BORDER, TABLE_DEFAULT_FONT_SIZE, TABLE_DEFAULT_PADDING, TABLE_DEFAULT_ROW_HEIGHT, TABLE_FIELD_PATTERN,
@@ -211,6 +212,28 @@ export function TablePanel({ el }: { el: DesignElement }) {
       )}
 
       <h4 style={{ ...labelStyle, margin: '12px 0 8px' }}>{t('table.columns')} ({columns.length}/{TABLE_MAX_COLUMNS})</h4>
+      {/* Cells of this table that have the name of a free variable of the label: the cell is printed instead */}
+      {(() => {
+        const found = conflictsOfTable(elements, el.id);
+        const collisions = found.filter(c => c.severity === 'collision');
+        const ambiguous = found.filter(c => c.severity === 'ambiguous');
+        const names = (items: typeof found) => items.map(c => `{{${c.name}}}`).join(', ');
+        const pages = (items: typeof found, key: 'collidingPages' | 'freePages') => pagesText([...new Set(items.flatMap(c => c[key]))].sort((a, b) => a - b));
+        return (
+          <>
+            {collisions.length > 0 && (
+              <p role="alert" data-testid="table-conflict" style={{ ...warnStyle, color: 'var(--status-warning)', marginBottom: 8 }}>
+                {t('conflict.table', { names: names(collisions), pages: pages(collisions, 'collidingPages') })}
+              </p>
+            )}
+            {ambiguous.length > 0 && (
+              <p role="status" data-testid="table-conflict-note" style={{ ...noteStyle, marginBottom: 8 }}>
+                {t('conflict.tableAmbiguous', { names: names(ambiguous), pages: pages(ambiguous, 'freePages') })}
+              </p>
+            )}
+          </>
+        );
+      })()}
       {issues.length > 0 && (
         <div role="alert" data-testid="table-issues" style={{ marginBottom: 8 }}>
           {issues.map((i, k) => <p key={k} style={warnStyle}>{issueText(i)}</p>)}

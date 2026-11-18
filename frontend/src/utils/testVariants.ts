@@ -80,6 +80,8 @@ export interface Compatibility {
   unknownColumns: string[];
   /** Columns of the tables the records do not have: they print empty */
   missingColumns: string[];
+  /** Values the variant has for variables that a table fills everywhere they are written: they are not used */
+  ignoredValues: string[];
 }
 
 /**
@@ -96,15 +98,19 @@ export function compatibility(elements: DesignElement[], data: TestData): Compat
   for (const r of data.records) for (const k of Object.keys(r)) present.add(k.toUpperCase());
   const perLabelUpper = new Set(perLabel.map(n => n.toUpperCase()));
   // A variable that is a per-label column of the records has its values there, not among the values
-  const valueNames = valueRows(elements).map(r => r.name).filter(n => !perLabelUpper.has(n.toUpperCase()));
+  const rows = valueRows(elements);
+  const valueNames = rows.filter(r => r.inputOffered).map(r => r.name).filter(n => !perLabelUpper.has(n.toUpperCase()));
+  const noInput = new Set(rows.filter(r => r.conflict && !r.inputOffered).map(r => r.name.toUpperCase()));
 
   return {
     unusedValues: Object.keys(data.sampleValues).filter(n => !used.has(n.toUpperCase())),
     missingValues: valueNames.filter(n => !has.has(n.toUpperCase())),
     unknownColumns: orphanFields(data.records, [...tableFields, ...perLabel]),
     missingColumns: data.records.length === 0 ? [] : tableFields.filter(f => !present.has(f.toUpperCase())),
+    ignoredValues: Object.keys(data.sampleValues).filter(n => noInput.has(n.toUpperCase())),
   };
 }
 
 export const isCompatible = (c: Compatibility): boolean =>
-  c.unusedValues.length === 0 && c.missingValues.length === 0 && c.unknownColumns.length === 0 && c.missingColumns.length === 0;
+  c.unusedValues.length === 0 && c.missingValues.length === 0 && c.unknownColumns.length === 0 && c.missingColumns.length === 0
+  && c.ignoredValues.length === 0;

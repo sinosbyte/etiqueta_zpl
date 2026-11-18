@@ -25,6 +25,7 @@ import { VariablesCatalog } from './VariablesCatalog';
 import { TablePanel } from './TablePanel';
 import { resizeTablePatch, TABLE_DEFAULT_ROW_HEIGHT } from '../utils/tableEdit';
 import { boundsIssue, issueSides, tableRowsThatFit } from '../utils/labelBounds';
+import { conflictsOfElement, pagesText } from '../utils/variableOrigin';
 import { pageOf } from '../utils/pages';
 import { requestTransfer } from '../utils/pageTransferActions';
 
@@ -311,6 +312,31 @@ export function PropertiesPanel() {
           )}
         </div>
       )}
+
+      {/* A variable of this element that has the name of a cell of a table: the cell is printed instead */}
+      {(() => {
+        const found = el.type === 'table' ? [] : conflictsOfElement(elements, el.id);
+        const collisions = found.filter(c => c.severity === 'collision');
+        const ambiguous = found.filter(c => c.severity === 'ambiguous');
+        const list = (items: typeof found) => items.map(c => `{{${c.name}}}`).join(', ');
+        const pages = (items: typeof found, key: 'collidingPages' | 'cellPages') => pagesText([...new Set(items.flatMap(c => c[key]))].sort((a, b) => a - b));
+        return (
+          <>
+            {collisions.length > 0 && (
+              <div role="alert" data-testid="conflict-alert" style={{ fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 6, marginBottom: 8,
+                background: 'rgba(217, 119, 6, 0.12)', border: '1px solid rgba(217, 119, 6, 0.5)', color: 'var(--chrome-text)' }}>
+                {t('conflict.element', { names: list(collisions), pages: pages(collisions, 'collidingPages') })}
+              </div>
+            )}
+            {ambiguous.length > 0 && (
+              <div role="status" data-testid="conflict-note" style={{ fontSize: 11, lineHeight: 1.5, padding: '8px 10px', borderRadius: 6, marginBottom: 8,
+                background: 'var(--chrome-elevated)', border: '1px solid var(--chrome-border)', color: 'var(--chrome-text-muted)' }}>
+                {t('conflict.elementAmbiguous', { names: list(ambiguous), pages: pages(ambiguous, 'cellPages') })}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {el.type === 'rect' && (
         <>

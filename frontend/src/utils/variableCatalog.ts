@@ -1,5 +1,6 @@
 import { DesignElement } from '../types';
 import { designVariables } from './unsaved';
+import { VariableConflict, variableConflicts } from './variableOrigin';
 
 export interface VariableInfo {
   name: string;
@@ -7,6 +8,10 @@ export interface VariableInfo {
   elementIds: string[];
   /** Other variables whose name differs only by upper/lower case (the SAP treats them as one). */
   clashesWith: string[];
+  /** The elements that write the marker themselves (not tables): `elementIds` also has the tables whose cells have the name. */
+  freeElementIds: string[];
+  /** Set when the name is also a cell of a table (see variableOrigin). */
+  conflict?: VariableConflict;
 }
 
 /**
@@ -24,10 +29,14 @@ export function variableCatalog(elements: DesignElement[]): VariableInfo[] {
     }
   }
 
+  const byId = new Map(elements.map(e => [e.id, e] as const));
+  const conflicts = new Map(variableConflicts(elements).map(c => [c.name.toUpperCase(), c] as const));
   const names = [...byName.keys()];
   return names.map(name => ({
     name,
     elementIds: byName.get(name)!,
     clashesWith: names.filter(other => other !== name && other.toLowerCase() === name.toLowerCase()),
+    freeElementIds: byName.get(name)!.filter(id => byId.get(id)?.type !== 'table'),
+    conflict: conflicts.get(name.toUpperCase()),
   }));
 }

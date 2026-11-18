@@ -3,6 +3,7 @@ import { variableCatalog } from './variableCatalog';
 import { TABLE_FIELD_PATTERN, tableColumns } from './tableEdit';
 import { recordValue } from './recordValue';
 import { designVariables } from './unsaved';
+import { fieldVariables, valueIsUsed, variableConflicts, VariableConflict } from './variableOrigin';
 
 export { recordValue };
 
@@ -166,19 +167,47 @@ export function labelValueConflicts(labelRecords: DataRecord[], names: string[])
 
 export interface ValueRow {
   name: string;
-  elementIds: string[];     // the elements that use it, in layer order
+  elementIds: string[];     // the elements that write it (not the tables), in layer order
   types: ElementType[];     // their kinds, each once (Texto, QR Code...)
+  /** Also the name of a cell of a table: where the table has it, the cell is printed and this value is not used. */
+  conflict?: VariableConflict;
+  /** Named like a data field of a table: it takes that field of the first record of each label. */
+  fromField?: string;
+  /** Whether a value is asked for: not when it would never be used (the table fills it everywhere it is written). */
+  inputOffered: boolean;
 }
 
-/** One row per variable that is not a cell of a table: a variable several elements share is one row. */
+/**
+ * One row per variable that is not a cell of a table: a variable several elements share is one row. A variable
+ * that has the name of a cell, or of a data field, of a table is listed too, with what happens to it, so that it
+ * is never filled by something else without the user being told.
+ */
 export function valueRows(elements: DesignElement[]): ValueRow[] {
-  const byName = new Map(variableCatalog(elements).map(v => [v.name, v] as const));
   const byId = new Map(elements.map(e => [e.id, e] as const));
-  return labelVariables(elements).map(name => {
-    const elementIds = byName.get(name)?.elementIds ?? [];
-    const types = [...new Set(elementIds.map(id => byId.get(id)?.type).filter((t): t is ElementType => !!t))];
-    return { name, elementIds, types };
-  });
+  const typesOf = (ids: string[]): ElementType[] =>
+    [...new Set(ids.map(id => byId.get(id)?.type).filter((t): t is ElementType => !!t))];
+  const conflicts = new Map(variableConflicts(elements).map(c => [c.name.toUpperCase(), c] as const));
+  const catalog = new Map(variableCatalog(elements).map(v => [v.name, v] as const));
+
+  const rows: ValueRow[] = [];
+  const seen = new Set<string>();
+  const add = (row: ValueRow) => { rows.push(row); seen.add(row.name.toUpperCase()); };
+
+  for (const name of labelVariables(elements)) {
+    const conflict = conflicts.get(name.toUpperCase());
+    const elementIds = conflict ? conflict.freeIds : (catalog.get(name)?.freeElementIds ?? []);
+    add({ name, elementIds, types: typesOf(elementIds), conflict, inputOffered: valueIsUsed(conflict) });
+  }
+  // The names labelVariables leaves out because they are those of a table's fields or cells
+  for (const conflict of [...conflicts.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (seen.has(conflict.name.toUpperCase())) continue;
+    add({ name: conflict.name, elementIds: conflict.freeIds, types: typesOf(conflict.freeIds), conflict, inputOffered: valueIsUsed(conflict) });
+  }
+  for (const field of [...fieldVariables(elements)].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (seen.has(field.name.toUpperCase())) continue;
+    add({ name: field.name, elementIds: field.freeIds, types: typesOf(field.freeIds), fromField: field.field, inputOffered: false });
+  }
+  return rows;
 }
 
 /**

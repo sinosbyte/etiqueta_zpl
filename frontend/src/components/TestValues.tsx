@@ -3,6 +3,7 @@ import { useDesignerStore } from '../store/useDesignerStore';
 import { askConfirm } from '../store/useDialogStore';
 import { MessageKey, useT } from '../i18n';
 import { addLabelField, dataFields, labelFields, removeLabelField, valueRows } from '../utils/testData';
+import { pagesText } from '../utils/variableOrigin';
 
 const note: React.CSSProperties = { fontSize: 11, color: 'var(--chrome-text-faint)', margin: '4px 0', lineHeight: 1.5 };
 const GRID = 'minmax(90px, 1fr) minmax(70px, 0.9fr) minmax(130px, 1.8fr) auto';
@@ -82,13 +83,15 @@ export function TestValues() {
                   <span role="cell" style={{ fontSize: 11, color: 'var(--chrome-text-muted)' }} data-testid={`tv-used-${row.name}`}>
                     {row.types.map(type => t(`element.${type}` as MessageKey)).join(', ')}
                   </span>
-                  <input
-                    role="cell" className="chrome-input" type="text" maxLength={255}
-                    value={sampleValues[row.name] ?? ''} placeholder={t('tv.placeholder')} data-testid={`tv-value-${row.name}`}
-                    aria-label={`${t('tv.colValue')} ${row.name}`}
-                    onChange={e => setSampleValues({ [row.name]: e.target.value })}
-                  />
-                  {hasTable ? (
+                  {row.inputOffered ? (
+                    <input
+                      role="cell" className="chrome-input" type="text" maxLength={255}
+                      value={sampleValues[row.name] ?? ''} placeholder={t('tv.placeholder')} data-testid={`tv-value-${row.name}`}
+                      aria-label={`${t('tv.colValue')} ${row.name}`}
+                      onChange={e => setSampleValues({ [row.name]: e.target.value })}
+                    />
+                  ) : <span role="cell" />}
+                  {hasTable && row.inputOffered ? (
                     <label
                       role="cell" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--chrome-text-muted)', whiteSpace: 'nowrap', cursor: records.length === 0 && !isPerLabel ? 'not-allowed' : 'pointer' }}
                       title={records.length === 0 && !isPerLabel ? t('tv.perLabelNeedsRecord') : t('td.perLabelTitle')}
@@ -103,6 +106,15 @@ export function TestValues() {
                   ) : <span />}
                 </div>
                 {isPerLabel && <p style={{ ...note, margin: '2px 0 0' }} data-testid={`tv-perlabel-note-${row.name}`}>{t('tv.perLabelOn')}</p>}
+                {row.conflict && (
+                  <p style={{ ...note, margin: '2px 0 0', color: 'var(--status-warning)' }} data-testid={`tv-conflict-${row.name}`}>
+                    {t(row.conflict.severity === 'ambiguous' ? 'conflict.rowAmbiguous' : row.inputOffered ? 'conflict.rowCollision' : 'conflict.rowIgnored',
+                      { pages: pagesText(row.conflict.severity === 'ambiguous' ? row.conflict.cellPages : row.conflict.collidingPages) })}
+                  </p>
+                )}
+                {row.fromField && (
+                  <p style={{ ...note, margin: '2px 0 0' }} data-testid={`tv-field-${row.name}`}>{t('conflict.fromField', { field: row.fromField })}</p>
+                )}
               </div>
             );
           })}
