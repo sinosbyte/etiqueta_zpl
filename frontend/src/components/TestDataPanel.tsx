@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { useSimulationStore } from '../store/useSimulationStore';
 import { usePanelStore } from '../store/usePanelStore';
@@ -11,6 +11,8 @@ import {
 import { labelRecords, labelSummary, unplacedRecords, firstUnplaced } from '../utils/simulation';
 import { RenderedLabel } from './RenderedLabel';
 import { PdfExportBar } from './PdfExportBar';
+import { LabelaryNotice } from './LabelaryNotice';
+import { useLabelaryStore } from '../store/useLabelaryStore';
 import { TestValues } from './TestValues';
 import { VariantsBar } from './VariantsBar';
 
@@ -236,6 +238,9 @@ function PreviewSection({ maximized }: { maximized: boolean }) {
   const result = sim.result;
   const loading = sim.status === 'loading';
 
+  // How much the preview service has left is asked for when this opens and after each simulation (not on every edit)
+  useEffect(() => { void useLabelaryStore.getState().refresh(); }, [sim.status === 'ready']);
+
   const describe = (label: { page: number; recordStart: number; recordCount: number }): string => {
     const s = labelSummary(label as never);
     if (s.count === 0) return t('sim.noRecords');
@@ -261,6 +266,7 @@ function PreviewSection({ maximized }: { maximized: boolean }) {
         )}
       </div>
 
+      <LabelaryNotice />
       {!result && sim.status !== 'error' && <p style={note} data-testid="pv-intro">{t('pv.intro')}</p>}
       {sim.status === 'error' && <p role="alert" style={{ ...note, color: WARN }}>{t('sim.error', { message: sim.error })}</p>}
       {result && sim.stale && <p role="alert" data-testid="sim-stale" style={{ ...note, color: AMBER, fontWeight: 600 }}>{t('sim.stale')}</p>}

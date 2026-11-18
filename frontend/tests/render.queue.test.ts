@@ -256,3 +256,54 @@ describe('the queue', () => {
     expect(fetch).toHaveBeenCalledTimes(2);                                          // the first of the old group was running; the others never started
   });
 });
+
+describe('what the server says is final (the quota, a label the service refused)', () => {
+  const coded = (status: number, code: string, retryAfterMs?: number) => Object.assign(new Error(code), { status, code, retryAfterMs });
+
+  test('a label the service refused (422) is not asked again: one request, not four', async () => {
+    const fetch = jest.fn(async () => { throw coded(422, 'zpl-rejected'); });
+    const q = new RenderQueue({ fetch, backoffBaseMs: 10 });
+    const error = await q.enqueue(job(1)).catch(e => e);
+    await tick(10_000);
+    expect(error).toMatchObject({ status: 422, code: 'zpl-rejected', retriable: false });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('the quota being used up is not asked again either, even with a short wait: the server is not pressed', async () => {
+    for (const code of ['quota-internal', 'quota-external', 'quota-unavailable']) {
+      const fetch = jest.fn(async () => { throw coded(code === 'quota-unavailable' ? 503 : 429, code, 5000); });
+      const q = new RenderQueue({ fetch, backoffBaseMs: 10 });
+      const error = await q.enqueue(job(1)).catch(e => e);
+      await tick(20_000);
+      expect(error).toMatchObject({ code, retriable: false });
+      expect(fetch).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  test('the labels still waiting are refused at once with the same reason, and are never sent', async () => {
+    const fetch = jest.fn(async () => { throw coded(429, 'quota-internal'); });
+    const q = new RenderQueue({ fetch, concurrency: 1 });
+    const results = await Promise.all([1, 2, 3, 4, 5].map(n => q.enqueue(job(n)).catch(e => e)));
+    expect(results.every(e => e instanceof RenderError && e.code === 'quota-internal')).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);                                          // only the first reached the server
+  });
+
+  test('what is only the pace or a problem of the service is still tried again (the codes do not make it final)', async () => {
+    for (const [status, code] of [[429, 'rate-limited'], [502, 'upstream'], [502, 'network'], [504, 'timeout'], [503, 'busy']] as const) {
+      let n = 0;
+      const fetch = jest.fn(async () => { if (++n === 1) throw coded(status, code, 1000); return png(); });
+      const q = new RenderQueue({ fetch, backoffBaseMs: 10 });
+      const result = q.enqueue(job(1));
+      await tick(10_000);
+      await expect(result).resolves.toBeInstanceOf(Blob);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  test('the job carries the room the server kept for its export, for the request to say so', async () => {
+    const fetch = jest.fn(async (_z: string, _w: number, _h: number, _s: AbortSignal, j: any) => { expect(j.hold).toBe('h-1'); return png(); });
+    const q = new RenderQueue({ fetch });
+    await q.enqueue(job(1, { hold: 'h-1', bulk: true }));
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});

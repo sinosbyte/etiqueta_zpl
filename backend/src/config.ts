@@ -6,6 +6,7 @@
  * dev-only conveniences (permissive CORS, verbose errors) are gated on
  * NODE_ENV in exactly one place.
  */
+import { readLabelaryLimits } from './labelaryConfig';
 
 export const NODE_ENV = process.env.NODE_ENV ?? 'development';
 export const isProduction = NODE_ENV === 'production';
@@ -61,11 +62,16 @@ export const MAX_BODY_SIZE = '512kb';
 /** Upper bound on a single ZPL string field (characters). */
 export const MAX_ZPL_LENGTH = 100_000;
 
-/** Timeout (ms) for outbound requests to the Labelary API. */
-export const LABELARY_TIMEOUT_MS = 10_000;
+const envNumber = (name: string, fallback: number): number => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
 
-/** Base URL of the Labelary rendering API (HTTPS). */
-export const LABELARY_BASE_URL = 'https://api.labelary.com/v1/printers/8dpmm/labels';
+/** Timeout (ms) for outbound requests to the Labelary API. */
+export const LABELARY_TIMEOUT_MS = envNumber('LABELARY_TIMEOUT_MS', 10_000);
+
+/** Base URL of the Labelary rendering API (HTTPS). Overridable for tests and for the private host of a paid plan. */
+export const LABELARY_BASE_URL = process.env.LABELARY_BASE_URL || 'https://api.labelary.com/v1/printers/8dpmm/labels';
 
 // The gate in front of Labelary (see labelary/gate.ts). The public service allows 3 requests a second and 5,000 a day
 // from one address, and every user of this server shares that address, so the server paces itself below it.
@@ -86,3 +92,32 @@ export const LABELARY_QUEUE_MAX_WAIT_MS = positive('LABELARY_QUEUE_MAX_WAIT_MS',
 /** Requests one user may have waiting, and all users together. */
 export const LABELARY_MAX_QUEUED_PER_USER = positive('LABELARY_MAX_QUEUED_PER_USER', 100);
 export const LABELARY_MAX_QUEUED = positive('LABELARY_MAX_QUEUED', 1000);
+
+// The use of the service over time (see labelary/quota.ts). The public service allows 5,000 requests a day; the server
+// stops at 4,000 (80%) in any window of 24 hours. The 20% left covers what the service does not document: whether a
+// refused request counts, and whether the quota is per address (another program on the same address would share it).
+// The limits of the service may change, so this is read from the environment.
+
+// Checked when the application starts (see labelaryConfig.ts): a value that is set and wrong stops it, with a message.
+const LABELARY_LIMITS = readLabelaryLimits(process.env);
+
+/** Requests the server may send to the service in any 24 hours, all users together (1 to 5,000; default 4,000). */
+export const LABELARY_DAILY_LIMIT = LABELARY_LIMITS.dailyLimit;
+
+/** At or below this many requests left the state is 'low' (0 to the limit; 10% of the limit unless set). */
+export const LABELARY_LOW_THRESHOLD = LABELARY_LIMITS.lowThreshold;
+
+/** Requests that may be held at once for mass exports, all users together: min(1,200, the daily limit). Fixed: no variable sets it. */
+export const LABELARY_HOLD_LIMIT = LABELARY_LIMITS.holdLimit;
+
+/** Requests one user may hold for an export (600, and never more than the whole limit of holds). */
+export const LABELARY_HOLD_MAX_PER_USER = LABELARY_LIMITS.holdMaxPerUser;
+
+/** How long (ms) room kept for an export is held without being used before it is given back. */
+export const LABELARY_HOLD_TTL_MS = positive('LABELARY_HOLD_TTL_MS', 30 * 60 * 1000);
+
+/** A 429 that asks to wait at least this long (ms) is the daily quota; a shorter one is only the pace (see labelary/retryAfter.ts). */
+export const LABELARY_DAILY_RETRY_AFTER_MS = positive('LABELARY_DAILY_RETRY_AFTER_MS', 60_000);
+
+/** The longest a block from the service's own answer is believed (ms): the quota is daily. */
+export const LABELARY_EXTERNAL_BLOCK_MAX_MS = 24 * 60 * 60 * 1000;

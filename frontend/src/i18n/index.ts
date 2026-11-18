@@ -90,6 +90,14 @@ const API_MESSAGES: Record<string, MessageKey> = {
   'Labelary API busy, please retry later': 'api.labelaryBusy',
   'Too many labels: the records need more labels than one simulation can hold': 'api.expandTooManyLabels',
   'The labels are too large: together they would exceed the size limit of one simulation': 'api.expandTooLarge',
+  'Labelary API timed out': 'api.labelaryTimeout',
+  'The rendering service rejected this label': 'api.labelaryRejected',
+  'Labelary daily limit of this server reached': 'api.quotaInternal',
+  'Labelary quota is used up for now': 'api.quotaExternal',
+  'Labelary quota control unavailable': 'api.quotaUnavailable',
+  'An export of yours is already holding room': 'api.holdActive',
+  'Export capacity is busy, try again in a few minutes': 'api.holdCapacity',
+  'Too many labels for one export': 'api.holdTooLarge',
 };
 
 /** The error text of an API response: known messages translated, validation objects as a generic text. */

@@ -1,5 +1,6 @@
 import { CacheEntry } from './renderCache';
 import { PdfImage, PdfPage, buildPdf, dotsToPoints } from './pdfWriter';
+import { Hold } from './labelaryClient';
 
 // The export of the labels of a simulation as one PDF. Each label is rendered through the same renderer as the
 // preview (so the ones already seen come from the cache and cost no request), turned into a PDF page as soon as it
@@ -17,13 +18,34 @@ export interface ExportOutcome {
   cancelled: boolean;
 }
 
+/** The server would not keep room for the export (the quota could not hold it): nothing was rendered. */
+export class ExportRefused extends Error {
+  constructor(message: string, readonly code: string, readonly needed: number, readonly remaining: number) {
+    super(message);
+    this.name = 'ExportRefused';
+  }
+}
+
 export interface ExportDeps {
-  render(r: { zpl: string; width: number; height: number; priority?: number; group?: string; bulk?: boolean }): Promise<CacheEntry>;
+  render(r: { zpl: string; width: number; height: number; priority?: number; group?: string; bulk?: boolean; hold?: string }): Promise<CacheEntry>;
   cancel(group: string): void;
   encode(png: Blob): Promise<PdfImage>;
   /** Whether the simulation the labels come from is still the valid one. */
   isValid(): boolean;
+  /** Whether the picture of this label is already known (it costs no request). */
+  isCached?(zpl: string, width: number, height: number): boolean;
+  /**
+   * Keeps room for `needed` requests before any is made; refuses (ExportRefused) when the quota cannot hold the export.
+   * Without it the labels are rendered as ever, each asking for room of its own.
+   */
+  hold?(needed: number): Promise<Hold>;
+  /** Gives back what the export did not use. */
+  release?(holdId: string): Promise<void>;
 }
+
+// What the server says when the quota is out or cannot be checked: the rest of the labels would be refused for the same
+// reason, so they are not asked for (they are reported as not rendered, never skipped silently)
+const QUOTA_STOP: ReadonlySet<string> = new Set(['quota-internal', 'quota-external', 'quota-unavailable']);
 
 /** How many labels are asked for ahead of the one being turned into a page. */
 const WINDOW = 6;
@@ -54,11 +76,17 @@ export class PdfExport {
     const onAbort = () => this.deps.cancel(this.group);
     signal?.addEventListener('abort', onAbort);
     let invalid = false;
+    let hold: Hold | undefined;
     try {
+      // Before anything is rendered: room for the labels that are not in the cache (those cost no request). An export
+      // the quota cannot hold is not started, instead of being stopped halfway by the limit
+      const needed = todo.filter(l => !this.deps.isCached?.(l.zpl, this.width, this.height)).length;
+      if (needed > 0 && this.deps.hold) hold = await this.deps.hold(needed);
+      if (signal?.aborted) return { complete: false, failed: [], invalid: false, cancelled: true };
       const inFlight = new Map<number, Promise<CacheEntry>>();
       const ask = (label: ExportLabel) => {
         if (!inFlight.has(label.index)) {
-          const p = this.deps.render({ zpl: label.zpl, width: this.width, height: this.height, priority: 0, group: this.group, bulk: true });
+          const p = this.deps.render({ zpl: label.zpl, width: this.width, height: this.height, priority: 0, group: this.group, bulk: true, hold: hold?.holdId });
           p.catch(() => undefined);   // handled where it is awaited
           inFlight.set(label.index, p);
         }
@@ -75,7 +103,15 @@ export class PdfExport {
           this.pages.set(label.index, { widthPt: dotsToPoints(this.width), heightPt: dotsToPoints(this.height), image });
         } catch (e) {
           if (signal?.aborted) break;
-          this.failures.set(label.index, e instanceof Error ? e.message : String(e));
+          const message = e instanceof Error ? e.message : String(e);
+          this.failures.set(label.index, message);
+          const code = (e as { code?: unknown } | null)?.code;
+          if (typeof code === 'string' && QUOTA_STOP.has(code)) {
+            for (let k = i + 1; k < todo.length; k++) this.failures.set(todo[k].index, message);
+            this.deps.cancel(this.group);
+            onProgress(this.done + this.failures.size, this.total);
+            break;
+          }
         } finally {
           inFlight.delete(label.index);
         }
@@ -83,6 +119,8 @@ export class PdfExport {
       }
     } finally {
       signal?.removeEventListener('abort', onAbort);
+      // Done, cancelled, failed or invalid: what was kept and not used goes back to everybody
+      if (hold && this.deps.release) await this.deps.release(hold.holdId);
     }
     const cancelled = !!signal?.aborted;
     return { complete: !cancelled && !invalid && this.failures.size === 0 && this.done === this.total, failed: this.failed, invalid, cancelled };

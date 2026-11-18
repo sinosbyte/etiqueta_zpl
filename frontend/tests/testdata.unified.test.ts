@@ -4,6 +4,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const net = { requests: [] as any[], fail: null as null | string, previews: [] as string[], failPreview: new Set<string>() };
 
+// The api client reads the build's environment (import.meta), which the tests do not have: the sign-in module is replaced
+jest.mock('../src/utils/authClient', () => ({ API_BASE: '', getToken: () => null, triggerOn401: jest.fn(), refreshAccessToken: jest.fn() }));
+
 jest.mock('../src/utils/zplClient', () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { expandLabels } = require('../../backend/src/zpl/pagination');

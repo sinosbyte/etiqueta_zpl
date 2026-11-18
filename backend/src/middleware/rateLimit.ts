@@ -82,6 +82,19 @@ export const proxyLimiter = rateLimit({
 });
 
 /**
+ * Limiter for the endpoints about the use of Labelary (state of the quota, room kept for an export): they read and
+ * write the database on every call. 60 requests / min / IP, placed before authenticate, which is where CodeQL looks for it.
+ */
+export const labelaryLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
+  skip: () => isTest,
+});
+
+/**
  * Limiter for the templates endpoints, which read and write the database.
  * 300 requests / min / IP: generous, since people share a client IP.
  */

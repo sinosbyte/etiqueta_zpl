@@ -12,6 +12,7 @@ export interface RenderRequest {
   priority?: number;
   group?: string;
   bulk?: boolean;    // part of a mass export (the PDF)
+  hold?: string;     // the room the server kept for that export
 }
 
 export class LabelRenderer {
@@ -27,7 +28,7 @@ export class LabelRenderer {
     const key = renderKey(r.zpl, r.width, r.height);
     const hit = this.cache.get(key);
     if (hit) return hit;
-    const blob = await this.queue.enqueue({ key, zpl: r.zpl, width: r.width, height: r.height, priority: r.priority, group: r.group, bulk: r.bulk });
+    const blob = await this.queue.enqueue({ key, zpl: r.zpl, width: r.width, height: r.height, priority: r.priority, group: r.group, bulk: r.bulk, hold: r.hold });
     return this.cache.get(key) ?? this.cache.set(key, blob);
   }
 
@@ -43,7 +44,7 @@ export class LabelRenderer {
 
 /** The renderer of the app. */
 export const labelRenderer = new LabelRenderer(
-  new RenderQueue({ fetch: (zpl, w, h, signal, job) => previewBlob(zpl, w, h, signal, !!job.bulk) }),
+  new RenderQueue({ fetch: (zpl, w, h, signal, job) => previewBlob(zpl, w, h, signal, !!job.bulk, job.hold) }),
   new RenderCache(),
 );
 
