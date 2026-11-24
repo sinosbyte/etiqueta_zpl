@@ -2,21 +2,39 @@ import { pgTable, serial, bigserial, smallint, text, integer, timestamp, unique,
 import { sql } from 'drizzle-orm';
 import type { PagesConfig } from '../zpl/types';
 
+// A company owns users and designs (migration 0010). Stage 1 of the users/companies work only stores this: who sees what
+// and who may do what is still decided by the user, as before.
+export const companiesTable = pgTable('companies', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+/** 'platform_admin' (Sinosbyte), 'company_admin' or 'member'. Not enforced yet: users.is_admin still decides who publishes templates. */
+export type UserRole = 'platform_admin' | 'company_admin' | 'member';
+
 export const usersTable = pgTable('users', {
   id: serial('id').primaryKey(),
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   isAdmin: boolean('is_admin').notNull().default(false),
+  companyId: integer('company_id').references(() => companiesTable.id),
+  email: text('email'),
+  role: text('role').$type<UserRole>().notNull().default('member'),
+  active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (t) => [index('idx_users_company_id').on(t.companyId)]);
 
 export const designsTable = pgTable('designs', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
+  // The company of the user who created it (migration 0010); nothing filters by it yet
+  companyId: integer('company_id').references(() => companiesTable.id),
   name: text('name').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-}, (t) => [unique().on(t.userId, t.name), index('idx_designs_user_id').on(t.userId)]);
+}, (t) => [unique().on(t.userId, t.name), index('idx_designs_user_id').on(t.userId), index('idx_designs_company_id').on(t.companyId)]);
 
 export const refreshTokensTable = pgTable('refresh_tokens', {
   id: serial('id').primaryKey(),

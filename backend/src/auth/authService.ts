@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
-import { usersTable, refreshTokensTable } from '../db/schema';
+import { usersTable, refreshTokensTable, companiesTable } from '../db/schema';
 import { JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRES_IN, REFRESH_TOKEN_TTL_MS } from '../config';
 
 export interface JwtPayload {
@@ -21,7 +21,12 @@ export interface TokenPair {
 export async function registerUser(username: string, password: string): Promise<void> {
   const hash = await bcrypt.hash(password, 10);
   try {
-    await getDb().insert(usersTable).values({ username, passwordHash: hash });
+    // While sign-up is still open every new user gets a company of their own (named after the username), as the
+    // migration did for the existing ones; if the username is taken the whole thing is undone, company included
+    await getDb().transaction(async tx => {
+      const [company] = await tx.insert(companiesTable).values({ name: username }).returning({ id: companiesTable.id });
+      await tx.insert(usersTable).values({ username, passwordHash: hash, companyId: company.id, role: 'company_admin' });
+    });
   } catch (e) {
     // PG unique_violation — only the username constraint can fire here
     if (isUniqueViolation(e)) throw new Error('USERNAME_TAKEN');
