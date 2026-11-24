@@ -1,6 +1,6 @@
 import { eq, and, sql, count, desc } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
-import { designsTable, designVersionsTable } from '../db/schema';
+import { designsTable, designVersionsTable, usersTable } from '../db/schema';
 import { Element, PagesConfig } from '../zpl/types';
 import { elementsFitPages } from '../zpl/schema';
 
@@ -62,7 +62,9 @@ export async function createDesign(userId: number, name: string, payload: Design
   const db = getDb();
   let designId: number;
   try {
-    const rows = await db.insert(designsTable).values({ userId, name }).returning({ id: designsTable.id });
+    // The design belongs to the company of whoever creates it (not used to filter anything yet)
+    const owner = await db.select({ companyId: usersTable.companyId }).from(usersTable).where(eq(usersTable.id, userId));
+    const rows = await db.insert(designsTable).values({ userId, name, companyId: owner[0]?.companyId ?? null }).returning({ id: designsTable.id });
     designId = rows[0].id;
   } catch (e) {
     // PG unique_violation — only the (user_id, name) constraint can fire here
