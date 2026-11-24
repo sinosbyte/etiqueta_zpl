@@ -1,6 +1,7 @@
 import { eq, and, sql, count, desc } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { designsTable, designVersionsTable, usersTable } from '../db/schema';
+import { inCompanyOf } from './scope';
 import { Element, PagesConfig } from '../zpl/types';
 import { elementsFitPages } from '../zpl/schema';
 
@@ -62,12 +63,13 @@ export async function createDesign(userId: number, name: string, payload: Design
   const db = getDb();
   let designId: number;
   try {
-    // The design belongs to the company of whoever creates it (not used to filter anything yet)
+    // The design belongs to the company of whoever creates it, and every user of the company reaches it
     const owner = await db.select({ companyId: usersTable.companyId }).from(usersTable).where(eq(usersTable.id, userId));
-    const rows = await db.insert(designsTable).values({ userId, name, companyId: owner[0]?.companyId ?? null }).returning({ id: designsTable.id });
+    if (!owner[0]) throw new Error('USER_NOT_FOUND');
+    const rows = await db.insert(designsTable).values({ userId, name, companyId: owner[0].companyId }).returning({ id: designsTable.id });
     designId = rows[0].id;
   } catch (e) {
-    // PG unique_violation — only the (user_id, name) constraint can fire here
+    // PG unique_violation — only the (company_id, name) index can fire here
     if (isUniqueViolation(e)) throw new Error('DESIGN_NAME_TAKEN');
     throw e;
   }
@@ -80,7 +82,7 @@ export async function listDesigns(userId: number, page: PageParams): Promise<Pag
   const totalRows = await db
     .select({ n: count() })
     .from(designsTable)
-    .where(eq(designsTable.userId, userId));
+    .where(inCompanyOf(userId));
   const total = Number(totalRows[0]?.n ?? 0);
 
   const rows = await db
@@ -93,7 +95,7 @@ export async function listDesigns(userId: number, page: PageParams): Promise<Pag
     })
     .from(designsTable)
     .leftJoin(designVersionsTable, eq(designVersionsTable.designId, designsTable.id))
-    .where(eq(designsTable.userId, userId))
+    .where(inCompanyOf(userId))
     .groupBy(designsTable.id)
     .orderBy(sql`${designsTable.updatedAt} DESC`)
     .limit(page.limit)
@@ -121,7 +123,7 @@ export async function getDesign(userId: number, designId: number): Promise<Desig
     })
     .from(designsTable)
     .leftJoin(designVersionsTable, eq(designVersionsTable.designId, designsTable.id))
-    .where(and(eq(designsTable.id, designId), eq(designsTable.userId, userId)))
+    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)))
     .groupBy(designsTable.id);
   const r = rows[0];
   if (!r) return undefined;
@@ -157,7 +159,7 @@ export async function renameDesign(userId: number, designId: number, name: strin
     const rows = await db
       .update(designsTable)
       .set({ name, updatedAt: new Date() })
-      .where(and(eq(designsTable.id, designId), eq(designsTable.userId, userId)))
+      .where(and(eq(designsTable.id, designId), inCompanyOf(userId)))
       .returning();
     if (!rows.length) return undefined;
   } catch (e) {
@@ -170,7 +172,7 @@ export async function renameDesign(userId: number, designId: number, name: strin
 export async function deleteDesign(userId: number, designId: number): Promise<boolean> {
   const rows = await getDb()
     .delete(designsTable)
-    .where(and(eq(designsTable.id, designId), eq(designsTable.userId, userId)))
+    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)))
     .returning({ id: designsTable.id });
   return rows.length > 0;
 }
@@ -239,7 +241,7 @@ async function ownershipCheck(userId: number, designId: number): Promise<boolean
   const rows = await getDb()
     .select({ id: designsTable.id })
     .from(designsTable)
-    .where(and(eq(designsTable.id, designId), eq(designsTable.userId, userId)));
+    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)));
   return rows.length > 0;
 }
 

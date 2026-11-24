@@ -30,8 +30,11 @@ async function clean() {
   await db.delete(companiesTable);
 }
 
-/** The state before the migration: users and designs with no company (what production has) */
+/** The state before the migration: users and designs with no company (what production had at 0009). Migration 0011 made
+ *  the company mandatory, so for these tests the columns accept none again; `restoreShape` puts the rule back. */
 async function legacy() {
+  await run(sql`ALTER TABLE users ALTER COLUMN company_id DROP NOT NULL`);
+  await run(sql`ALTER TABLE designs ALTER COLUMN company_id DROP NOT NULL`);
   await run(sql`INSERT INTO users (username, password_hash, is_admin) VALUES
     ('sinosbyte', 'h1', false), ('boss', 'h2', true), ('alice', 'h3', false), ('bob', 'h4', false)`);
   await run(sql`INSERT INTO designs (user_id, name) SELECT id, 'D-' || username FROM users WHERE username IN ('alice', 'sinosbyte', 'bob')`);
@@ -43,7 +46,15 @@ const oldColumns = () => rows(sql`SELECT id, username, password_hash, is_admin, 
 const designsNow = () => rows(sql`SELECT id, user_id, name, created_at, updated_at FROM designs ORDER BY id`);
 
 beforeAll(async () => { await initDb(); });
+/** After a test that took the rule away: everything has a company again, and the rule is back */
+async function restoreShape() {
+  await run(sql`DELETE FROM users WHERE company_id IS NULL`);
+  await run(sql`ALTER TABLE users ALTER COLUMN company_id SET NOT NULL`);
+  await run(sql`ALTER TABLE designs ALTER COLUMN company_id SET NOT NULL`);
+}
+
 beforeEach(clean);
+afterEach(async () => { await clean(); await restoreShape(); });
 afterAll(async () => { await clean(); await _resetDb(); });
 
 describe('the migration', () => {
@@ -97,6 +108,7 @@ describe('the migration', () => {
   });
 
   test('a user whose name is Sinosbyte in other letters still gets a company of their own, apart from the real one', async () => {
+    await run(sql`ALTER TABLE users ALTER COLUMN company_id DROP NOT NULL`);
     await run(sql`INSERT INTO users (username, password_hash, is_admin) VALUES ('sinosbyte', 'h', false), ('Sinosbyte', 'h', false)`);
     await run(sql`UPDATE users SET company_id = NULL`);
     await run(sql.raw(migration));
@@ -105,13 +117,13 @@ describe('the migration', () => {
     expect((await rows(sql`SELECT count(*)::int AS n FROM companies`))[0].n).toBe(2);
   });
 
-  test('the new columns: nullable company ids, role defaults to member, active to true, e-mail optional', async () => {
+  test('the new columns: role defaults to member, active to true, e-mail optional (company ids are mandatory since 0011)', async () => {
     const cols = await rows(sql`SELECT table_name, column_name, data_type, is_nullable, column_default FROM information_schema.columns
       WHERE (table_name = 'users' AND column_name IN ('company_id', 'email', 'role', 'active')) OR (table_name = 'designs' AND column_name = 'company_id')
       ORDER BY table_name, column_name`);
     const by = Object.fromEntries(cols.map(c => [`${c.table_name}.${c.column_name}`, c]));
-    expect(by['users.company_id']).toMatchObject({ data_type: 'integer', is_nullable: 'YES' });
-    expect(by['designs.company_id']).toMatchObject({ data_type: 'integer', is_nullable: 'YES' });
+    expect(by['users.company_id']).toMatchObject({ data_type: 'integer', is_nullable: 'NO' });
+    expect(by['designs.company_id']).toMatchObject({ data_type: 'integer', is_nullable: 'NO' });
     expect(by['users.email']).toMatchObject({ data_type: 'text', is_nullable: 'YES' });
     expect(by['users.role']).toMatchObject({ is_nullable: 'NO' });
     expect(by['users.role'].column_default).toContain('member');
@@ -147,11 +159,9 @@ describe('new users and designs', () => {
     expect(d).toEqual({ company_id: erin.company_id, user_id: erin.id });
   });
 
-  test('a design of a user without a company is still created (the column accepts no company)', async () => {
-    await run(sql`INSERT INTO users (username, password_hash) VALUES ('legacy', 'h')`);
-    const [u] = await rows(sql`SELECT id FROM users WHERE username = 'legacy'`);
-    const { designId } = await createDesign(u.id, 'Old', payload);
-    expect((await rows(sql`SELECT company_id FROM designs WHERE id = ${designId}`))[0].company_id).toBeNull();
+  test('a user cannot exist without a company, and a design cannot be created for one that does not exist', async () => {
+    await expect(run(sql`INSERT INTO users (username, password_hash) VALUES ('legacy', 'h')`)).rejects.toThrow();
+    await expect(createDesign(999999, 'Old', payload)).rejects.toThrow('USER_NOT_FOUND');
   });
 });
 
@@ -162,22 +172,10 @@ describe('nothing else changed', () => {
     expect(Object.keys(decoded).sort()).toEqual(['exp', 'iat', 'userId', 'username']);
   });
 
-  test('two users of the same company still see only their own designs', async () => {
-    await registerUser('gina', 'password123');
-    await registerUser('hugo', 'password123');
-    const [gina] = await rows(sql`SELECT id FROM users WHERE username = 'gina'`);
-    const [hugo] = await rows(sql`SELECT id FROM users WHERE username = 'hugo'`);
-    await run(sql`UPDATE users SET company_id = (SELECT company_id FROM users WHERE id = ${gina.id}) WHERE id = ${hugo.id}`);
-    await createDesign(gina.id, 'Da Gina', payload);
-    await createDesign(hugo.id, 'Do Hugo', payload);
-    expect((await listDesigns(gina.id, { limit: 50, offset: 0 })).items.map((d: any) => d.name)).toEqual(['Da Gina']);
-    expect((await listDesigns(hugo.id, { limit: 50, offset: 0 })).items.map((d: any) => d.name)).toEqual(['Do Hugo']);
-  });
-
-  test('every migration file is in the journal and the last one is this', () => {
+  test('every migration file is in the journal and 0010 is one of them', () => {
     const dir = path.join(__dirname, '..', '..', 'drizzle');
     const journal = JSON.parse(fs.readFileSync(path.join(dir, 'meta', '_journal.json'), 'utf8')) as { entries: { idx: number; tag: string }[] };
     expect(journal.entries.map(e => e.idx)).toEqual(journal.entries.map((_, i) => i));
-    expect(journal.entries[journal.entries.length - 1].tag).toBe('0010_companies_users');
+    expect(journal.entries.some(e => e.tag === '0010_companies_users')).toBe(true);
   });
 });
