@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { Sidebar } from './components/Sidebar';
 import { Canvas } from './components/Canvas';
@@ -19,6 +19,9 @@ import { LoginPage } from './pages/LoginPage';
 import { MyDesignsPage } from './pages/MyDesignsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { TokensPage } from './pages/TokensPage';
+import { HelpPage } from './pages/HelpPage';
+import { TutorialDialog } from './components/TutorialDialog';
+import { useTutorialStore, shouldAutoOpen, tutorialSeen } from './store/useTutorialStore';
 import { navigate, useView } from './utils/navigation';
 
 export default function App() {
@@ -30,6 +33,12 @@ export default function App() {
   const currentView = useView();
   const goEditor = () => navigate('designer');
   useWarnBeforeUnload();
+  const openTutorial = useTutorialStore(s => s.openFirstTime);
+
+  // First access: the tutorial opens by itself once, in the editor, and never again on its own in this browser
+  useEffect(() => {
+    if (shouldAutoOpen({ loggedIn: !!token, view: currentView, seen: tutorialSeen() })) openTutorial();
+  }, [token, currentView, openTutorial]);
 
   let content: React.ReactNode;
   if (!token) {
@@ -40,13 +49,15 @@ export default function App() {
     content = <TokensPage onBack={goEditor} />;
   } else if (currentView === 'templates') {
     content = <TemplatesPage onBack={goEditor} />;
+  } else if (currentView === 'help') {
+    content = <HelpPage onBack={goEditor} />;
   } else {
     content = (
       <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--chrome-bg)' }}>
         <KeyboardShortcuts />
         <Toolbar onNavigateToMyDesigns={() => navigate('my-designs')} />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar onNavigateToMyDesigns={() => navigate('my-designs')} onNavigateToTemplates={() => navigate('templates')} onNavigateToTokens={() => navigate('tokens')} />
+          <Sidebar onNavigateToMyDesigns={() => navigate('my-designs')} onNavigateToTemplates={() => navigate('templates')} onNavigateToTokens={() => navigate('tokens')} onNavigateToHelp={() => navigate('help')} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <TabSwitcher />
             <div className="flex flex-1 overflow-hidden" style={maximized && activeTab !== 'code' ? { display: 'none' } : undefined}>
@@ -74,6 +85,7 @@ export default function App() {
   return (
     <>
       {content}
+      <TutorialDialog />
       <ConfirmDialog />
       <Toasts />
     </>
