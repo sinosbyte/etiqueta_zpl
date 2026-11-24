@@ -119,9 +119,10 @@ interface Props {
   onNavigateToMyDesigns(): void;
   onNavigateToTemplates(): void;
   onNavigateToTokens(): void;
+  onNavigateToHelp(): void;
 }
 
-export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNavigateToTokens }: Props) {
+export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNavigateToTokens, onNavigateToHelp }: Props) {
   const { addElement, activeTab, elements, clearAll, labelWidth, labelHeight } = useDesignerStore();
   const t = useT();
 
@@ -359,6 +360,41 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
           <path d="M2 5a1 1 0 011-1h3.5l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V5z" stroke="currentColor" strokeWidth="1.3"/>
         </svg>
         {t('sidebar.myDesigns')}
+      </button>
+      <button
+        onClick={onNavigateToHelp}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '7px 8px',
+          whiteSpace: 'nowrap',
+          borderRadius: 6,
+          border: '1px solid transparent',
+          background: 'transparent',
+          color: 'var(--chrome-text-muted)',
+          fontSize: 12,
+          fontWeight: 500,
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          width: '100%',
+          transition: 'background 0.1s, color 0.1s',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--chrome-elevated)';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text)';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text-muted)';
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3"/>
+          <path d="M6.2 6.2a1.9 1.9 0 113 1.5c-.7.5-1.2.8-1.2 1.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          <circle cx="8" cy="11.4" r="0.8" fill="currentColor"/>
+        </svg>
+        {t('sidebar.help')}
       </button>
     </div>
   );
