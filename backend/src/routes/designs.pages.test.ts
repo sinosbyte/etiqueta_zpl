@@ -70,7 +70,8 @@ describe('a design saved before pages existed', () => {
 
   test('a version row written without the column (as every old one) reads without errors, by version and by design', async () => {
     const db = getDb();
-    const [design] = await db.insert(designsTable).values({ userId: (await db.select().from(usersTable))[0].id, name: 'Legacy' }).returning();
+    const [owner] = await db.select().from(usersTable);
+    const [design] = await db.insert(designsTable).values({ userId: owner.id, companyId: owner.companyId, name: 'Legacy' }).returning();
     await db.insert(designVersionsTable).values({
       designId: design.id, versionNumber: 1, zpl: base.zpl, elementsJson: [text()] as object[], labelWidth: 800, labelHeight: 600,
     });
@@ -232,7 +233,7 @@ describe('migration 0007', () => {
     const tags = journal.entries.map(e => e.tag).sort();
     const files = fs.readdirSync(drizzleDir).filter(f => f.endsWith('.sql')).map(f => f.replace(/\.sql$/, '')).sort();
     expect(tags).toEqual(files);
-    expect(journal.entries[journal.entries.length - 1].tag).toBe('0010_companies_users');
+    expect(journal.entries[journal.entries.length - 1].tag).toBe(files[files.length - 1]);  // the newest file is the last entry
   });
 
   test('adds one empty jsonb column and nothing else', async () => {

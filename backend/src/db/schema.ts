@@ -19,7 +19,7 @@ export const usersTable = pgTable('users', {
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   isAdmin: boolean('is_admin').notNull().default(false),
-  companyId: integer('company_id').references(() => companiesTable.id),
+  companyId: integer('company_id').notNull().references(() => companiesTable.id),
   email: text('email'),
   role: text('role').$type<UserRole>().notNull().default('member'),
   active: boolean('active').notNull().default(true),
@@ -29,12 +29,12 @@ export const usersTable = pgTable('users', {
 export const designsTable = pgTable('designs', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
-  // The company of the user who created it (migration 0010); nothing filters by it yet
-  companyId: integer('company_id').references(() => companiesTable.id),
+  // The company that owns it (migration 0011): every user of the company reaches it; user_id is who created it
+  companyId: integer('company_id').notNull().references(() => companiesTable.id),
   name: text('name').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-}, (t) => [unique().on(t.userId, t.name), index('idx_designs_user_id').on(t.userId), index('idx_designs_company_id').on(t.companyId)]);
+}, (t) => [uniqueIndex('uq_designs_company_name').on(t.companyId, t.name), index('idx_designs_user_id').on(t.userId), index('idx_designs_company_id').on(t.companyId)]);
 
 export const refreshTokensTable = pgTable('refresh_tokens', {
   id: serial('id').primaryKey(),

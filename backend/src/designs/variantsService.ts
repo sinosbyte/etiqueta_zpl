@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { designsTable, designTestVariantsTable } from '../db/schema';
+import { inCompanyOf } from './scope';
 
 /**
  * At most this many variants per design. Each one is a few KB of text (values + up to 500 records, and the
@@ -48,10 +49,10 @@ function toDetail(r: Row): VariantDetail {
   return { ...toSummary(r), sampleValues: r.sampleValues ?? {}, records: r.records ?? [] };
 }
 
-/** Variants are reached only through a design of the user: another user's design is simply "not found". */
+/** Variants are reached only through a design of the user's company: another company's design is simply "not found". */
 async function ownsDesign(userId: number, designId: number): Promise<boolean> {
   const rows = await getDb().select({ id: designsTable.id }).from(designsTable)
-    .where(and(eq(designsTable.id, designId), eq(designsTable.userId, userId)));
+    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)));
   return rows.length > 0;
 }
 
