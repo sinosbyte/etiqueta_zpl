@@ -11,6 +11,9 @@ import { apiTokensTable, companiesTable, designsTable, designVersionsTable, temp
 import { LOG_REDACT_PATHS } from '../logger';
 import { registerUser } from '../auth/authService';
 
+// Every test signs up and logs in three users (bcrypt each): on the slower CI runner that passes 5 s
+jest.setTimeout(20000);
+
 const payload = { zpl: '^XA^FO10,10^A0N,30,30^FDX^FS^XZ', elements: [], labelWidth: 800, labelHeight: 1200 };
 
 interface Session { jwt: string; tokenId?: number }
