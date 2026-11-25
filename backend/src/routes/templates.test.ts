@@ -8,6 +8,7 @@ import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
 import { designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
 import { TEMPLATE_CATEGORIES } from '../templates/categories';
+import { registerUser } from '../auth/authService';
 
 const payload = { zpl: '^XA^FO10,10^A0N,30,30^FDX^FS^XZ', elements: [], labelWidth: 800, labelHeight: 1200 };
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
@@ -16,7 +17,7 @@ let admin: string;
 let guest: string;
 
 async function signUp(username: string): Promise<string> {
-  await request(app).post('/api/auth/register').send({ username, password: 'password123' }).expect(201);
+  await registerUser(username, 'password123');
   const res = await request(app).post('/api/auth/login').send({ username, password: 'password123' }).expect(200);
   return res.body.token;
 }
@@ -31,7 +32,7 @@ beforeEach(async () => {
   await db.delete(usersTable);
   admin = await signUp('sinosbyte');
   guest = await signUp('guilherme');
-  await db.update(usersTable).set({ isAdmin: true }).where(eq(usersTable.username, 'sinosbyte'));
+  await db.update(usersTable).set({ isAdmin: true, role: 'platform_admin' }).where(eq(usersTable.username, 'sinosbyte'));
 });
 
 afterAll(async () => { await _resetDb(); });

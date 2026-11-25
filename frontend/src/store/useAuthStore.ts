@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import {
   getToken, saveToken, clearToken, isTokenExpired, registerOn401Handler,
-  apiLogin, apiRegister, apiLogout, refreshAccessToken,
+  apiLogin, apiLogout, refreshAccessToken,
 } from '../utils/authClient';
 
 interface AuthStore {
   token: string | null;
   login(username: string, password: string): Promise<void>;
-  register(username: string, password: string): Promise<void>;
   logout(): void;
 }
 
@@ -25,13 +24,6 @@ export const useAuthStore = create<AuthStore>((set) => {
     token: loadInitialToken(),
 
     async login(username: string, password: string) {
-      const token = await apiLogin(username, password);
-      saveToken(token);
-      set({ token });
-    },
-
-    async register(username: string, password: string) {
-      await apiRegister(username, password);
       const token = await apiLogin(username, password);
       saveToken(token);
       set({ token });

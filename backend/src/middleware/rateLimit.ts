@@ -108,6 +108,29 @@ export const templatesLimiter = rateLimit({
 });
 
 /**
+ * Limiter for the administration of users and companies, and for "who am I". 60 requests / min / IP.
+ * Placed before authenticate, which is where CodeQL looks for it.
+ */
+export const usersLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
+  skip: () => isTest,
+});
+
+/** Limiter for the change of one's own password (it checks the current one): 20 / 15 min / IP. */
+export const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+  skip: () => isTest,
+});
+
+/**
  * Limiter for the token-management endpoints (create, list, revoke). 60 requests / min / IP.
  * Placed before authenticate, which is where CodeQL looks for it.
  */

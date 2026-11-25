@@ -15,6 +15,7 @@ import {
   designsTable, designVersionsTable, labelaryBlockTable, labelaryHoldsTable, labelaryRequestsTable, templatesTable, usersTable,
 } from '../db/schema';
 import { labelaryGate, labelaryQuota } from '../labelary';
+import { registerUser } from '../auth/authService';
 
 // The routes that reach Labelary with a quota of 3: what is let through, what is refused and told, what is never sent,
 // what each failure of the service is called, and that the rest of the app does not notice.
@@ -57,8 +58,8 @@ beforeEach(async () => {
   await db.delete(labelaryRequestsTable);
   await db.delete(labelaryHoldsTable);
   await db.delete(labelaryBlockTable);
-  await request(app).post('/api/auth/register').send({ username: 'alice', password: 'password123' }).expect(201);
-  await request(app).post('/api/auth/register').send({ username: 'bob', password: 'password123' }).expect(201);
+  await registerUser('alice', 'password123');
+  await registerUser('bob', 'password123');
   alice = (await request(app).post('/api/auth/login').send({ username: 'alice', password: 'password123' }).expect(200)).body.token;
   bob = (await request(app).post('/api/auth/login').send({ username: 'bob', password: 'password123' }).expect(200)).body.token;
   calls.length = 0;

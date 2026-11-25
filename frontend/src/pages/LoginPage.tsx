@@ -4,9 +4,8 @@ import { useT } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
 
 export function LoginPage() {
-  const { login, register } = useAuthStore();
+  const { login } = useAuthStore();
   const t = useT();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -17,11 +16,7 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      if (mode === 'login') {
-        await login(username, password);
-      } else {
-        await register(username, password);
-      }
+      await login(username, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('error.title'));
     } finally {
@@ -77,38 +72,6 @@ export function LoginPage() {
           borderRadius: 10,
           padding: 24,
         }}>
-          {/* Mode toggle */}
-          <div style={{
-            display: 'flex',
-            background: 'var(--chrome-elevated)',
-            borderRadius: 6,
-            padding: 2,
-            marginBottom: 20,
-          }}>
-            {(['login', 'register'] as const).map(m => (
-              <button
-                key={m}
-                onClick={() => { setMode(m); setError(''); }}
-                style={{
-                  flex: 1,
-                  padding: '5px 0',
-                  borderRadius: 4,
-                  border: 'none',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                  cursor: 'pointer',
-                  background: mode === m ? 'var(--chrome-bg)' : 'transparent',
-                  color: mode === m ? 'var(--chrome-text)' : 'var(--chrome-text-muted)',
-                  boxShadow: mode === m ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
-                  transition: 'background 0.12s, color 0.12s',
-                }}
-              >
-                {m === 'login' ? t('login.signIn') : t('login.createAccount')}
-              </button>
-            ))}
-          </div>
-
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label style={{ display: 'block', fontSize: 10, fontWeight: 500, color: 'var(--chrome-text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>
@@ -134,7 +97,7 @@ export function LoginPage() {
               <input
                 className="chrome-input"
                 type="password"
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                autoComplete="current-password"
                 required
                 minLength={6}
                 value={password}
@@ -162,9 +125,13 @@ export function LoginPage() {
               className="chrome-btn chrome-btn-primary"
               style={{ justifyContent: 'center', padding: '9px 0', fontSize: 13, opacity: loading ? 0.7 : 1 }}
             >
-              {loading ? t('login.wait') : mode === 'login' ? t('login.signIn') : t('login.createAccount')}
+              {loading ? t('login.wait') : t('login.signIn')}
             </button>
           </form>
+          {/* Sign-up is closed: accounts are created by the administrator of each company */}
+          <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)', lineHeight: 1.5, margin: '14px 0 0', textAlign: 'center' }}>
+            {t('login.noAccount')}
+          </p>
         </div>
       </div>
     </div>

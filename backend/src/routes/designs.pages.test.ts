@@ -9,6 +9,7 @@ import request from 'supertest';
 import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
 import { designsTable, designVersionsTable, usersTable } from '../db/schema';
+import { registerUser } from '../auth/authService';
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 const base = { zpl: '^XA^FO10,10^A0N,30,30^FD{{UC}}^FS^XZ', labelWidth: 800, labelHeight: 600 };
@@ -47,7 +48,7 @@ beforeEach(async () => {
   await db.delete(designVersionsTable);
   await db.delete(designsTable);
   await db.delete(usersTable);
-  await request(app).post('/api/auth/register').send({ username: 'alice', password: 'password123' }).expect(201);
+  await registerUser('alice', 'password123');
   jwt = (await request(app).post('/api/auth/login').send({ username: 'alice', password: 'password123' }).expect(200)).body.token;
 });
 

@@ -56,7 +56,7 @@ describe('createToken', () => {
     const plain = crypto.createHash('sha256').update(token).digest('hex');
     expect(row.tokenHash).not.toBe(plain);
     // and it is stable: the same token still authenticates
-    await expect(authenticateToken(token)).resolves.toEqual({ userId: aliceId, username: 'alice' });
+    await expect(authenticateToken(token)).resolves.toMatchObject({ userId: aliceId, username: 'alice' });
   });
 
   test('two tokens are never equal', async () => {
@@ -77,7 +77,7 @@ describe('createToken', () => {
 describe('authenticateToken', () => {
   test('returns the owner of a valid token', async () => {
     const { token } = await createToken(aliceId, 'sap');
-    await expect(authenticateToken(token)).resolves.toEqual({ userId: aliceId, username: 'alice' });
+    await expect(authenticateToken(token)).resolves.toMatchObject({ userId: aliceId, username: 'alice' });
   });
 
   test('records last use', async () => {
@@ -128,7 +128,7 @@ describe('ownership', () => {
   test('a user cannot revoke another user token', async () => {
     const { token, summary } = await createToken(aliceId, 'alice sap');
     await expect(revokeToken(bobId, summary.id)).resolves.toBe(false);
-    await expect(authenticateToken(token)).resolves.toEqual({ userId: aliceId, username: 'alice' });
+    await expect(authenticateToken(token)).resolves.toMatchObject({ userId: aliceId, username: 'alice' });
   });
 
   test('deleting removes the token for good (it leaves the list and stops working)', async () => {
@@ -150,7 +150,7 @@ describe('ownership', () => {
     const { token, summary } = await createToken(aliceId, 'alice sap');
     await expect(deleteToken(bobId, summary.id)).resolves.toBe(false);
     expect(await listTokens(aliceId)).toHaveLength(1);
-    await expect(authenticateToken(token)).resolves.toEqual({ userId: aliceId, username: 'alice' });
+    await expect(authenticateToken(token)).resolves.toMatchObject({ userId: aliceId, username: 'alice' });
   });
 
   test('revoking twice or an unknown id returns false', async () => {

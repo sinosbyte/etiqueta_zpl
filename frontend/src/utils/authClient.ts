@@ -49,19 +49,6 @@ function limitMessage(res: Response, error: unknown, fallback: Parameters<typeof
   return `${message} ${t('api.retryIn', { n: Math.max(1, Math.ceil(seconds / 60)) })}`;
 }
 
-export async function apiRegister(username: string, password: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ username, password }),
-  });
-  if (!res.ok) {
-    const data = await res.json();
-    throw new Error(limitMessage(res, data.error, 'api.registrationFailed'));
-  }
-}
-
 export async function apiLogin(username: string, password: string): Promise<string> {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: 'POST',

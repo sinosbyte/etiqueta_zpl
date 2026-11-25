@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { usersTable, refreshTokensTable, companiesTable } from '../db/schema';
+import { loadAccount, isUsable } from './account';
 import { JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRES_IN, REFRESH_TOKEN_TTL_MS } from '../config';
 
 export interface JwtPayload {
@@ -34,19 +35,24 @@ export async function registerUser(username: string, password: string): Promise<
   }
 }
 
-/** Validate credentials, returning the JWT payload. Throws INVALID_CREDENTIALS. */
-export async function verifyCredentials(username: string, password: string): Promise<JwtPayload> {
+/**
+ * Validate credentials, returning the JWT payload. Throws INVALID_CREDENTIALS; ACCOUNT_DISABLED when the password is
+ * right but the user or the company is inactive (said only after the right password, so it does not tell which
+ * accounts exist).
+ */
+export async function verifyCredentials(username: string, password: string): Promise<JwtPayload & { mustChangePassword: boolean }> {
   const rows = await getDb().select().from(usersTable).where(eq(usersTable.username, username));
   const row = rows[0];
   if (!row) throw new Error('INVALID_CREDENTIALS');
   const match = await bcrypt.compare(password, row.passwordHash);
   if (!match) throw new Error('INVALID_CREDENTIALS');
-  return { userId: row.id, username: row.username };
+  if (!isUsable(await loadAccount(row.id))) throw new Error('ACCOUNT_DISABLED');
+  return { userId: row.id, username: row.username, mustChangePassword: row.mustChangePassword };
 }
 
-/** Sign a short-lived access token for the given payload. */
+/** Sign a short-lived access token. It carries only the user: role, company and status are read on every request. */
 export function signAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN, algorithm: JWT_ALGORITHM });
+  return jwt.sign({ userId: payload.userId, username: payload.username }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN, algorithm: JWT_ALGORITHM });
 }
 
 /** Backwards-compatible login helper: validate credentials → access token. */
@@ -92,11 +98,25 @@ export async function rotateRefreshToken(raw: string): Promise<TokenPair | null>
   await db.delete(refreshTokensTable).where(eq(refreshTokensTable.id, row.id));
   if (row.expiresAt.getTime() < Date.now()) return null;
 
-  const users = await db.select().from(usersTable).where(eq(usersTable.id, row.userId));
-  const user = users[0];
-  if (!user) return null;
+  // An inactive user or company gets no new session
+  const account = await loadAccount(row.userId);
+  if (!isUsable(account)) return null;
 
-  return issueTokens({ userId: user.id, username: user.username });
+  return issueTokens({ userId: account.userId, username: account.username });
+}
+
+/**
+ * The user changes their own password (also the temporary one an administrator gave). Every session of the user ends;
+ * the route then opens a fresh one for this browser. Throws INVALID_CREDENTIALS (wrong current password) and
+ * SAME_PASSWORD.
+ */
+export async function changePassword(userId: number, current: string, next: string): Promise<void> {
+  const db = getDb();
+  const [row] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!row || !(await bcrypt.compare(current, row.passwordHash))) throw new Error('INVALID_CREDENTIALS');
+  if (current === next) throw new Error('SAME_PASSWORD');
+  await db.update(usersTable).set({ passwordHash: await bcrypt.hash(next, 10), mustChangePassword: false }).where(eq(usersTable.id, userId));
+  await db.delete(refreshTokensTable).where(eq(refreshTokensTable.userId, userId));
 }
 
 /** Revoke a refresh token (logout). No-op if it doesn't exist. */
