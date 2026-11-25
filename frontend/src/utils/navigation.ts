@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
 // Each screen has its own address, so the browser's Back/Forward buttons and a page reload
-// land where the user was. No router library: five screens, plain History API.
-export type View = 'designer' | 'my-designs' | 'templates' | 'tokens' | 'help';
+// land where the user was. No router library: a handful of screens, plain History API.
+export type View = 'designer' | 'my-designs' | 'templates' | 'tokens' | 'help' | 'admin' | 'account';
 
 const PATHS: Record<View, string> = {
   designer: '/',
@@ -10,6 +10,8 @@ const PATHS: Record<View, string> = {
   templates: '/templates',
   tokens: '/integration',
   help: '/help',
+  admin: '/admin',
+  account: '/account',
 };
 
 const CHANGE_EVENT = 'zpl-navigate';

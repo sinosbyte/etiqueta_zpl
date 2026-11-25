@@ -20,6 +20,9 @@ import { MyDesignsPage } from './pages/MyDesignsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { TokensPage } from './pages/TokensPage';
 import { HelpPage } from './pages/HelpPage';
+import { AdminPage } from './pages/AdminPage';
+import { AccountPage, ChangePasswordPage } from './pages/AccountPage';
+import { useAccountStore } from './store/useAccountStore';
 import { TutorialDialog } from './components/TutorialDialog';
 import { useTutorialStore, shouldAutoOpen, tutorialSeen } from './store/useTutorialStore';
 import { navigate, useView } from './utils/navigation';
@@ -34,15 +37,30 @@ export default function App() {
   const goEditor = () => navigate('designer');
   useWarnBeforeUnload();
   const openTutorial = useTutorialStore(s => s.openFirstTime);
+  const { me, mustChangePassword, load: loadAccount, clear: clearAccount } = useAccountStore();
+
+  // Who is signed in (role, company, temporary password): read after the login and when the page opens with a session
+  useEffect(() => {
+    if (token && !me) void loadAccount();
+    if (!token) clearAccount();
+  }, [token, me, loadAccount, clearAccount]);
 
   // First access: the tutorial opens by itself once, in the editor, and never again on its own in this browser
+  // (not while a temporary password must be changed: that screen comes first)
   useEffect(() => {
+    if (mustChangePassword || (token && !me)) return;
     if (shouldAutoOpen({ loggedIn: !!token, view: currentView, seen: tutorialSeen() })) openTutorial();
-  }, [token, currentView, openTutorial]);
+  }, [token, me, mustChangePassword, currentView, openTutorial]);
 
   let content: React.ReactNode;
   if (!token) {
     content = <LoginPage />;
+  } else if (mustChangePassword) {
+    content = <ChangePasswordPage />;
+  } else if (currentView === 'admin') {
+    content = <AdminPage onBack={goEditor} />;
+  } else if (currentView === 'account') {
+    content = <AccountPage onBack={goEditor} />;
   } else if (currentView === 'my-designs') {
     content = <MyDesignsPage onBack={goEditor} />;
   } else if (currentView === 'tokens') {
@@ -57,7 +75,7 @@ export default function App() {
         <KeyboardShortcuts />
         <Toolbar onNavigateToMyDesigns={() => navigate('my-designs')} />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar onNavigateToMyDesigns={() => navigate('my-designs')} onNavigateToTemplates={() => navigate('templates')} onNavigateToTokens={() => navigate('tokens')} onNavigateToHelp={() => navigate('help')} />
+          <Sidebar onNavigateToMyDesigns={() => navigate('my-designs')} onNavigateToTemplates={() => navigate('templates')} onNavigateToTokens={() => navigate('tokens')} onNavigateToHelp={() => navigate('help')} onNavigateToAdmin={() => navigate('admin')} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <TabSwitcher />
             <div className="flex flex-1 overflow-hidden" style={maximized && activeTab !== 'code' ? { display: 'none' } : undefined}>
