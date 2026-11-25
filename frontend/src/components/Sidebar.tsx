@@ -1,4 +1,6 @@
 import React from 'react';
+import { useAccountStore } from '../store/useAccountStore';
+import { isAdmin } from '../utils/admin';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ElementType } from '../types';
 import { toast } from '../store/useToastStore';
@@ -120,10 +122,12 @@ interface Props {
   onNavigateToTemplates(): void;
   onNavigateToTokens(): void;
   onNavigateToHelp(): void;
+  onNavigateToAdmin(): void;
 }
 
-export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNavigateToTokens, onNavigateToHelp }: Props) {
+export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNavigateToTokens, onNavigateToHelp, onNavigateToAdmin }: Props) {
   const { addElement, activeTab, elements, clearAll, labelWidth, labelHeight } = useDesignerStore();
+  const role = useAccountStore(s => s.me?.role);
   const t = useT();
 
   const handleClearAll = async () => {
@@ -329,6 +333,44 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
         </svg>
         {t('sidebar.tokens')}
       </button>
+      {isAdmin(role) && (
+        <button
+          onClick={onNavigateToAdmin}
+          data-testid="sidebar-admin"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '7px 10px',
+            borderRadius: 6,
+            border: '1px solid transparent',
+            background: 'transparent',
+            color: 'var(--chrome-text-muted)',
+            fontSize: 12,
+            fontWeight: 500,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            width: '100%',
+            transition: 'background 0.1s, color 0.1s',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--chrome-elevated)';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--chrome-text-muted)';
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="6" cy="5.5" r="2.3" stroke="currentColor" strokeWidth="1.3"/>
+            <path d="M2 13c0-2.2 1.8-3.6 4-3.6s4 1.4 4 3.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            <circle cx="11.5" cy="6" r="1.8" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M11 9.6c1.8 0 3 1.1 3 2.9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+          {t('sidebar.users')}
+        </button>
+      )}
       <button
         onClick={onNavigateToMyDesigns}
         style={{

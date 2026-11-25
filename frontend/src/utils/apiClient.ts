@@ -28,6 +28,12 @@ export function registerQuotaHandler(handler: (n: QuotaNotice) => void) {
   onQuota = handler;
 }
 
+// Told when the server refuses a call because a temporary password must be changed first (the account store shows the change)
+let onPasswordChange: (() => void) | null = null;
+export function registerPasswordChangeHandler(handler: () => void) {
+  onPasswordChange = handler;
+}
+
 /** The error of a failed answer: the text in the language on screen (with the time it is back, when it is known) and why. */
 function failure(res: Response, data: any, fallback: string): HttpError {
   const seconds = Number(res.headers.get('Retry-After'));
@@ -35,6 +41,7 @@ function failure(res: Response, data: any, fallback: string): HttpError {
   const code: string | undefined = typeof data?.code === 'string' ? data.code : undefined;
   const remaining = typeof data?.remaining === 'number' ? data.remaining : undefined;
   let message = apiMessage(data?.error, fallback as any);
+  if (res.status === 403 && data?.error === 'Password change required') onPasswordChange?.();
   // When the room for exports is all taken it says when there may be some again (it is not the quota being out)
   if (code === 'hold-capacity' && retryAt) message += ` ${t('quota.availableAt', { when: whenText(retryAt, useLangStore.getState().lang) })}`;
   if (code && QUOTA_CODES.has(code)) {

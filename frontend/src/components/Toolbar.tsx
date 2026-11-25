@@ -2,6 +2,8 @@ import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useAccountStore } from '../store/useAccountStore';
+import { navigate } from '../utils/navigation';
 import { useHistory } from '../hooks/useHistory';
 import { useMeasure } from '../store/useUnitStore';
 import { UnitToggle } from './UnitToggle';
@@ -30,6 +32,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
   const { logout } = useAuthStore();
+  const me = useAccountStore(s => s.me);
   const dirty = useIsDirty();
   const t = useT();
   const lang = useLangStore(s => s.lang);
@@ -311,6 +314,20 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         {divider}
 
         <LanguageSelect />
+
+        <button
+          className="chrome-btn chrome-btn-ghost"
+          onClick={() => navigate('account')}
+          title={t('account.title')}
+          data-testid="toolbar-account"
+          style={{ gap: 6, fontSize: 12, maxWidth: 160 }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="4.8" r="2.4" stroke="currentColor" strokeWidth="1.3"/>
+            <path d="M2.5 12.5c0-2.3 2-3.8 4.5-3.8s4.5 1.5 4.5 3.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{me?.username ?? t('account.title')}</span>
+        </button>
 
         <button
           className="chrome-icon-btn"
