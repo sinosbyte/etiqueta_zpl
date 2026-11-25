@@ -106,18 +106,17 @@ export async function rotateRefreshToken(raw: string): Promise<TokenPair | null>
 }
 
 /**
- * The user changes their own password (also the temporary one an administrator gave). Every other session of the
- * user ends, and a fresh pair is returned for this one. Throws INVALID_CREDENTIALS (wrong current password) and
+ * The user changes their own password (also the temporary one an administrator gave). Every session of the user ends;
+ * the route then opens a fresh one for this browser. Throws INVALID_CREDENTIALS (wrong current password) and
  * SAME_PASSWORD.
  */
-export async function changePassword(userId: number, current: string, next: string): Promise<TokenPair> {
+export async function changePassword(userId: number, current: string, next: string): Promise<void> {
   const db = getDb();
   const [row] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!row || !(await bcrypt.compare(current, row.passwordHash))) throw new Error('INVALID_CREDENTIALS');
   if (current === next) throw new Error('SAME_PASSWORD');
   await db.update(usersTable).set({ passwordHash: await bcrypt.hash(next, 10), mustChangePassword: false }).where(eq(usersTable.id, userId));
   await db.delete(refreshTokensTable).where(eq(refreshTokensTable.userId, userId));
-  return issueTokens({ userId: row.id, username: row.username });
 }
 
 /** Revoke a refresh token (logout). No-op if it doesn't exist. */

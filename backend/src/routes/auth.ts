@@ -100,7 +100,9 @@ authRouter.post('/change-password', passwordLimiter, authenticate, async (req: R
     return;
   }
   try {
-    const { accessToken, refreshToken } = await changePassword(req.user!.userId, parsed.data.currentPassword, parsed.data.newPassword);
+    await changePassword(req.user!.userId, parsed.data.currentPassword, parsed.data.newPassword);
+    // A fresh session for this browser, as the login does (the others ended with the change)
+    const { accessToken, refreshToken } = await issueTokens({ userId: req.user!.userId, username: req.user!.username });
     setRefreshCookie(res, refreshToken);
     res.json({ token: accessToken });
   } catch (e) {
