@@ -57,7 +57,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
   );
 }
 
-function UsersPanel({ companyId, setCompanyId }: { companyId?: number; setCompanyId(id?: number): void }) {
+export function UsersPanel({ companyId, setCompanyId }: { companyId?: number; setCompanyId(id?: number): void }) {
   const t = useT();
   const me = useAccountStore(s => s.me)!;
   const platform = canManageCompanies(me.role);
@@ -215,7 +215,7 @@ function UsersPanel({ companyId, setCompanyId }: { companyId?: number; setCompan
   );
 }
 
-function CompaniesPanel({ onShowUsers }: { onShowUsers(id: number): void }) {
+export function CompaniesPanel({ onShowUsers }: { onShowUsers(id: number): void }) {
   const t = useT();
   const me = useAccountStore(s => s.me)!;
   const [companies, setCompanies] = useState<CompanySummary[]>([]);

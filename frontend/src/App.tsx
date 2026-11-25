@@ -22,10 +22,12 @@ import { TokensPage } from './pages/TokensPage';
 import { HelpPage } from './pages/HelpPage';
 import { AdminPage } from './pages/AdminPage';
 import { AccountPage, ChangePasswordPage } from './pages/AccountPage';
+import { PlatformPage } from './pages/PlatformPage';
+import { useTemplateEditStore } from './store/useTemplateEditStore';
 import { useAccountStore } from './store/useAccountStore';
 import { TutorialDialog } from './components/TutorialDialog';
 import { useTutorialStore, shouldAutoOpen, tutorialSeen } from './store/useTutorialStore';
-import { navigate, useView } from './utils/navigation';
+import { navigate, redirect, useView } from './utils/navigation';
 
 export default function App() {
   const activeTab = useDesignerStore(s => s.activeTab);
@@ -34,10 +36,24 @@ export default function App() {
   const { token } = useAuthStore();
   const { showSaveModal } = useDesignsStore();
   const currentView = useView();
-  const goEditor = () => navigate('designer');
+  const { me, mustChangePassword, load: loadAccount, clear: clearAccount } = useAccountStore();
+  // The Sinosbyte administrators live in their console (Fase 06, etapa 3); the editor is theirs only for a template
+  const platform = me?.role === 'platform_admin';
+  const editingTemplate = useTemplateEditStore(s => s.active);
+  const goEditor = () => navigate(platform ? 'platform' : 'designer');
   useWarnBeforeUnload();
   const openTutorial = useTutorialStore(s => s.openFirstTime);
-  const { me, mustChangePassword, load: loadAccount, clear: clearAccount } = useAccountStore();
+
+  // Screens someone may not stay on send them where they belong (without a history entry)
+  useEffect(() => {
+    if (!token || !me) return;
+    if (platform) {
+      if ((currentView === 'designer' && !editingTemplate) || currentView === 'my-designs' || currentView === 'tokens') redirect('platform');
+    } else if (currentView === 'platform') {
+      redirect('designer');
+    }
+  }, [token, me, platform, currentView, editingTemplate]);
+  useEffect(() => { if (!token) useTemplateEditStore.getState().stop(); }, [token]);
 
   // Who is signed in (role, company, temporary password): read after the login and when the page opens with a session
   useEffect(() => {
@@ -57,6 +73,8 @@ export default function App() {
     content = <LoginPage />;
   } else if (mustChangePassword) {
     content = <ChangePasswordPage />;
+  } else if (platform && (currentView === 'platform' || currentView === 'admin' || currentView === 'templates')) {
+    content = <PlatformPage initialTab={currentView === 'admin' ? 'users' : currentView === 'templates' ? 'templates' : 'companies'} />;
   } else if (currentView === 'admin') {
     content = <AdminPage onBack={goEditor} />;
   } else if (currentView === 'account') {
