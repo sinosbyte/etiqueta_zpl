@@ -7,7 +7,7 @@ import pino from 'pino';
 import { eq } from 'drizzle-orm';
 import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
-import { apiTokensTable, designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
+import { apiTokensTable, companiesTable, designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
 import { LOG_REDACT_PATHS } from '../logger';
 import { registerUser } from '../auth/authService';
 
@@ -183,7 +183,7 @@ describe('using a token (what the SAP does)', () => {
   test("an owner's token never turns into owner permissions", async () => {
     const ownerToken = await newToken(owner);
     const list = await request(app).get('/api/templates').set(bearer(ownerToken)).expect(200);
-    expect(list.body.canManage).toBe(true); // it is still read-only: only GETs get through
+    expect(list.body.canManage).toBe(false); // the token is the company's, not the administrator who generated it
     const res = await request(app).post('/api/templates').set(bearer(ownerToken)).send({ name: 'X', description: '', ...payload });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('API tokens are read-only');
@@ -198,9 +198,12 @@ describe('using a token (what the SAP does)', () => {
     expect(unknown.body.error).toBe('Invalid or revoked API token');
   });
 
-  test('stops at the user: deleting the user kills the token', async () => {
+  test('belongs to the company: deleting whoever generated it does not stop it; deactivating the company does', async () => {
     const token = await newToken(guest);
-    await getDb().delete(usersTable).where(eq(usersTable.username, 'guilherme'));
+    const [g] = await getDb().select().from(usersTable).where(eq(usersTable.username, 'guilherme'));
+    await getDb().delete(usersTable).where(eq(usersTable.id, g.id));
+    await request(app).get('/api/designs').set(bearer(token)).expect(200);
+    await getDb().update(companiesTable).set({ active: false }).where(eq(companiesTable.id, g.companyId));
     await request(app).get('/api/designs').set(bearer(token)).expect(401);
   });
 });

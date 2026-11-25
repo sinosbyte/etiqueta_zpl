@@ -97,7 +97,7 @@ describe('when nothing collides', () => {
     await design('u1', 'Remessa', '2026-01-01 10:00');
     await design('u2', 'Outra', '2026-01-02 10:00');
     await design('u3', 'Remessa', '2026-01-03 10:00');
-    await run(sql`INSERT INTO api_tokens (user_id, name, token_hash, prefix) SELECT id, 'T', 'hash1', 'zpd_' FROM users WHERE username = 'u1'`);
+    await run(sql`INSERT INTO api_tokens (user_id, company_id, name, token_hash, prefix) SELECT id, company_id, 'T', 'hash1', 'zpd_' FROM users WHERE username = 'u1'`);
     const users = await rows(sql`SELECT id, username, password_hash, is_admin, company_id, role FROM users ORDER BY id`);
     const designs = await rows(sql`SELECT id, user_id, company_id, name, created_at, updated_at FROM designs ORDER BY id`);
     const tokens = await rows(sql`SELECT id, user_id, token_hash FROM api_tokens`);

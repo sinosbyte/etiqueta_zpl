@@ -4,6 +4,8 @@ import { askConfirm } from '../store/useDialogStore';
 import { apiListTokens, apiCreateToken, apiRevokeToken, apiDeleteToken, CreatedToken, TokenSummary } from '../utils/tokensClient';
 import { useT } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
+import { useAccountStore } from '../store/useAccountStore';
+import { isAdmin } from '../utils/admin';
 
 interface Props {
   onBack: () => void;
@@ -45,6 +47,10 @@ async function copyText(text: string): Promise<boolean> {
 
 export function TokensPage({ onBack }: Props) {
   const t = useT();
+  // The tokens belong to the company and only its administrators manage them (Fase 06). Until /api/me answers, the
+  // page loads as before; the server refuses anyone else anyway.
+  const role = useAccountStore(s => s.me?.role);
+  const allowed = !role || isAdmin(role);
   const [tokens, setTokens] = useState<TokenSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -66,13 +72,14 @@ export function TokensPage({ onBack }: Props) {
     }
   }, [t]);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (allowed) load(); }, [allowed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Coming back to the page (e.g. from the SAP window) shows the latest "last used"
   useEffect(() => {
+    if (!allowed) return undefined;
     window.addEventListener('focus', load);
     return () => window.removeEventListener('focus', load);
-  }, [load]);
+  }, [load, allowed]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,6 +176,9 @@ export function TokensPage({ onBack }: Props) {
         <LanguageSelect />
       </div>
 
+      {!allowed ? (
+        <div style={{ padding: 24, fontSize: 13, color: 'var(--chrome-text-muted)' }} data-testid="tokens-not-allowed">{t('tokens.adminOnly')}</div>
+      ) : (
       <div className="chrome-scroll" style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 820 }}>
         <p style={{ fontSize: 12, color: 'var(--chrome-text-faint)', lineHeight: 1.6 }}>{t('tokens.intro')}</p>
         <p style={{ fontSize: 12, color: 'var(--chrome-text-faint)', lineHeight: 1.6 }}>{t('tokens.help')}</p>
@@ -237,7 +247,7 @@ export function TokensPage({ onBack }: Props) {
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--chrome-text)' }}>{token.name}</div>
               <div style={{ fontSize: 11, color: 'var(--chrome-text-faint)', marginTop: 4, lineHeight: 1.6 }}>
                 <code>{token.prefix}…</code> · {status(token)}<br />
-                {t('tokens.createdAt')}: {when(token.createdAt)} · {t('tokens.lastUsed')}: {when(token.lastUsedAt)} · {t('tokens.expires')}: {when(token.expiresAt)}
+                {t('tokens.createdBy')}: {token.createdBy ?? t('tokens.createdByGone')} · {t('tokens.createdAt')}: {when(token.createdAt)} · {t('tokens.lastUsed')}: {when(token.lastUsedAt)} · {t('tokens.expires')}: {when(token.expiresAt)}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -253,6 +263,7 @@ export function TokensPage({ onBack }: Props) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

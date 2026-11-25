@@ -300,8 +300,11 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
         </svg>
         {t('sidebar.templates')}
       </button>
+      {/* The integration tokens are the company's and only its administrators manage them (Fase 06) */}
+      {isAdmin(role) && (
       <button
         onClick={onNavigateToTokens}
+        data-testid="sidebar-tokens"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -333,6 +336,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
         </svg>
         {t('sidebar.tokens')}
       </button>
+      )}
       {isAdmin(role) && (
         <button
           onClick={onNavigateToAdmin}

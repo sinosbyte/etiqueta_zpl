@@ -1,7 +1,7 @@
 import { eq, and, sql, count, desc } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { designsTable, designVersionsTable, usersTable } from '../db/schema';
-import { inCompanyOf } from './scope';
+import { inCompanyOf, Who } from './scope';
 import { isAdminRole } from '../auth/account';
 import { Element, PagesConfig } from '../zpl/types';
 import { elementsFitPages } from '../zpl/schema';
@@ -78,12 +78,12 @@ export async function createDesign(userId: number, name: string, payload: Design
   return { designId, versionId };
 }
 
-export async function listDesigns(userId: number, page: PageParams): Promise<Paginated<DesignSummary>> {
+export async function listDesigns(who: Who, page: PageParams): Promise<Paginated<DesignSummary>> {
   const db = getDb();
   const totalRows = await db
     .select({ n: count() })
     .from(designsTable)
-    .where(inCompanyOf(userId));
+    .where(inCompanyOf(who));
   const total = Number(totalRows[0]?.n ?? 0);
 
   const rows = await db
@@ -96,7 +96,7 @@ export async function listDesigns(userId: number, page: PageParams): Promise<Pag
     })
     .from(designsTable)
     .leftJoin(designVersionsTable, eq(designVersionsTable.designId, designsTable.id))
-    .where(inCompanyOf(userId))
+    .where(inCompanyOf(who))
     .groupBy(designsTable.id)
     .orderBy(sql`${designsTable.updatedAt} DESC`)
     .limit(page.limit)
@@ -112,7 +112,7 @@ export async function listDesigns(userId: number, page: PageParams): Promise<Pag
   return { items, total, limit: page.limit, offset: page.offset };
 }
 
-export async function getDesign(userId: number, designId: number): Promise<DesignSummary | undefined> {
+export async function getDesign(who: Who, designId: number): Promise<DesignSummary | undefined> {
   const db = getDb();
   const rows = await db
     .select({
@@ -124,7 +124,7 @@ export async function getDesign(userId: number, designId: number): Promise<Desig
     })
     .from(designsTable)
     .leftJoin(designVersionsTable, eq(designVersionsTable.designId, designsTable.id))
-    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)))
+    .where(and(eq(designsTable.id, designId), inCompanyOf(who)))
     .groupBy(designsTable.id);
   const r = rows[0];
   if (!r) return undefined;
@@ -135,18 +135,18 @@ export interface DesignDetail extends DesignSummary {
   version: VersionDetail;
 }
 
-export async function getDesignWithVersion(userId: number, designId: number, versionNumber?: number): Promise<DesignDetail | undefined> {
-  const summary = await getDesign(userId, designId);
+export async function getDesignWithVersion(who: Who, designId: number, versionNumber?: number): Promise<DesignDetail | undefined> {
+  const summary = await getDesign(who, designId);
   if (!summary) return undefined;
   const version = versionNumber !== undefined
-    ? await getVersion(userId, designId, versionNumber)
-    : await getLatestVersion(userId, designId);
+    ? await getVersion(who, designId, versionNumber)
+    : await getLatestVersion(who, designId);
   if (!version) return undefined;
   return { ...summary, version };
 }
 
-export async function getLatestVersion(userId: number, designId: number): Promise<VersionDetail | undefined> {
-  if (!await ownershipCheck(userId, designId)) return undefined;
+export async function getLatestVersion(who: Who, designId: number): Promise<VersionDetail | undefined> {
+  if (!await ownershipCheck(who, designId)) return undefined;
   const rows = await getDb().select().from(designVersionsTable)
     .where(eq(designVersionsTable.designId, designId))
     .orderBy(desc(designVersionsTable.versionNumber))
@@ -218,8 +218,8 @@ export async function createVersion(userId: number, designId: number, payload: D
   return toVersionDetail(rows[0]);
 }
 
-export async function listVersions(userId: number, designId: number, page: PageParams): Promise<Paginated<VersionSummary>> {
-  if (!await ownershipCheck(userId, designId)) {
+export async function listVersions(who: Who, designId: number, page: PageParams): Promise<Paginated<VersionSummary>> {
+  if (!await ownershipCheck(who, designId)) {
     return { items: [], total: 0, limit: page.limit, offset: page.offset };
   }
   const db = getDb();
@@ -243,18 +243,18 @@ export async function listVersions(userId: number, designId: number, page: PageP
   return { items, total, limit: page.limit, offset: page.offset };
 }
 
-export async function getVersion(userId: number, designId: number, versionNumber: number): Promise<VersionDetail | undefined> {
-  if (!await ownershipCheck(userId, designId)) return undefined;
+export async function getVersion(who: Who, designId: number, versionNumber: number): Promise<VersionDetail | undefined> {
+  if (!await ownershipCheck(who, designId)) return undefined;
   const rows = await getDb().select().from(designVersionsTable)
     .where(and(eq(designVersionsTable.designId, designId), eq(designVersionsTable.versionNumber, versionNumber)));
   return rows[0] ? toVersionDetail(rows[0]) : undefined;
 }
 
-async function ownershipCheck(userId: number, designId: number): Promise<boolean> {
+async function ownershipCheck(who: Who, designId: number): Promise<boolean> {
   const rows = await getDb()
     .select({ id: designsTable.id })
     .from(designsTable)
-    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)));
+    .where(and(eq(designsTable.id, designId), inCompanyOf(who)));
   return rows.length > 0;
 }
 

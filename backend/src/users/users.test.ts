@@ -76,10 +76,12 @@ describe('who am I', () => {
 });
 
 describe('a deactivated user or company', () => {
-  test('a user loses access at once: the token in hand, the refresh, the login (only with the right password) and their integration token', async () => {
+  test('a user loses access at once (the token in hand, the refresh, the login only with the right password); the company integration token keeps working', async () => {
     const agent = request.agent(app);
     const token = (await agent.post('/api/auth/login').send({ username: 'joao', password: 'password123' }).expect(200)).body.token;
-    const apiToken = (await request(app).post('/api/tokens').set(bearer(token)).send({ name: 'SAP' }).expect(201)).body.token;
+    // a member cannot generate integration tokens (Fase 06); the administrator generates the company's
+    expect((await request(app).post('/api/tokens').set(bearer(token)).send({ name: 'SAP' }).expect(403)).body.error).toBe('Administrator access required');
+    const apiToken = (await request(app).post('/api/tokens').set(bearer(await jwtOf('ana'))).send({ name: 'SAP' }).expect(201)).body.token;
     await request(app).get('/api/designs').set(bearer(apiToken)).expect(200);
 
     await request(app).patch(`/api/users/${await idOf('joao')}`).set(bearer(await jwtOf('ana'))).send({ active: false }).expect(200);
@@ -88,11 +90,10 @@ describe('a deactivated user or company', () => {
     await agent.post('/api/auth/refresh').expect(401);
     expect((await login('joao').expect(403)).body.error).toBe('Account disabled');
     expect((await login('joao', 'wrong-password').expect(401)).body.error).toBe('Invalid username or password');
-    await request(app).get('/api/designs').set(bearer(apiToken)).expect(401);
+    await request(app).get('/api/designs').set(bearer(apiToken)).expect(200);       // the company's token is not joao's
 
     await request(app).patch(`/api/users/${await idOf('joao')}`).set(bearer(await jwtOf('ana'))).send({ active: true }).expect(200);
     await login('joao').expect(200);
-    await request(app).get('/api/designs').set(bearer(apiToken)).expect(200);       // the token works again (it was not revoked)
   });
 
   test('a deactivated company locks out all of its users and their tokens', async () => {

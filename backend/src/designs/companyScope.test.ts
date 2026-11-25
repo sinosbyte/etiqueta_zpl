@@ -157,9 +157,11 @@ describe('integration tokens (SAP)', () => {
 });
 
 describe('what stays personal', () => {
-  test('integration tokens: a colleague does not see the tokens of another', async () => {
+  test('integration tokens belong to the company (Fase 06): an administrator colleague sees them, another company does not', async () => {
     await request(app).post('/api/tokens').set(bearer(jwt.alice)).send({ name: 'Da Alice' }).expect(201);
-    expect((await request(app).get('/api/tokens').set(bearer(jwt.bob)).expect(200)).body.items).toEqual([]);
+    const seen = (await request(app).get('/api/tokens').set(bearer(jwt.bob)).expect(200)).body.items;
+    expect(seen.map((t: { name: string; createdBy: string }) => [t.name, t.createdBy])).toEqual([['Da Alice', 'alice']]);
+    expect((await request(app).get('/api/tokens').set(bearer(jwt.carol)).expect(200)).body.items).toEqual([]);
   });
 
   test('the login token still carries only the user, and an unknown user id reaches no design', async () => {
