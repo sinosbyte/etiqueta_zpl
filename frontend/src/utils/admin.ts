@@ -6,10 +6,17 @@ import type { MessageKey } from '../i18n';
 
 export const isAdmin = (role: Role | undefined): boolean => role === 'platform_admin' || role === 'company_admin';
 export const canManageCompanies = (role: Role | undefined): boolean => role === 'platform_admin';
+/** The Sinosbyte administrators have no designs and no integration tokens (Fase 06): they keep companies and templates */
+export const hasDesigns = (role: Role | undefined): boolean => role !== 'platform_admin';
+/** The integration tokens are the company's and only its administrators manage them */
+export const managesTokens = (role: Role | undefined): boolean => role === 'company_admin';
 
-/** The roles an administrator may give: a company admin never gives the Sinosbyte role */
-export function assignableRoles(actor: Role): Role[] {
-  if (actor === 'platform_admin') return ['member', 'company_admin', 'platform_admin'];
+/**
+ * The roles an administrator may give in a company (Fase 06): a company admin gives member or company admin; a
+ * Sinosbyte admin gives only the Sinosbyte role in the platform company and only company admin in a client company.
+ */
+export function assignableRoles(actor: Role, platformCompany = false): Role[] {
+  if (actor === 'platform_admin') return platformCompany ? ['platform_admin'] : ['company_admin'];
   if (actor === 'company_admin') return ['member', 'company_admin'];
   return [];
 }

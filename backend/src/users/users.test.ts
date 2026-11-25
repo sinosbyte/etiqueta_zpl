@@ -47,10 +47,12 @@ beforeEach(async () => {
   await db.delete(refreshTokensTable);
   await db.delete(usersTable);
   await db.delete(companiesTable);
-  // Sinosbyte: sinosbyte (platform_admin) and guilherme (company_admin), as in production; Acme: ana (admin) and joao (member)
+  // Platform company (Fase 06): sinosbyte (platform_admin). Client companies: Sinosbyte (guilherme, admin) and Acme
+  // (ana, admin; joao, member)
   await user('sinosbyte', 'platform_admin');
-  await run(sql`UPDATE companies SET name = 'Sinosbyte' WHERE id = (SELECT company_id FROM users WHERE username = 'sinosbyte')`);
-  await user('guilherme', 'company_admin', 'sinosbyte');
+  await run(sql`UPDATE companies SET name = 'Plataforma Sinosbyte', is_platform = true WHERE id = (SELECT company_id FROM users WHERE username = 'sinosbyte')`);
+  await user('guilherme', 'company_admin');
+  await run(sql`UPDATE companies SET name = 'Sinosbyte' WHERE id = (SELECT company_id FROM users WHERE username = 'guilherme')`);
   await user('ana', 'company_admin');
   await run(sql`UPDATE companies SET name = 'Acme' WHERE id = (SELECT company_id FROM users WHERE username = 'ana')`);
   await user('joao', 'member', 'ana');
@@ -108,14 +110,14 @@ describe('a deactivated user or company', () => {
 });
 
 describe('who may manage users', () => {
-  test('a member may not; a company admin sees only their company; a Sinosbyte admin sees any', async () => {
+  test('a member may not; a company admin sees only their company; a Sinosbyte admin sees only the administrators of one', async () => {
     await request(app).get('/api/users').set(bearer(await jwtOf('joao'))).expect(403);
     const ana = await jwtOf('ana');
     expect((await request(app).get('/api/users').set(bearer(ana)).expect(200)).body.items.map((u: any) => u.username)).toEqual(['ana', 'joao']);
     const sinos = (await one(sql`SELECT company_id FROM users WHERE username = 'sinosbyte'`)).company_id;
     await request(app).get(`/api/users?companyId=${sinos}`).set(bearer(ana)).expect(403);
     const acme = (await one(sql`SELECT company_id FROM users WHERE username = 'ana'`)).company_id;
-    expect((await request(app).get(`/api/users?companyId=${acme}`).set(bearer(await jwtOf('sinosbyte'))).expect(200)).body.items).toHaveLength(2);
+    expect((await request(app).get(`/api/users?companyId=${acme}`).set(bearer(await jwtOf('sinosbyte'))).expect(200)).body.items.map((u: any) => u.username)).toEqual(['ana']);
   });
 
   test('an integration token cannot reach the administration', async () => {
@@ -124,10 +126,19 @@ describe('who may manage users', () => {
     await request(app).get('/api/companies').set(bearer(apiToken)).expect(403);
   });
 
-  test('a company admin cannot touch a user of another company (not found) nor a Sinosbyte admin of their own (forbidden)', async () => {
+  test('a company admin cannot touch a user of another company nor a Sinosbyte admin (not found: another company)', async () => {
     await request(app).patch(`/api/users/${await idOf('joao')}`).set(bearer(await jwtOf('guilherme'))).send({ active: false }).expect(404);
-    await request(app).patch(`/api/users/${await idOf('sinosbyte')}`).set(bearer(await jwtOf('guilherme'))).send({ role: 'member' }).expect(403);
-    await request(app).post(`/api/users/${await idOf('sinosbyte')}/reset-password`).set(bearer(await jwtOf('guilherme'))).expect(403);
+    await request(app).patch(`/api/users/${await idOf('sinosbyte')}`).set(bearer(await jwtOf('guilherme'))).send({ role: 'member' }).expect(404);
+    await request(app).post(`/api/users/${await idOf('sinosbyte')}/reset-password`).set(bearer(await jwtOf('guilherme'))).expect(404);
+  });
+
+  test('a Sinosbyte admin reaches only the administrators of a client company, and changes no role', async () => {
+    const sinos = await jwtOf('sinosbyte');
+    const scope = 'Sinosbyte administrators manage only the administrators of a company';
+    expect((await request(app).patch(`/api/users/${await idOf('joao')}`).set(bearer(sinos)).send({ active: false }).expect(403)).body.error).toBe(scope);
+    expect((await request(app).post(`/api/users/${await idOf('joao')}/reset-password`).set(bearer(sinos)).expect(403)).body.error).toBe(scope);
+    await request(app).post(`/api/users/${await idOf('ana')}/reset-password`).set(bearer(sinos)).expect(200);
+    expect((await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(sinos)).send({ role: 'member' }).expect(403)).body.error).toBe('You cannot give this role');
   });
 });
 
@@ -153,13 +164,18 @@ describe('creating a user', () => {
     await login('maria', r.body.temporaryPassword).expect(401);
   });
 
-  test('a company admin may create members and admins, not Sinosbyte admins; a Sinosbyte admin may', async () => {
+  test('a company admin creates members and admins, never Sinosbyte admins; a Sinosbyte admin creates Sinosbyte admins (platform) and client administrators only', async () => {
     const ana = await jwtOf('ana');
     await request(app).post('/api/users').set(bearer(ana)).send({ username: 'adm2', email: 'adm2@acme.com', role: 'company_admin' }).expect(201);
     expect((await request(app).post('/api/users').set(bearer(ana)).send({ username: 'xyz', email: 'x@acme.com', role: 'platform_admin' }).expect(403)).body.error).toBe('You cannot give this role');
     const sinos = await jwtOf('sinosbyte');
     const created = (await request(app).post('/api/users').set(bearer(sinos)).send({ username: 'suporte', email: 'suporte@sinosbyte.com', role: 'platform_admin' }).expect(201)).body.user;
     expect((await one(sql`SELECT is_admin FROM users WHERE id = ${created.id}`)).is_admin).toBe(true);   // mirrors the role
+    expect((await request(app).post('/api/users').set(bearer(sinos)).send({ username: 'pp2', email: 'p2@s.com', role: 'member' }).expect(403)).body.error).toBe('You cannot give this role');
+    const acme = (await one(sql`SELECT company_id FROM users WHERE username = 'ana'`)).company_id;
+    await request(app).post('/api/users').set(bearer(sinos)).send({ username: 'adm3', email: 'adm3@acme.com', role: 'company_admin', companyId: acme }).expect(201);
+    await request(app).post('/api/users').set(bearer(sinos)).send({ username: 'mm3', email: 'm3@acme.com', role: 'member', companyId: acme }).expect(403);
+    await request(app).post('/api/users').set(bearer(sinos)).send({ username: 'pp3', email: 'p3@acme.com', role: 'platform_admin', companyId: acme }).expect(403);
   });
 
   test('the user name and the e-mail are unique (the e-mail whatever the case); a bad e-mail is refused', async () => {
@@ -182,16 +198,22 @@ describe('the protections', () => {
 
   test('a company keeps an active administrator', async () => {
     const sinos = await jwtOf('sinosbyte');
-    const r = await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(sinos)).send({ role: 'member' }).expect(409);
+    const r = await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(sinos)).send({ active: false }).expect(409);
     expect(r.body.error).toBe('A company needs at least one active administrator');
-    await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(sinos)).send({ active: false }).expect(409);
-    await request(app).patch(`/api/users/${await idOf('joao')}`).set(bearer(sinos)).send({ role: 'company_admin' }).expect(200);
-    await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(sinos)).send({ role: 'member' }).expect(200);   // now there is another
+    await request(app).patch(`/api/users/${await idOf('joao')}`).set(bearer(await jwtOf('ana'))).send({ role: 'company_admin' }).expect(200);
+    await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(sinos)).send({ active: false }).expect(200);   // now there is another
+    const joao = await jwtOf('joao');
+    const back = await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(joao)).send({ active: true }).expect(200);
+    expect(back.body.active).toBe(true);
+    await request(app).patch(`/api/users/${await idOf('ana')}`).set(bearer(joao)).send({ role: 'member' }).expect(200);
+    const last = await request(app).patch(`/api/users/${await idOf('joao')}`).set(bearer(sinos)).send({ active: false }).expect(409);   // joao is now the only one
+    expect(last.body.error).toBe('A company needs at least one active administrator');
   });
 
   test('the platform keeps an active Sinosbyte administrator', async () => {
+    await run(sql`UPDATE users SET username = 'plat1' WHERE username = 'sinosbyte'`);   // out of the protected name
     const actor = { userId: -1, username: 'x', role: 'platform_admin' as const, companyId: 0, mustChangePassword: false };
-    await expect(updateUser(actor, await idOf('sinosbyte'), { role: 'company_admin' })).rejects.toThrow('At least one active Sinosbyte administrator is needed');
+    await expect(updateUser(actor, await idOf('plat1'), { active: false })).rejects.toThrow('At least one active Sinosbyte administrator is needed');
   });
 
   test('the account the SAP integration uses cannot be disabled', async () => {
@@ -218,7 +240,7 @@ describe('companies', () => {
     await request(app).get('/api/companies').set(bearer(await jwtOf('ana'))).expect(403);
     await request(app).get('/api/companies').set(bearer(await jwtOf('guilherme'))).expect(403);
     const list = (await request(app).get('/api/companies').set(bearer(await jwtOf('sinosbyte'))).expect(200)).body.items;
-    expect(list.map((c: any) => [c.name, c.userCount])).toEqual([['Acme', 2], ['Sinosbyte', 2]]);
+    expect(list.map((c: any) => [c.name, c.userCount])).toEqual([['Acme', 2], ['Sinosbyte', 1]]);   // the platform company is not a client: never listed
   });
 
   test('a company is created with its first administrator (temporary password); names are unique whatever the case', async () => {
@@ -231,13 +253,14 @@ describe('companies', () => {
     expect((await one(sql`SELECT count(*)::int AS n FROM users WHERE username = 'neu2'`)).n).toBe(0);   // nothing half done
   });
 
-  test('a company can be renamed (not to a name in use) and not disabled by its own administrator', async () => {
+  test('a company can be renamed (not to a name in use); the platform company is not a client company (not found)', async () => {
     const sinos = await jwtOf('sinosbyte');
     const acme = (await one(sql`SELECT company_id FROM users WHERE username = 'ana'`)).company_id;
     const own = (await one(sql`SELECT company_id FROM users WHERE username = 'sinosbyte'`)).company_id;
     expect((await request(app).patch(`/api/companies/${acme}`).set(bearer(sinos)).send({ name: 'Acme Ltda' }).expect(200)).body.name).toBe('Acme Ltda');
     await request(app).patch(`/api/companies/${acme}`).set(bearer(sinos)).send({ name: 'SINOSBYTE' }).expect(409);
-    expect((await request(app).patch(`/api/companies/${own}`).set(bearer(sinos)).send({ active: false }).expect(409)).body.error).toBe('You cannot disable your own company');
+    expect((await request(app).patch(`/api/companies/${own}`).set(bearer(sinos)).send({ active: false }).expect(404)).body.error).toBe('Company not found');
+    await request(app).patch(`/api/companies/${own}`).set(bearer(sinos)).send({ name: 'Outra' }).expect(404);
   });
 });
 

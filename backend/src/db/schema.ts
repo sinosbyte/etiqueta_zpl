@@ -8,6 +8,8 @@ export const companiesTable = pgTable('companies', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   active: boolean('active').notNull().default(true),
+  // The company of the Sinosbyte administrators (0014): no designs, no tokens, never listed among the clients
+  isPlatform: boolean('is_platform').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 

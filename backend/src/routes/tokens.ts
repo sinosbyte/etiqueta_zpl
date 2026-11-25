@@ -21,6 +21,11 @@ function requireSession(req: Request, res: Response, next: NextFunction): void {
     res.status(403).json({ error: 'API tokens are read-only' });
     return;
   }
+  // The platform company reads no designs, so it has no integration tokens (Fase 06, etapa 2)
+  if (req.user?.role === 'platform_admin') {
+    res.status(403).json({ error: 'Not available for Sinosbyte administrators' });
+    return;
+  }
   if (!req.user || !isAdminRole(req.user.role)) {
     res.status(403).json({ error: 'Administrator access required' });
     return;

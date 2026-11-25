@@ -11,7 +11,8 @@ export interface Me {
   username: string;
   email: string | null;
   role: Role;
-  company: { id: number; name: string };
+  /** isPlatform: the company of the Sinosbyte administrators (Fase 06): no designs, no tokens */
+  company: { id: number; name: string; isPlatform?: boolean };
   mustChangePassword: boolean;
 }
 

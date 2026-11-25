@@ -10,6 +10,13 @@ import { ElementSchema, PagesConfigSchema, elementsFitPages } from '../zpl/schem
 
 export const designsRouter = Router();
 
+// The Sinosbyte administrators belong to the platform company, which has no designs (Fase 06, etapa 2): they keep the
+// templates and the companies; the designs are the clients'. Their variants (nested below) are refused too.
+designsRouter.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.user?.role === 'platform_admin') { res.status(403).json({ error: 'Not available for Sinosbyte administrators' }); return; }
+  next();
+});
+
 // Named sets of test data of a design
 designsRouter.use('/:id/variants', variantsRouter);
 

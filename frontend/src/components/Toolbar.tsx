@@ -15,6 +15,7 @@ import { useLangStore, useT } from '../i18n';
 import { LanguageSelect } from './LanguageSelect';
 import { MAX_PAGES, isStructured } from '../utils/pages';
 import { usePanelStore } from '../store/usePanelStore';
+import { hasDesigns } from '../utils/admin';
 import { useSimulationStore } from '../store/useSimulationStore';
 
 interface Props {
@@ -273,11 +274,13 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Right actions */}
+        {/* Right actions. The Sinosbyte administrators have no designs to save (Fase 06): they keep templates */}
+        {hasDesigns(me?.role) && (
         <button
           className="chrome-btn chrome-btn-ghost"
           onClick={() => openSaveModal()}
           title={t('toolbar.saveTitle')}
+          data-testid="toolbar-save"
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
             <path d="M2 11V3.5L4.5 1h5.5a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1z" stroke="currentColor" strokeWidth="1.3"/>
@@ -285,6 +288,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           </svg>
           {t('toolbar.save')}
         </button>
+        )}
 
         <button
           className="chrome-btn chrome-btn-ghost"

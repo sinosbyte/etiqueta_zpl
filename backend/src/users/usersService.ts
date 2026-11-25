@@ -8,7 +8,9 @@ import { RequestUser, isAdminRole } from '../auth/account';
 /**
  * Administration of users and companies (Fase 05, etapa 3).
  *
- *  - A Sinosbyte administrator (platform_admin) manages every company and every user.
+ *  - A Sinosbyte administrator (platform_admin) belongs to the platform company (Fase 06, etapa 2). They manage the
+ *    companies, the other Sinosbyte administrators and only the ADMINISTRATORS of each client company (create, reset the
+ *    password, deactivate): never the client's other users, and they change nobody's role.
  *  - A company administrator (company_admin) manages the users of their own company, but never a platform_admin and
  *    never gives that role.
  *  - Nobody changes their own role or status; a company keeps at least one active administrator, and the platform at
@@ -38,6 +40,7 @@ const err = {
   protectedAccount: () => new UsersError(409, 'This account is used by the SAP integration and cannot be disabled'),
   companyNameTaken: () => new UsersError(409, 'Company name already taken'),
   ownCompany: () => new UsersError(409, 'You cannot disable your own company'),
+  platformScope: () => new UsersError(403, 'Sinosbyte administrators manage only the administrators of a company'),
 };
 
 /** The account the SAP capture logs in with while the legacy mode exists (see CLAUDE.md §8.2) */
@@ -120,9 +123,18 @@ function companyFor(actor: RequestUser, companyId?: number): number {
   throw err.forbidden();
 }
 
-function mayGive(actor: RequestUser, role: UserRole): boolean {
-  if (actor.role === 'platform_admin') return true;
-  return actor.role === 'company_admin' && role !== 'platform_admin';
+/**
+ * The role a new user may get. In the platform company only Sinosbyte administrators exist; a Sinosbyte administrator
+ * creates only the administrators of a client company; a company administrator never gives the Sinosbyte role.
+ */
+function mayGive(actor: RequestUser, role: UserRole, platformCompany: boolean): boolean {
+  if (actor.role === 'platform_admin') return platformCompany ? role === 'platform_admin' : role === 'company_admin';
+  return actor.role === 'company_admin' && role !== 'platform_admin' && !platformCompany;
+}
+
+async function isPlatformCompany(db: Db | Tx, companyId: number): Promise<boolean> {
+  const [c] = await db.select({ isPlatform: companiesTable.isPlatform }).from(companiesTable).where(eq(companiesTable.id, companyId));
+  return !!c?.isPlatform;
 }
 
 /** The user `id` as the actor may see it: another company's user is "not found"; a platform_admin is off limits to a company admin */
@@ -134,6 +146,8 @@ async function reachable(db: Db | Tx, actor: RequestUser, id: number) {
     if (target.companyId !== actor.companyId) throw err.notFound();
     if (target.role === 'platform_admin') throw err.forbidden();
   }
+  // A Sinosbyte administrator reaches the other Sinosbyte administrators and the administrators of a client company
+  if (actor.role === 'platform_admin' && target.role === 'member') throw err.platformScope();
   return target;
 }
 
@@ -147,17 +161,19 @@ const revokeCompanySessions = (db: Db | Tx, companyId: number) =>
 export async function listUsers(actor: RequestUser, companyId?: number): Promise<UserSummary[]> {
   const company = companyFor(actor, companyId);
   const rows = await getDb().select(userColumns).from(usersTable).where(eq(usersTable.companyId, company)).orderBy(asc(usersTable.username));
-  return rows.map(toSummary);
+  // A Sinosbyte administrator sees only the administrators of a client company, not its other users
+  const shown = actor.role === 'platform_admin' ? rows.filter(r => r.role !== 'member') : rows;
+  return shown.map(toSummary);
 }
 
 export interface NewUser { username: string; email: string; role: UserRole; companyId?: number }
 
 export async function createUser(actor: RequestUser, input: NewUser): Promise<{ user: UserSummary; temporaryPassword: string }> {
   const company = companyFor(actor, input.companyId);
-  if (!mayGive(actor, input.role)) throw err.roleNotAllowed();
   const db = getDb();
-  const [c] = await db.select({ id: companiesTable.id }).from(companiesTable).where(eq(companiesTable.id, company));
+  const [c] = await db.select({ id: companiesTable.id, isPlatform: companiesTable.isPlatform }).from(companiesTable).where(eq(companiesTable.id, company));
   if (!c) throw err.companyNotFound();
+  if (!mayGive(actor, input.role, c.isPlatform)) throw err.roleNotAllowed();
   const password = temporaryPassword();
   try {
     const [row] = await db.insert(usersTable).values({
@@ -179,14 +195,17 @@ export async function updateUser(actor: RequestUser, id: number, changes: UserCh
       const roleChanges = changes.role !== undefined && changes.role !== target.role;
       const activeChanges = changes.active !== undefined && changes.active !== target.active;
       if ((roleChanges || activeChanges) && target.id === actor.userId) throw err.self();
-      if (roleChanges && !mayGive(actor, changes.role!)) throw err.roleNotAllowed();
+      // Nobody moves a user in or out of the Sinosbyte role, and a Sinosbyte administrator changes no client's role
+      if (roleChanges && (actor.role === 'platform_admin' || target.role === 'platform_admin' || changes.role === 'platform_admin'
+        || !mayGive(actor, changes.role!, await isPlatformCompany(tx, target.companyId)))) throw err.roleNotAllowed();
       if (changes.active === false && target.active && PROTECTED_USERNAMES.includes(target.username)) throw err.protectedAccount();
 
       const nextRole = changes.role ?? target.role;
       const nextActive = changes.active ?? target.active;
 
-      // The company keeps an active administrator (the row lock serialises two changes in the same company)
-      if (target.active && isAdminRole(target.role) && (!nextActive || !isAdminRole(nextRole))) {
+      // A client company keeps an active administrator (the row lock serialises two changes in the same company); the
+      // platform company is covered by the rule below
+      if (target.active && target.role === 'company_admin' && (!nextActive || !isAdminRole(nextRole))) {
         await tx.execute(sql`SELECT id FROM companies WHERE id = ${target.companyId} FOR UPDATE`);
         const [{ n }] = (await tx.execute(sql`SELECT count(*)::int AS n FROM users
           WHERE company_id = ${target.companyId} AND active AND role IN ('platform_admin', 'company_admin') AND id <> ${target.id}`)).rows as any[];
@@ -228,8 +247,9 @@ export async function resetPassword(actor: RequestUser, id: number): Promise<{ u
 
 // ---------- companies (Sinosbyte administrators only; the route checks the role) ----------
 
+/** The client companies: the platform company is never listed */
 export async function listCompanies(): Promise<CompanySummary[]> {
-  return companiesWhere(getDb(), sql`TRUE`);
+  return companiesWhere(getDb(), sql`NOT c.is_platform`);
 }
 
 async function companiesWhere(db: Db | Tx, where: ReturnType<typeof sql>): Promise<CompanySummary[]> {
@@ -278,7 +298,7 @@ export interface CompanyChanges { name?: string; active?: boolean }
 export async function updateCompany(actor: RequestUser, id: number, changes: CompanyChanges): Promise<CompanySummary> {
   return getDb().transaction(async tx => {
     const [company] = await tx.select().from(companiesTable).where(eq(companiesTable.id, id));
-    if (!company) throw err.companyNotFound();
+    if (!company || company.isPlatform) throw err.companyNotFound();
     if (changes.active === false && company.id === actor.companyId) throw err.ownCompany();
     if (changes.name !== undefined && !(await nameFree(tx, changes.name, id))) throw err.companyNameTaken();
     await tx.update(companiesTable).set({

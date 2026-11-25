@@ -14,6 +14,8 @@ export interface Account {
   role: UserRole;
   companyId: number;
   companyName: string;
+  /** The company of the Sinosbyte administrators (Fase 06): no designs, no tokens */
+  companyIsPlatform: boolean;
   active: boolean;
   companyActive: boolean;
   mustChangePassword: boolean;
@@ -39,6 +41,7 @@ export async function loadAccount(userId: number): Promise<Account | null> {
       role: usersTable.role,
       companyId: usersTable.companyId,
       companyName: companiesTable.name,
+      companyIsPlatform: companiesTable.isPlatform,
       active: usersTable.active,
       companyActive: companiesTable.active,
       mustChangePassword: usersTable.mustChangePassword,

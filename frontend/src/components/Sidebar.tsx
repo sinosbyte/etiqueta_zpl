@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAccountStore } from '../store/useAccountStore';
-import { isAdmin } from '../utils/admin';
+import { isAdmin, hasDesigns, managesTokens } from '../utils/admin';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { ElementType } from '../types';
 import { toast } from '../store/useToastStore';
@@ -301,7 +301,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
         {t('sidebar.templates')}
       </button>
       {/* The integration tokens are the company's and only its administrators manage them (Fase 06) */}
-      {isAdmin(role) && (
+      {managesTokens(role) && (
       <button
         onClick={onNavigateToTokens}
         data-testid="sidebar-tokens"
@@ -375,6 +375,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
           {t('sidebar.users')}
         </button>
       )}
+      {hasDesigns(role) && (
       <button
         onClick={onNavigateToMyDesigns}
         style={{
@@ -407,6 +408,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
         </svg>
         {t('sidebar.myDesigns')}
       </button>
+      )}
       <button
         onClick={onNavigateToHelp}
         style={{
