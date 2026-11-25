@@ -95,6 +95,8 @@ const API_MESSAGES: Record<string, MessageKey> = {
   'Template not found': 'api.templateNotFound',
   'Template name already taken': 'api.templateNameTaken',
   'Administrator access required': 'api.adminRequired',
+  'Not available for Sinosbyte administrators': 'api.notForPlatform',
+  'Sinosbyte administrators manage only the administrators of a company': 'api.platformScope',
   'Invalid or revoked API token': 'api.badApiToken',
   'API tokens are read-only': 'api.tokenReadOnly',
   'Token limit reached': 'api.tokenLimit',

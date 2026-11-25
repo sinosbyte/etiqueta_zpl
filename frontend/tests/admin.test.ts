@@ -18,6 +18,7 @@ jest.mock('../src/utils/accountClient', () => ({
 
 import {
   isAdmin, canManageCompanies, assignableRoles, lockReason, newUserProblem, companyNameProblem, passwordProblem, roleKey, PROTECTED_USERNAMES,
+  hasDesigns, managesTokens,
 } from '../src/utils/admin';
 import { useAccountStore } from '../src/store/useAccountStore';
 import { apiFetch } from '../src/utils/apiClient';
@@ -32,10 +33,16 @@ describe('who is offered what', () => {
     expect([canManageCompanies('platform_admin'), canManageCompanies('company_admin'), canManageCompanies('member')]).toEqual([true, false, false]);
   });
 
-  test('a company admin never offers the Sinosbyte role; a member offers nothing', () => {
-    expect(assignableRoles('platform_admin')).toEqual(['member', 'company_admin', 'platform_admin']);
+  test('a company admin never offers the Sinosbyte role; a Sinosbyte admin offers only it in the platform and only company admin in a client; a member offers nothing', () => {
+    expect(assignableRoles('platform_admin', true)).toEqual(['platform_admin']);
+    expect(assignableRoles('platform_admin', false)).toEqual(['company_admin']);
     expect(assignableRoles('company_admin')).toEqual(['member', 'company_admin']);
     expect(assignableRoles('member')).toEqual([]);
+  });
+
+  test('the Sinosbyte administrators have no designs and no tokens; only a company admin manages tokens', () => {
+    expect([hasDesigns('platform_admin'), hasDesigns('company_admin'), hasDesigns('member')]).toEqual([false, true, true]);
+    expect([managesTokens('platform_admin'), managesTokens('company_admin'), managesTokens('member')]).toEqual([false, true, false]);
   });
 
   test('locked rows: one\'s own, and a Sinosbyte admin seen by a company admin', () => {

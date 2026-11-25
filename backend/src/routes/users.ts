@@ -35,7 +35,7 @@ meRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
     if (!a) { res.status(401).json({ error: 'Account disabled' }); return; }
     res.json({
       userId: a.userId, username: a.username, email: a.email, role: a.role,
-      company: { id: a.companyId, name: a.companyName }, mustChangePassword: a.mustChangePassword,
+      company: { id: a.companyId, name: a.companyName, isPlatform: a.companyIsPlatform }, mustChangePassword: a.mustChangePassword,
     });
   } catch (e) { next(e); }
 });

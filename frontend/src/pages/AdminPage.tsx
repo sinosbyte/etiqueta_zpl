@@ -68,6 +68,13 @@ function UsersPanel({ companyId, setCompanyId }: { companyId?: number; setCompan
   const [form, setForm] = useState({ username: '', email: '', role: 'member' as Role });
   const [formError, setFormError] = useState('');
   const company = companyId ?? me.company.id;
+  // The platform company (Fase 06) holds the Sinosbyte administrators; a Sinosbyte admin sees only the administrators of
+  // a client company
+  const platformCompany = company === me.company.id && !!me.company.isPlatform;
+  const roles = assignableRoles(me.role, platformCompany);
+  useEffect(() => {
+    setForm(f => (roles.includes(f.role) ? f : { ...f, role: roles[0] ?? 'member' }));
+  }, [roles.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -87,7 +94,7 @@ function UsersPanel({ companyId, setCompanyId }: { companyId?: number; setCompan
     try {
       const r = await createUser({ username: form.username.trim(), email: form.email.trim(), role: form.role, companyId: platform ? company : undefined });
       setShown({ username: r.user.username, password: r.temporaryPassword });
-      setForm({ username: '', email: '', role: 'member' });
+      setForm({ username: '', email: '', role: roles[0] ?? 'member' });
       await reload();
     } catch (err) { setFormError(errText(err, t('api.requestFailed'))); }
   };
@@ -114,18 +121,21 @@ function UsersPanel({ companyId, setCompanyId }: { companyId?: number; setCompan
     } catch (err) { toast.error(errText(err, t('api.requestFailed'))); }
   };
 
-  const roles = assignableRoles(me.role);
   return (
     <>
       <div style={{ ...card, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, color: 'var(--chrome-text-muted)', flex: 1, minWidth: 240 }}>{t('admin.usersIntro')}</span>
-        {platform && companies.length > 0 && (
+        {platform && (
           <label style={{ fontSize: 12, color: 'var(--chrome-text-faint)', display: 'flex', gap: 6, alignItems: 'center' }}>
             {t('admin.company')}
             <select className="chrome-input" value={company} onChange={e => setCompanyId(Number(e.target.value))} data-testid="admin-company-select">
+              {me.company.isPlatform && <option value={me.company.id}>{t('admin.platformCompany')}</option>}
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}{c.active ? '' : ` (${t('admin.inactive')})`}</option>)}
             </select>
           </label>
+        )}
+        {platform && !platformCompany && (
+          <span style={{ width: '100%', fontSize: 12, color: 'var(--chrome-text-faint)' }} data-testid="admin-platform-scope">{t('admin.platformScopeNote')}</span>
         )}
       </div>
 
@@ -171,7 +181,7 @@ function UsersPanel({ companyId, setCompanyId }: { companyId?: number; setCompan
                     </td>
                     <td style={td}>{u.email ?? '—'}</td>
                     <td style={td}>
-                      {lock || !roles.includes(u.role)
+                      {lock || roles.length < 2 || !roles.includes(u.role)
                         ? t(roleKey(u.role))
                         : (
                           <select className="chrome-input" value={u.role} onChange={e => void change(u, { role: e.target.value as Role })} aria-label={t('admin.roleLabel')}>

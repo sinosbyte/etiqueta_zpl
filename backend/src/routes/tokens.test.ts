@@ -11,11 +11,15 @@ import { apiTokensTable, companiesTable, designsTable, designVersionsTable, temp
 import { LOG_REDACT_PATHS } from '../logger';
 import { registerUser } from '../auth/authService';
 
+// Every test signs up and logs in three users (bcrypt each): on the slower CI runner that passes 5 s
+jest.setTimeout(20000);
+
 const payload = { zpl: '^XA^FO10,10^A0N,30,30^FDX^FS^XZ', elements: [], labelWidth: 800, labelHeight: 1200 };
 
 interface Session { jwt: string; tokenId?: number }
-let owner: Session;   // admin ("sinosbyte")
-let guest: Session;   // regular user
+let owner: Session;   // administrator of a client company ("sinosbyte")
+let guest: Session;   // administrator of another client company
+let plat: Session;    // Sinosbyte administrator (templates; no designs, no tokens since Fase 06)
 
 async function signUp(username: string): Promise<Session> {
   await registerUser(username, 'password123');
@@ -45,7 +49,8 @@ beforeEach(async () => {
   await db.delete(usersTable);
   owner = await signUp('sinosbyte');
   guest = await signUp('guilherme');
-  await db.update(usersTable).set({ isAdmin: true, role: 'platform_admin' }).where(eq(usersTable.username, 'sinosbyte'));
+  plat = await signUp('plataforma');
+  await db.update(usersTable).set({ isAdmin: true, role: 'platform_admin' }).where(eq(usersTable.username, 'plataforma'));
 });
 
 afterAll(async () => {
@@ -56,7 +61,7 @@ describe('existing JWT behaviour is unchanged', () => {
   test('a JWT still reads designs, creates them and reaches the owner-only template routes', async () => {
     await request(app).get('/api/designs').set(bearer(owner.jwt)).expect(200);
     await request(app).post('/api/designs').set(bearer(owner.jwt)).send({ name: 'a', ...payload }).expect(201);
-    await request(app).post('/api/templates').set(bearer(owner.jwt)).send({ name: 'T', description: '', ...payload }).expect(201);
+    await request(app).post('/api/templates').set(bearer(plat.jwt)).send({ name: 'T', description: '', ...payload }).expect(201);
     // a regular user still cannot publish a template
     await request(app).post('/api/templates').set(bearer(guest.jwt)).send({ name: 'T2', description: '', ...payload }).expect(403);
   });
@@ -162,7 +167,7 @@ describe('using a token (what the SAP does)', () => {
   });
 
   test('reads the published templates', async () => {
-    await request(app).post('/api/templates').set(bearer(owner.jwt)).send({ name: 'Picking', description: 'd', ...payload }).expect(201);
+    await request(app).post('/api/templates').set(bearer(plat.jwt)).send({ name: 'Picking', description: 'd', ...payload }).expect(201);
     const guestToken = await newToken(guest);
     const list = await request(app).get('/api/templates').set(bearer(guestToken)).expect(200);
     expect(list.body.items.map((t: { name: string }) => t.name)).toEqual(['Picking']);
