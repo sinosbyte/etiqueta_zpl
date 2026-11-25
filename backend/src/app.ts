@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth';
 import { authenticate } from './middleware/authenticate';
 import { designsLimiter, labelaryLimiter, proxyLimiter, templatesLimiter, tokensLimiter, usersLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
+import { csrfProtection, isAllowedOrigin } from './middleware/csrf';
 import { zplRouter } from './routes/zpl';
 import { designsRouter } from './routes/designs';
 import { templatesRouter } from './routes/templates';
@@ -15,7 +16,7 @@ import { meRouter, usersRouter, companiesRouter } from './routes/users';
 import { labelaryRouter } from './routes/labelary';
 import { healthRouter } from './routes/health';
 import logger from './logger';
-import { FRONTEND_URL, isProduction, MAX_BODY_SIZE } from './config';
+import { isProduction, MAX_BODY_SIZE } from './config';
 import path from 'path';
 
 const app = express();
@@ -35,7 +36,7 @@ app.use(cors({
       cb(null, true);
       return;
     }
-    if (origin === FRONTEND_URL || (!isProduction && origin.startsWith('http://localhost:'))) {
+    if (isAllowedOrigin(origin)) {
       cb(null, true);
     } else {
       cb(new Error('Not allowed by CORS'));
@@ -46,6 +47,7 @@ app.use(cors({
 
 app.use(express.json({ limit: MAX_BODY_SIZE }));
 app.use(cookieParser());
+app.use(csrfProtection); // requests with cookies (refresh token) must come from the app itself
 
 app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);                         // public; limiters applied per-route
