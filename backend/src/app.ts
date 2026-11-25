@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { authRouter } from './routes/auth';
 import { authenticate } from './middleware/authenticate';
-import { labelaryLimiter, proxyLimiter, templatesLimiter, tokensLimiter, usersLimiter } from './middleware/rateLimit';
+import { designsLimiter, labelaryLimiter, proxyLimiter, templatesLimiter, tokensLimiter, usersLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 import { zplRouter } from './routes/zpl';
 import { designsRouter } from './routes/designs';
@@ -49,7 +49,7 @@ app.use(cookieParser());
 
 app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);                         // public; limiters applied per-route
-app.use('/api/designs', authenticate, designsRouter);     // protected
+app.use('/api/designs', designsLimiter, authenticate, designsRouter); // protected, rate-limited
 app.use('/api/templates', templatesLimiter, authenticate, templatesRouter); // protected; changes need is_admin
 app.use('/api/me', usersLimiter, authenticate, meRouter);         // who am I (role, company, password to change)
 app.use('/api/users', usersLimiter, authenticate, usersRouter);   // users of a company: administrators only

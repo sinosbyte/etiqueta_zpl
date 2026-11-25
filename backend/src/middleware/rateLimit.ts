@@ -108,6 +108,20 @@ export const templatesLimiter = rateLimit({
 });
 
 /**
+ * Limiter for the designs (list, open, save, versions, variants; also the SAP capture). 300 requests / min / IP, as
+ * the templates: far above what a person or the capture does, but it caps a flood now that every request also reads
+ * the account in the database. Placed before authenticate, which is where CodeQL looks for it.
+ */
+export const designsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
+  skip: () => isTest,
+});
+
+/**
  * Limiter for the administration of users and companies, and for "who am I". 60 requests / min / IP.
  * Placed before authenticate, which is where CodeQL looks for it.
  */
