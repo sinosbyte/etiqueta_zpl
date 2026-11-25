@@ -2,6 +2,7 @@ import { eq, and, sql, count, desc } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { designsTable, designVersionsTable, usersTable } from '../db/schema';
 import { inCompanyOf } from './scope';
+import { isAdminRole } from '../auth/account';
 import { Element, PagesConfig } from '../zpl/types';
 import { elementsFitPages } from '../zpl/schema';
 
@@ -169,8 +170,20 @@ export async function renameDesign(userId: number, designId: number, name: strin
   return getDesign(userId, designId);
 }
 
+/**
+ * Deletes a design of the user's company: only the user who created it or an administrator of the company may.
+ * false = no such design in the company; throws DELETE_NOT_ALLOWED when it exists but this user may not delete it.
+ */
 export async function deleteDesign(userId: number, designId: number): Promise<boolean> {
-  const rows = await getDb()
+  const db = getDb();
+  const [design] = await db.select({ createdBy: designsTable.userId }).from(designsTable)
+    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)));
+  if (!design) return false;
+  if (design.createdBy !== userId) {
+    const [user] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+    if (!user || !isAdminRole(user.role)) throw new Error('DELETE_NOT_ALLOWED');
+  }
+  const rows = await db
     .delete(designsTable)
     .where(and(eq(designsTable.id, designId), inCompanyOf(userId)))
     .returning({ id: designsTable.id });

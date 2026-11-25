@@ -667,4 +667,9 @@ export const en = {
   'tutorial.skip': 'Skip',
   'tutorial.done': 'Done',
   'tutorial.close': 'Close the tutorial',
+  'login.noAccount': 'No account? Ask the administrator of your company.',
+  'api.signupClosed': 'Sign-up is closed. Ask the administrator of your company for an account.',
+  'api.accountDisabled': 'This account is disabled. Talk to the administrator of your company.',
+  'api.passwordChangeRequired': 'Change your temporary password to continue.',
+  'api.deleteNotAllowed': 'Only whoever created the design or an administrator of the company can delete it.',
 } as const;

@@ -7,6 +7,7 @@ import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
 import { designsTable, designVersionsTable, designTestVariantsTable, usersTable } from '../db/schema';
 import { MAX_VARIANTS_PER_DESIGN } from '../designs/variantsService';
+import { registerUser } from '../auth/authService';
 
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 const base = { zpl: '^XA^FO10,10^A0N,30,30^FD{{UC}}^FS^XZ', elements: [], labelWidth: 800, labelHeight: 600 };
@@ -17,7 +18,7 @@ let designA: number;
 let designB: number;
 
 async function login(username: string): Promise<string> {
-  await request(app).post('/api/auth/register').send({ username, password: 'password123' }).expect(201);
+  await registerUser(username, 'password123');
   return (await request(app).post('/api/auth/login').send({ username, password: 'password123' }).expect(200)).body.token;
 }
 

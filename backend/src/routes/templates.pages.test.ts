@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
 import { designsTable, designVersionsTable, templatesTable, usersTable } from '../db/schema';
+import { registerUser } from '../auth/authService';
 
 const text = (page?: number) => ({
   id: 'a', type: 'text', x: 10, y: 10, width: 200, height: 40, value: 'x', fontSize: 30, fontName: '0',
@@ -26,9 +27,9 @@ beforeEach(async () => {
   await db.delete(designVersionsTable);
   await db.delete(designsTable);
   await db.delete(usersTable);
-  await request(app).post('/api/auth/register').send({ username: 'sinosbyte', password: 'password123' }).expect(201);
+  await registerUser('sinosbyte', 'password123');
   admin = (await request(app).post('/api/auth/login').send({ username: 'sinosbyte', password: 'password123' }).expect(200)).body.token;
-  await db.update(usersTable).set({ isAdmin: true }).where(eq(usersTable.username, 'sinosbyte'));
+  await db.update(usersTable).set({ isAdmin: true, role: 'platform_admin' }).where(eq(usersTable.username, 'sinosbyte'));
 });
 
 afterAll(async () => { await _resetDb(); });

@@ -669,4 +669,9 @@ export const ptBR: Record<keyof typeof en, string> = {
   'tutorial.skip': 'Pular',
   'tutorial.done': 'Concluir',
   'tutorial.close': 'Fechar o tutorial',
+  'login.noAccount': 'Não tem conta? Peça ao administrador da sua empresa.',
+  'api.signupClosed': 'O cadastro está fechado. Peça uma conta ao administrador da sua empresa.',
+  'api.accountDisabled': 'Esta conta está desativada. Fale com o administrador da sua empresa.',
+  'api.passwordChangeRequired': 'Troque a sua senha temporária para continuar.',
+  'api.deleteNotAllowed': 'Só quem criou o design ou um administrador da empresa pode excluí-lo.',
 };

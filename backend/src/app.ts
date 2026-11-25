@@ -5,12 +5,13 @@ import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import { authRouter } from './routes/auth';
 import { authenticate } from './middleware/authenticate';
-import { labelaryLimiter, proxyLimiter, templatesLimiter, tokensLimiter } from './middleware/rateLimit';
+import { labelaryLimiter, proxyLimiter, templatesLimiter, tokensLimiter, usersLimiter } from './middleware/rateLimit';
 import { errorHandler } from './middleware/errorHandler';
 import { zplRouter } from './routes/zpl';
 import { designsRouter } from './routes/designs';
 import { templatesRouter } from './routes/templates';
 import { tokensRouter } from './routes/tokens';
+import { meRouter, usersRouter, companiesRouter } from './routes/users';
 import { labelaryRouter } from './routes/labelary';
 import { healthRouter } from './routes/health';
 import logger from './logger';
@@ -50,6 +51,9 @@ app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);                         // public; limiters applied per-route
 app.use('/api/designs', authenticate, designsRouter);     // protected
 app.use('/api/templates', templatesLimiter, authenticate, templatesRouter); // protected; changes need is_admin
+app.use('/api/me', usersLimiter, authenticate, meRouter);         // who am I (role, company, password to change)
+app.use('/api/users', usersLimiter, authenticate, usersRouter);   // users of a company: administrators only
+app.use('/api/companies', usersLimiter, authenticate, companiesRouter); // companies: Sinosbyte administrators only
 app.use('/api/tokens', tokensLimiter, authenticate, tokensRouter); // integration tokens: signed-in session only
 app.use('/api/labelary', labelaryLimiter, authenticate, labelaryRouter); // quota of the Labelary service: signed-in session only
 app.use('/api', authenticate, proxyLimiter, zplRouter);   // protected, rate-limited

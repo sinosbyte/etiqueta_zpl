@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm';
 import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
 import { designsTable, designVersionsTable, designTestVariantsTable, usersTable, companiesTable, apiTokensTable } from '../db/schema';
+import { registerUser } from '../auth/authService';
 
 /**
  * Fase 05, etapa 2: a design belongs to a company. Every user of the company reaches it (list, open, save a version,
@@ -21,7 +22,7 @@ const rows = async (q: ReturnType<typeof sql>) => (await run(q)).rows as any[];
 
 const jwt: Record<string, string> = {};
 async function signUp(username: string): Promise<string> {
-  await request(app).post('/api/auth/register').send({ username, password: 'password123' }).expect(201);
+  await registerUser(username, 'password123');
   jwt[username] = (await request(app).post('/api/auth/login').send({ username, password: 'password123' }).expect(200)).body.token;
   return jwt[username];
 }

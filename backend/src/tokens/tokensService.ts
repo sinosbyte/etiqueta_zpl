@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../db/database';
-import { apiTokensTable, usersTable } from '../db/schema';
+import { apiTokensTable, usersTable, companiesTable, UserRole } from '../db/schema';
 import { JWT_SECRET } from '../config';
 
 /** Every integration token starts with this, so it is easy to recognise (and to scan for in leaks). */
@@ -30,6 +30,8 @@ export interface TokenSummary {
 export interface TokenOwner {
   userId: number;
   username: string;
+  role: UserRole;
+  companyId: number;
 }
 
 // Tokens are 256 random bits, so a fast keyed hash is the right tool (a slow password hash adds nothing).
@@ -122,19 +124,24 @@ export async function authenticateToken(raw: string): Promise<TokenOwner | null>
     id: apiTokensTable.id,
     userId: apiTokensTable.userId,
     username: usersTable.username,
+    role: usersTable.role,
+    companyId: usersTable.companyId,
+    usable: sql<boolean>`(${usersTable.active} and ${companiesTable.active})`,
     revokedAt: apiTokensTable.revokedAt,
     expired: sql<boolean>`(${apiTokensTable.expiresAt} is not null and ${apiTokensTable.expiresAt} <= now())`,
     stale: sql<boolean>`(${apiTokensTable.lastUsedAt} is null or ${apiTokensTable.lastUsedAt} < now() - (${LAST_USED_REFRESH_MINUTES} * interval '1 minute'))`,
   }).from(apiTokensTable)
     .innerJoin(usersTable, eq(usersTable.id, apiTokensTable.userId))
+    .innerJoin(companiesTable, eq(companiesTable.id, usersTable.companyId))
     .where(eq(apiTokensTable.tokenHash, hashToken(raw)));
   const row = rows[0];
-  if (!row || row.revokedAt || row.expired) return null;
+  // A token of an inactive user or company stops working (it is not revoked: it works again if they are reactivated)
+  if (!row || row.revokedAt || row.expired || !row.usable) return null;
 
   if (row.stale) {
     await db.update(apiTokensTable).set({ lastUsedAt: sql`now()` }).where(eq(apiTokensTable.id, row.id));
   }
-  return { userId: row.userId, username: row.username };
+  return { userId: row.userId, username: row.username, role: row.role, companyId: row.companyId };
 }
 
 /**

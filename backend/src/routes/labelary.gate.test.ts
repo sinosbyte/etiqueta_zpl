@@ -11,6 +11,7 @@ import app from '../app';
 import { initDb, _resetDb, getDb } from '../db/database';
 import { designsTable, designVersionsTable, labelaryBlockTable, labelaryHoldsTable, labelaryRequestsTable, templatesTable, usersTable } from '../db/schema';
 import { labelaryGate, labelaryQuota } from '../labelary';
+import { registerUser } from '../auth/authService';
 
 // The routes that reach Labelary, with a pretend Labelary and several real users: what each client is told, and that
 // they all go through the one gate.
@@ -52,8 +53,8 @@ beforeEach(async () => {
   await db.delete(labelaryRequestsTable);
   await db.delete(labelaryHoldsTable);
   await db.delete(labelaryBlockTable);
-  await request(app).post('/api/auth/register').send({ username: 'alice', password: 'password123' }).expect(201);
-  await request(app).post('/api/auth/register').send({ username: 'bob', password: 'password123' }).expect(201);
+  await registerUser('alice', 'password123');
+  await registerUser('bob', 'password123');
   alice = (await request(app).post('/api/auth/login').send({ username: 'alice', password: 'password123' }).expect(200)).body.token;
   bob = (await request(app).post('/api/auth/login').send({ username: 'bob', password: 'password123' }).expect(200)).body.token;
   calls.length = 0;

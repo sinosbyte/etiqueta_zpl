@@ -11,7 +11,7 @@ export const companiesTable = pgTable('companies', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-/** 'platform_admin' (Sinosbyte), 'company_admin' or 'member'. Not enforced yet: users.is_admin still decides who publishes templates. */
+/** 'platform_admin' (Sinosbyte: templates and companies), 'company_admin' (the users of its company) or 'member'. users.is_admin mirrors platform_admin. */
 export type UserRole = 'platform_admin' | 'company_admin' | 'member';
 
 export const usersTable = pgTable('users', {
@@ -23,12 +23,15 @@ export const usersTable = pgTable('users', {
   email: text('email'),
   role: text('role').$type<UserRole>().notNull().default('member'),
   active: boolean('active').notNull().default(true),
+  // A password set by an administrator (new user, reset) is temporary: it must be changed at the first login (0012)
+  mustChangePassword: boolean('must_change_password').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => [index('idx_users_company_id').on(t.companyId)]);
 
 export const designsTable = pgTable('designs', {
   id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
+  // Who created it. A user with designs cannot be deleted (0012): users are deactivated, the designs belong to the company
+  userId: integer('user_id').notNull().references(() => usersTable.id, { onDelete: 'restrict' }),
   // The company that owns it (migration 0011): every user of the company reaches it; user_id is who created it
   companyId: integer('company_id').notNull().references(() => companiesTable.id),
   name: text('name').notNull(),

@@ -127,6 +127,10 @@ designsRouter.delete('/:id', async (req: Request, res: Response, next: NextFunct
     if (!deleted) { res.status(404).json({ error: 'Design not found' }); return; }
     res.status(204).end();
   } catch (e) {
+    if (e instanceof Error && e.message === 'DELETE_NOT_ALLOWED') {
+      res.status(403).json({ error: 'Only the creator or an administrator can delete this design' });
+      return;
+    }
     next(e);
   }
 });

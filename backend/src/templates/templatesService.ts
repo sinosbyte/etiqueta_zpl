@@ -39,10 +39,10 @@ const summaryColumns = {
 const toSummary = (r: { id: number; name: string; description: string; category: string; labelWidth: number; labelHeight: number; updatedAt: Date }): TemplateSummary =>
   ({ id: r.id, name: r.name, description: r.description, category: r.category, labelWidth: r.labelWidth, labelHeight: r.labelHeight, updatedAt: r.updatedAt.toISOString() });
 
-/** True when the user is a Sinosbyte administrator (users.is_admin). */
+/** True when the user is a Sinosbyte administrator (role platform_admin; users.is_admin mirrors it). */
 export async function isAdmin(userId: number): Promise<boolean> {
-  const rows = await getDb().select({ isAdmin: usersTable.isAdmin }).from(usersTable).where(eq(usersTable.id, userId));
-  return rows[0]?.isAdmin === true;
+  const rows = await getDb().select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+  return rows[0]?.role === 'platform_admin';
 }
 
 export async function listTemplates(): Promise<TemplateSummary[]> {
