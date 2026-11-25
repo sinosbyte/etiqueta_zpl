@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { createToken, deleteToken, listTokens, revokeToken } from '../tokens/tokensService';
+import { isAdminRole } from '../auth/account';
 
 export const tokensRouter = Router();
 
@@ -11,10 +12,17 @@ const CreateSchema = z.object({
   expiresInDays: z.number().int().min(1).max(730).optional(),
 });
 
-/** Tokens are managed only from a signed-in session, never with a token (a token cannot mint tokens). */
+/**
+ * Tokens are managed only from a signed-in session, never with a token (a token cannot mint tokens), and only by an
+ * administrator of the company: a token gives a system outside read access to every design of the company (Fase 06).
+ */
 function requireSession(req: Request, res: Response, next: NextFunction): void {
   if (req.user?.viaToken) {
     res.status(403).json({ error: 'API tokens are read-only' });
+    return;
+  }
+  if (!req.user || !isAdminRole(req.user.role)) {
+    res.status(403).json({ error: 'Administrator access required' });
     return;
   }
   next();
@@ -22,10 +30,10 @@ function requireSession(req: Request, res: Response, next: NextFunction): void {
 
 tokensRouter.use(requireSession);
 
-// The user's own tokens: name, prefix and dates. The token itself is never returned again.
+// The company's tokens: name, prefix, who generated it and dates. The token itself is never returned again.
 tokensRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    res.json({ items: await listTokens(req.user!.userId) });
+    res.json({ items: await listTokens(req.user!.companyId) });
   } catch (e) {
     next(e);
   }
@@ -36,7 +44,7 @@ tokensRouter.post('/', async (req: Request, res: Response, next: NextFunction) =
   const parsed = CreateSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
   try {
-    const { token, summary } = await createToken(req.user!.userId, parsed.data.name, parsed.data.expiresInDays);
+    const { token, summary } = await createToken({ userId: req.user!.userId, companyId: req.user!.companyId }, parsed.data.name, parsed.data.expiresInDays);
     res.setHeader('Cache-Control', 'no-store');
     res.status(201).json({ token, ...summary });
   } catch (e) {
@@ -48,12 +56,12 @@ tokensRouter.post('/', async (req: Request, res: Response, next: NextFunction) =
   }
 });
 
-// Revokes one of the user's own tokens (someone else's token is the same as one that does not exist).
+// Revokes one of the company's tokens (another company's token is the same as one that does not exist).
 tokensRouter.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
   const id = IdParam.safeParse(req.params.id);
   if (!id.success) { res.status(400).json({ error: 'Invalid token ID' }); return; }
   try {
-    if (!(await revokeToken(req.user!.userId, id.data))) {
+    if (!(await revokeToken(req.user!.companyId, id.data))) {
       res.status(404).json({ error: 'Token not found' });
       return;
     }
@@ -63,12 +71,12 @@ tokensRouter.delete('/:id', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
-// Deletes one of the user's own tokens for good (it also stops working, if it was active).
+// Deletes one of the company's tokens for good (it also stops working, if it was active).
 tokensRouter.delete('/:id/permanent', async (req: Request, res: Response, next: NextFunction) => {
   const id = IdParam.safeParse(req.params.id);
   if (!id.success) { res.status(400).json({ error: 'Invalid token ID' }); return; }
   try {
-    if (!(await deleteToken(req.user!.userId, id.data))) {
+    if (!(await deleteToken(req.user!.companyId, id.data))) {
       res.status(404).json({ error: 'Token not found' });
       return;
     }

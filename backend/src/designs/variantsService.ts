@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { designsTable, designTestVariantsTable } from '../db/schema';
-import { inCompanyOf } from './scope';
+import { inCompanyOf, Who } from './scope';
 
 /**
  * At most this many variants per design. Each one is a few KB of text (values + up to 500 records, and the
@@ -50,9 +50,9 @@ function toDetail(r: Row): VariantDetail {
 }
 
 /** Variants are reached only through a design of the user's company: another company's design is simply "not found". */
-async function ownsDesign(userId: number, designId: number): Promise<boolean> {
+async function ownsDesign(who: Who, designId: number): Promise<boolean> {
   const rows = await getDb().select({ id: designsTable.id }).from(designsTable)
-    .where(and(eq(designsTable.id, designId), inCompanyOf(userId)));
+    .where(and(eq(designsTable.id, designId), inCompanyOf(who)));
   return rows.length > 0;
 }
 
@@ -60,16 +60,16 @@ const where = (designId: number, id: string) =>
   and(eq(designTestVariantsTable.designId, designId), eq(designTestVariantsTable.id, id));
 
 /** The list, oldest first (a stable order), without the data of each. undefined = the design is not the user's. */
-export async function listVariants(userId: number, designId: number): Promise<VariantSummary[] | undefined> {
-  if (!await ownsDesign(userId, designId)) return undefined;
+export async function listVariants(who: Who, designId: number): Promise<VariantSummary[] | undefined> {
+  if (!await ownsDesign(who, designId)) return undefined;
   const rows = await getDb().select().from(designTestVariantsTable)
     .where(eq(designTestVariantsTable.designId, designId))
     .orderBy(asc(designTestVariantsTable.createdAt), asc(designTestVariantsTable.name));
   return rows.map(toSummary);
 }
 
-export async function getVariant(userId: number, designId: number, id: string): Promise<VariantDetail | undefined> {
-  if (!await ownsDesign(userId, designId)) return undefined;
+export async function getVariant(who: Who, designId: number, id: string): Promise<VariantDetail | undefined> {
+  if (!await ownsDesign(who, designId)) return undefined;
   const rows = await getDb().select().from(designTestVariantsTable).where(where(designId, id));
   return rows[0] ? toDetail(rows[0]) : undefined;
 }

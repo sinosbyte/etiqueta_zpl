@@ -80,7 +80,10 @@ export const templatesTable = pgTable('templates', {
 
 export const apiTokensTable = pgTable('api_tokens', {
   id: serial('id').primaryKey(),
-  userId: integer('user_id').notNull().references(() => usersTable.id, { onDelete: 'cascade' }),
+  // The company whose designs the token reads (0013): the token belongs to the company, not to a person
+  companyId: integer('company_id').notNull().references(() => companiesTable.id),
+  // Who generated it (informative); NULL once that user is deleted, and the token keeps working
+  userId: integer('user_id').references(() => usersTable.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   // Keyed hash (HMAC-SHA256, hex) of the raw token: the raw token is shown once at creation and never stored.
   tokenHash: text('token_hash').notNull().unique(),
@@ -89,7 +92,7 @@ export const apiTokensTable = pgTable('api_tokens', {
   lastUsedAt: timestamp('last_used_at'),
   expiresAt: timestamp('expires_at'),
   revokedAt: timestamp('revoked_at'),
-}, (t) => [index('idx_api_tokens_user_id').on(t.userId)]);
+}, (t) => [index('idx_api_tokens_user_id').on(t.userId), index('idx_api_tokens_company_id').on(t.companyId)]);
 
 // Named sets of test data of a design (values of the variables + the records of its tables). They belong to the
 // design, not to one of its versions, and are saved on their own: loading one never touches the design.

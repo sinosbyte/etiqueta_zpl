@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { whoOf } from '../designs/scope';
 import {
   createDesign, listDesigns, getDesignWithVersion, deleteDesign, renameDesign,
   createVersion, listVersions, getVersion, updateVersion,
@@ -71,7 +72,7 @@ designsRouter.get('/', async (req: Request, res: Response, next: NextFunction) =
   const page = PaginationSchema.safeParse(req.query);
   if (!page.success) { res.status(400).json({ error: 'Invalid pagination parameters' }); return; }
   try {
-    res.json(await listDesigns(req.user!.userId, page.data));
+    res.json(await listDesigns(whoOf(req.user!), page.data));
   } catch (e) {
     next(e);
   }
@@ -90,7 +91,7 @@ designsRouter.get('/:id', async (req: Request, res: Response, next: NextFunction
 
   try {
     const design = await getDesignWithVersion(
-      req.user!.userId,
+      whoOf(req.user!),
       idResult.data,
       versionParam?.data,
     );
@@ -158,7 +159,7 @@ designsRouter.get('/:id/versions', async (req: Request, res: Response, next: Nex
   const page = PaginationSchema.safeParse(req.query);
   if (!page.success) { res.status(400).json({ error: 'Invalid pagination parameters' }); return; }
   try {
-    const versions = await listVersions(req.user!.userId, idResult.data, page.data);
+    const versions = await listVersions(whoOf(req.user!), idResult.data, page.data);
     res.json(versions);
   } catch (e) {
     next(e);
@@ -171,7 +172,7 @@ designsRouter.get('/:id/versions/:vn', async (req: Request, res: Response, next:
   if (!idResult.success) { res.status(400).json({ error: 'Invalid design ID' }); return; }
   if (!vnResult.success) { res.status(400).json({ error: 'Invalid version number' }); return; }
   try {
-    const version = await getVersion(req.user!.userId, idResult.data, vnResult.data);
+    const version = await getVersion(whoOf(req.user!), idResult.data, vnResult.data);
     if (!version) { res.status(404).json({ error: 'Version not found' }); return; }
     res.json(version);
   } catch (e) {

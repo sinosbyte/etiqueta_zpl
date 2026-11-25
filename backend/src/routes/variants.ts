@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import { whoOf } from '../designs/scope';
 import { ValuesSchema, RecordsSchema } from '../zpl/schema';
 import {
   listVariants, getVariant, createVariant, updateVariant, deleteVariant, MAX_VARIANTS_PER_DESIGN,
@@ -51,7 +52,7 @@ function ids(req: Request, res: Response, withVariant: boolean): { designId: num
 variantsRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   const p = ids(req, res, false); if (!p) return;
   try {
-    const items = await listVariants(req.user!.userId, p.designId);
+    const items = await listVariants(whoOf(req.user!), p.designId);
     if (!items) { res.status(404).json({ error: 'Design not found' }); return; }
     res.json({ items, max: MAX_VARIANTS_PER_DESIGN });
   } catch (e) { next(e); }
@@ -71,7 +72,7 @@ variantsRouter.post('/', async (req: Request, res: Response, next: NextFunction)
 variantsRouter.get('/:variantId', async (req: Request, res: Response, next: NextFunction) => {
   const p = ids(req, res, true); if (!p) return;
   try {
-    const v = await getVariant(req.user!.userId, p.designId, p.id);
+    const v = await getVariant(whoOf(req.user!), p.designId, p.id);
     if (!v) { res.status(404).json({ error: 'Variant not found' }); return; }
     res.json(v);
   } catch (e) { next(e); }

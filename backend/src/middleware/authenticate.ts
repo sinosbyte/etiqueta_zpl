@@ -33,8 +33,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
         res.status(403).json({ error: 'API tokens are read-only' });
         return;
       }
-      // A pending password change does not stop the SAP integration: the token is not the password
-      req.user = { ...owner, mustChangePassword: false, viaToken: true };
+      // A token is the company's, not a person's (Fase 06): it reads the designs of its company. There is no user
+      // behind it (userId 0 never matches a user), and it can only read (checked just above).
+      req.user = { userId: 0, username: `token:${owner.tokenId}`, role: 'member', companyId: owner.companyId, mustChangePassword: false, viaToken: true };
       next();
     } catch (e) {
       next(e);

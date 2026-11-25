@@ -5,6 +5,8 @@ export interface TokenSummary {
   name: string;
   /** First characters of the token, to tell tokens apart. */
   prefix: string;
+  /** Who generated it (the token belongs to the company); null once that user no longer exists */
+  createdBy: string | null;
   createdAt: string;
   lastUsedAt: string | null;
   expiresAt: string | null;
