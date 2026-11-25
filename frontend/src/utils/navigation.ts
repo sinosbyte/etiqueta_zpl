@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 // Each screen has its own address, so the browser's Back/Forward buttons and a page reload
 // land where the user was. No router library: a handful of screens, plain History API.
-export type View = 'designer' | 'my-designs' | 'templates' | 'tokens' | 'help' | 'admin' | 'account';
+export type View = 'designer' | 'my-designs' | 'templates' | 'tokens' | 'help' | 'admin' | 'account' | 'platform';
 
 const PATHS: Record<View, string> = {
   designer: '/',
@@ -12,6 +12,7 @@ const PATHS: Record<View, string> = {
   help: '/help',
   admin: '/admin',
   account: '/account',
+  platform: '/plataforma',   // console of the Sinosbyte administrators (Fase 06)
 };
 
 const CHANGE_EVENT = 'zpl-navigate';
@@ -31,6 +32,13 @@ const currentView = (): View => viewFromPath(window.location.pathname);
 export function navigate(view: View): void {
   if (currentView() === view && window.location.pathname === PATHS[view]) return;
   window.history.pushState(null, '', PATHS[view]);
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+/** Opens a screen replacing the current history entry (a screen someone may not stay on sends them elsewhere). */
+export function redirect(view: View): void {
+  if (window.location.pathname === PATHS[view]) return;
+  window.history.replaceState(null, '', PATHS[view]);
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 

@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useDesignerStore } from '../store/useDesignerStore';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { toast } from '../store/useToastStore';
 import {
-  apiListTemplates, apiGetTemplate, apiCreateTemplate, apiReplaceTemplate, apiDeleteTemplate,
+  apiListTemplates, apiGetTemplate, apiDeleteTemplate,
   TemplateSummary,
 } from '../utils/templatesClient';
 import { DOTS_PER_MM } from '../utils/units';
@@ -12,18 +11,20 @@ import { LanguageSelect } from '../components/LanguageSelect';
 import { TemplatePreview } from '../components/TemplatePreview';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import { askConfirm } from '../store/useDialogStore';
-import { PublishTemplateModal } from '../components/PublishTemplateModal';
 import { TemplateThumb } from '../components/TemplateThumb';
 import { TemplatePreviewModal } from '../components/TemplatePreviewModal';
-import { CategoryFilter, TemplateCategory, TEMPLATE_CATEGORIES } from '../utils/templateCategories';
+import { CategoryFilter, TEMPLATE_CATEGORIES } from '../utils/templateCategories';
+import { editTemplate, newTemplate } from '../utils/templateEditing';
 
 interface Props {
   onBack: () => void;
+  /** Inside the console of the Sinosbyte administrators (Fase 06): no page header of its own */
+  embedded?: boolean;
 }
 
 const mm = (dots: number) => parseFloat((dots / DOTS_PER_MM).toFixed(1)).toLocaleString();
 
-export function TemplatesPage({ onBack }: Props) {
+export function TemplatesPage({ onBack, embedded = false }: Props) {
   const t = useT();
   const openTemplate = useDesignsStore(s => s.openTemplate);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
@@ -32,7 +33,6 @@ export function TemplatesPage({ onBack }: Props) {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [category, setCategory] = useState<CategoryFilter>('all');
-  const [publishing, setPublishing] = useState(false);
   // The template whose label is open in the large preview window
   const [viewing, setViewing] = useState<TemplateSummary | null>(null);
   // The card whose label is being previewed (shown after a short pause over its name)
@@ -71,7 +71,24 @@ export function TemplatesPage({ onBack }: Props) {
   // The open category emptied (e.g. its last template was deleted): back to all
   useEffect(() => { if (!tabs.includes(category)) setCategory('all'); }); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The Sinosbyte administrators (who manage templates) edit a template in the editor; everyone else uses a copy
+  const edit = async (template: TemplateSummary) => {
+    setViewing(null);
+    setBusyId(template.id);
+    try {
+      await editTemplate(template);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('templates.loadFailed'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const create = async () => {
+    try { await newTemplate(); } catch (e) { toast.error(e instanceof Error ? e.message : t('templates.loadFailed')); }
+  };
+
   const use = async (template: TemplateSummary) => {
+    if (canManage) { await edit(template); return; }
     if (!(await confirmDiscardChanges())) return;
     setViewing(null);
     setBusyId(template.id);
@@ -85,44 +102,7 @@ export function TemplatesPage({ onBack }: Props) {
     }
   };
 
-  // A template is one page in this version: a design of two pages cannot be published or put in a template
-  const multiPage = useDesignerStore(s => s.pages.length > 1);
-
-  // The label that is open in the editor, as a template payload
-  const current = () => {
-    const { zplCode, elements, labelWidth, labelHeight } = useDesignerStore.getState();
-    return { zpl: zplCode, elements, labelWidth, labelHeight };
-  };
-
-  // The dialog preselects the open tab's category ("all" starts on outros, the default)
-  const publish = async (name: string, description: string, cat: TemplateCategory) => {
-    if (useDesignerStore.getState().pages.length > 1) { toast.error(t('templates.onePageOnly')); return; }
-    try {
-      await apiCreateTemplate(name, description, current(), cat);
-      toast.success(t('templates.published', { name }));
-      setPublishing(false);
-      await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('templates.saveFailed'));
-    }
-  };
-
-  const replace = async (template: TemplateSummary) => {
-    if (useDesignerStore.getState().pages.length > 1) { toast.error(t('templates.onePageOnly')); return; }
-    const ok = await askConfirm({
-      title: t('templates.replaceTitle'),
-      message: t('templates.replaceConfirm', { name: template.name }),
-      confirmLabel: t('templates.replace'),
-    });
-    if (!ok) return;
-    try {
-      await apiReplaceTemplate(template.id, current());
-      toast.success(t('templates.replaced', { name: template.name }));
-      await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('templates.saveFailed'));
-    }
-  };
+  // Publishing and saving into a template happen in the template editor (TemplateEditBar, Fase 06)
 
   const remove = async (template: TemplateSummary) => {
     const ok = await askConfirm({
@@ -141,8 +121,17 @@ export function TemplatesPage({ onBack }: Props) {
     }
   };
 
+  const newButton = (
+    <button onClick={create} className="chrome-btn chrome-btn-primary" style={{ fontSize: 12 }} data-testid="templates-new" title={t('templates.newTitle')}>
+      {t('templates.new')}
+    </button>
+  );
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--chrome-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: embedded ? '100%' : '100vh', minHeight: 0, background: 'var(--chrome-bg)' }}>
+      {embedded ? (
+        canManage && <div style={{ padding: '12px 24px 0', display: 'flex', justifyContent: 'flex-end' }}>{newButton}</div>
+      ) : (
       <div style={{
         height: 44,
         background: 'var(--chrome-surface)',
@@ -162,29 +151,15 @@ export function TemplatesPage({ onBack }: Props) {
         <div style={{ width: 1, height: 18, background: 'var(--chrome-border)' }} />
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--chrome-text)' }}>{t('sidebar.templates')}</span>
         <div style={{ flex: 1 }} />
-        {canManage && (
-          <button
-            onClick={() => setPublishing(true)}
-            disabled={multiPage}
-            className="chrome-btn chrome-btn-primary"
-            style={{ fontSize: 12, opacity: multiPage ? 0.45 : 1 }}
-            title={multiPage ? t('templates.onePageOnly') : t('templates.publishTitle')}
-          >
-            {t('templates.publish')}
-          </button>
-        )}
+        {canManage && newButton}
         <LanguageSelect />
       </div>
+      )}
 
       <div className="chrome-scroll" style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
         <p style={{ fontSize: 12, color: 'var(--chrome-text-faint)', marginBottom: 16, maxWidth: 640, lineHeight: 1.6 }}>
           {t('templates.intro')}
         </p>
-        {canManage && multiPage && (
-          <p role="note" style={{ fontSize: 12, color: 'var(--status-warning)', marginBottom: 16, maxWidth: 640, lineHeight: 1.6 }}>
-            {t('templates.onePageOnly')}
-          </p>
-        )}
 
         {!loading && !error && templates.length > 0 && (
           <div role="tablist" className="chrome-scroll" style={{
@@ -277,7 +252,7 @@ export function TemplatesPage({ onBack }: Props) {
                   className="chrome-btn chrome-btn-primary"
                   style={{ flex: 1, minWidth: 0, justifyContent: 'center', fontSize: 12 }}
                 >
-                  {t('templates.use')}
+                  {canManage ? t('templates.edit') : t('templates.use')}
                 </button>
                 <button
                   onClick={() => { hidePreview(); setViewing(template); }}
@@ -295,9 +270,7 @@ export function TemplatesPage({ onBack }: Props) {
               {canManage && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <>
-                    <button onClick={() => replace(template)} disabled={multiPage} className="chrome-btn chrome-btn-ghost" style={{ flex: 1, minWidth: 0, justifyContent: 'center', fontSize: 12, padding: '4px 10px', opacity: multiPage ? 0.45 : 1 }} title={multiPage ? t('templates.onePageOnly') : t('templates.replaceTitle')}>
-                      {t('templates.replace')}
-                    </button>
+                    <div style={{ flex: 1 }} />
                     <button
                       onClick={() => remove(template)}
                       className="chrome-btn chrome-btn-danger"
@@ -322,13 +295,6 @@ export function TemplatesPage({ onBack }: Props) {
       </div>
       {hover && !viewing && <TemplatePreview template={hover.template} anchor={hover.anchor} />}
       {viewing && <TemplatePreviewModal template={viewing} onClose={() => setViewing(null)} onUse={() => use(viewing)} />}
-      {publishing && (
-        <PublishTemplateModal
-          defaultCategory={category === 'all' ? 'outros' : category}
-          onCancel={() => setPublishing(false)}
-          onPublish={publish}
-        />
-      )}
     </div>
   );
 }

@@ -372,7 +372,7 @@ export function Sidebar({ onNavigateToMyDesigns, onNavigateToTemplates, onNaviga
             <circle cx="11.5" cy="6" r="1.8" stroke="currentColor" strokeWidth="1.2"/>
             <path d="M11 9.6c1.8 0 3 1.1 3 2.9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
           </svg>
-          {t('sidebar.users')}
+          {role === 'platform_admin' ? t('templateEdit.back') : t('sidebar.users')}
         </button>
       )}
       {hasDesigns(role) && (

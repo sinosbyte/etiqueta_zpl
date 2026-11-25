@@ -30,6 +30,8 @@ interface DesignsStore {
   overwriteVersion(): Promise<void>;
   loadVersion(designId: number, versionNumber: number): Promise<void>;
   openTemplate(template: TemplateDetail): void;
+  /** What the editor holds now counts as saved (a template was saved from it, Fase 06) */
+  markSaved(): void;
   deleteDesign(id: number): Promise<void>;
   renameDesign(id: number, newName: string): Promise<void>;
   fetchVersions(designId: number): Promise<void>;
@@ -160,6 +162,10 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       selectedIds: [],
     });
     set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [], savedSignature: currentSignature() });
+  },
+
+  markSaved() {
+    set({ savedSignature: currentSignature() });
   },
 
   async renameDesign(id: number, newName: string) {

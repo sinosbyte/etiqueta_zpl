@@ -16,6 +16,7 @@ import { LanguageSelect } from './LanguageSelect';
 import { MAX_PAGES, isStructured } from '../utils/pages';
 import { usePanelStore } from '../store/usePanelStore';
 import { hasDesigns } from '../utils/admin';
+import { TemplateEditBar } from './TemplateEditBar';
 import { useSimulationStore } from '../store/useSimulationStore';
 
 interface Props {
@@ -289,6 +290,8 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           {t('toolbar.save')}
         </button>
         )}
+        {/* The Sinosbyte administrators edit templates only (Fase 06, etapa 3) */}
+        {!hasDesigns(me?.role) && <TemplateEditBar />}
 
         <button
           className="chrome-btn chrome-btn-ghost"
