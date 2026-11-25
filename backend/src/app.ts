@@ -56,7 +56,7 @@ app.use('/api/users', usersLimiter, authenticate, usersRouter);   // users of a 
 app.use('/api/companies', usersLimiter, authenticate, companiesRouter); // companies: Sinosbyte administrators only
 app.use('/api/tokens', tokensLimiter, authenticate, tokensRouter); // integration tokens: signed-in session only
 app.use('/api/labelary', labelaryLimiter, authenticate, labelaryRouter); // quota of the Labelary service: signed-in session only
-app.use('/api', authenticate, proxyLimiter, zplRouter);   // protected, rate-limited
+app.use('/api', proxyLimiter, authenticate, zplRouter);   // rate-limited before the login check (CodeQL), then protected
 
 if (isProduction) {
   app.use(express.static(path.join(__dirname, 'public')));
