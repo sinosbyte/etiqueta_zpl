@@ -3,14 +3,16 @@ import { z } from 'zod';
 import {
   verifyCredentials, issueTokens, rotateRefreshToken, revokeRefreshToken, changePassword,
 } from '../auth/authService';
-import { loginLimiter, loginIpLimiter, registerLimiter, refreshLimiter, passwordLimiter } from '../middleware/rateLimit';
+import { loginLimiter, loginIpLimiter, registerLimiter, refreshLimiter, passwordLimiter, signupLimiter } from '../middleware/rateLimit';
+import { signUpCompany, UsersError } from '../users/usersService';
 import { authenticate } from '../middleware/authenticate';
 import { REFRESH_COOKIE_NAME, REFRESH_COOKIE_OPTIONS } from '../config';
 
 export const authRouter = Router();
 
 const CredentialsSchema = z.object({
-  username: z.string().min(3).max(50),
+  // The user name or the e-mail (self-service sign-up); the field keeps its name for the clients that already use it
+  username: z.string().min(3).max(254),
   password: z.string().min(6).max(72), // bcrypt silently truncates beyond 72 bytes
 });
 
@@ -28,6 +30,36 @@ function clearRefreshCookie(res: Response): void {
 // administrator of a company creates its users (see routes/users.ts). The address stays, so old clients get a clear answer.
 authRouter.post('/register', registerLimiter, (_req: Request, res: Response) => {
   res.status(403).json({ error: 'Sign-up is closed' });
+});
+
+// Self-service sign-up (2026-11-26): a company registers itself and its first administrator, and is signed in at once.
+// Public, so: its own limiter, every field checked here, the role and the company decided by the server (never read
+// from the request), and a field people do not see (`website`) that only robots fill in.
+const SignUpSchema = z.object({
+  companyName: z.string().trim().min(2).max(100),
+  // A login name: no spaces, and no "@" so it can never be taken for an e-mail at the login
+  username: z.string().trim().min(3).max(50).regex(/^[^\s@]+$/),
+  email: z.string().trim().toLowerCase().max(254).email(),
+  password: z.string().min(8).max(72), // bcrypt silently truncates beyond 72 bytes
+  website: z.string().max(0).optional(),
+}).strict();
+
+authRouter.post('/signup', signupLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  const parsed = SignUpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { companyName, username, email, password } = parsed.data;
+  try {
+    const user = await signUpCompany({ companyName, username, email, password });
+    const { accessToken, refreshToken } = await issueTokens(user);
+    setRefreshCookie(res, refreshToken);
+    res.status(201).json({ token: accessToken, mustChangePassword: false });
+  } catch (e) {
+    if (e instanceof UsersError) { res.status(e.status).json({ error: e.message }); return; }
+    next(e);
+  }
 });
 
 authRouter.post('/login', loginIpLimiter, loginLimiter, async (req: Request, res: Response, next: NextFunction) => {

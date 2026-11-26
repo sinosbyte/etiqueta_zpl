@@ -55,6 +55,19 @@ export const registerLimiter = rateLimit({
 });
 
 /**
+ * Limiter for the public self-service sign-up (2026-11-26): every attempt counts, successful or not, so it bounds both
+ * the companies one address can create and how fast it can probe for names and e-mails in use. 10 / hour / IP.
+ */
+export const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+  skip: () => isTest,
+});
+
+/**
  * Limiter for the silent token-refresh endpoint. More generous than the login
  * limiter (refreshes are legitimate and frequent) but still bounded. 60 / 15 min / IP.
  */

@@ -289,6 +289,34 @@ export async function createCompany(input: NewCompany): Promise<{ company: Compa
   }
 }
 
+// ---------- self-service sign-up (public, 2026-11-26) ----------
+
+export interface SignUp { companyName: string; username: string; email: string; password: string }
+
+/**
+ * A company signs itself up: the company and its first administrator, with the password they chose, in one
+ * transaction (a failure leaves neither). The role is always company_admin and the company is always the new one:
+ * nothing of it comes from the request. Throws the same errors as creating a company by hand (name, user name or
+ * e-mail in use; the e-mail is unique whatever the case, also among deactivated users).
+ */
+export async function signUpCompany(input: SignUp): Promise<{ userId: number; username: string }> {
+  const passwordHash = await hash(input.password);
+  try {
+    return await getDb().transaction(async tx => {
+      if (!(await nameFree(tx, input.companyName))) throw err.companyNameTaken();
+      const [company] = await tx.insert(companiesTable).values({ name: input.companyName }).returning({ id: companiesTable.id });
+      const [user] = await tx.insert(usersTable).values({
+        username: input.username, email: input.email, role: 'company_admin', isAdmin: false,
+        companyId: company.id, passwordHash, mustChangePassword: false,
+      }).returning({ id: usersTable.id, username: usersTable.username });
+      return { userId: user.id, username: user.username };
+    });
+  } catch (e) {
+    if (e instanceof UsersError) throw e;
+    rethrowUnique(e);
+  }
+}
+
 export interface CompanyChanges { name?: string; active?: boolean }
 
 export async function updateCompany(actor: RequestUser, id: number, changes: CompanyChanges): Promise<CompanySummary> {

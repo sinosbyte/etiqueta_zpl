@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb, isUniqueViolation } from '../db/database';
 import { usersTable, refreshTokensTable, companiesTable } from '../db/schema';
 import { loadAccount, isUsable } from './account';
@@ -36,13 +36,26 @@ export async function registerUser(username: string, password: string): Promise<
 }
 
 /**
- * Validate credentials, returning the JWT payload. Throws INVALID_CREDENTIALS; ACCOUNT_DISABLED when the password is
- * right but the user or the company is inactive (said only after the right password, so it does not tell which
- * accounts exist).
+ * The user signing in: by user name or by e-mail (self-service sign-up, 2026-11-26; the e-mail is unique whatever the
+ * case). The user name is tried first, so the existing logins behave exactly as before.
  */
-export async function verifyCredentials(username: string, password: string): Promise<JwtPayload & { mustChangePassword: boolean }> {
-  const rows = await getDb().select().from(usersTable).where(eq(usersTable.username, username));
-  const row = rows[0];
+async function findLogin(identifier: string) {
+  const db = getDb();
+  const byName = await db.select().from(usersTable).where(eq(usersTable.username, identifier));
+  if (byName[0]) return byName[0];
+  const email = identifier.trim().toLowerCase();
+  if (!email.includes('@')) return undefined;
+  const byEmail = await db.select().from(usersTable).where(sql`lower(${usersTable.email}) = ${email}`);
+  return byEmail[0];
+}
+
+/**
+ * Validate credentials (user name or e-mail), returning the JWT payload. Throws INVALID_CREDENTIALS; ACCOUNT_DISABLED
+ * when the password is right but the user or the company is inactive (said only after the right password, so it does
+ * not tell which accounts exist).
+ */
+export async function verifyCredentials(identifier: string, password: string): Promise<JwtPayload & { mustChangePassword: boolean }> {
+  const row = await findLogin(identifier);
   if (!row) throw new Error('INVALID_CREDENTIALS');
   const match = await bcrypt.compare(password, row.passwordHash);
   if (!match) throw new Error('INVALID_CREDENTIALS');
