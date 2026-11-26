@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { loadAccount } from '../auth/account';
 import {
-  UsersError, listUsers, createUser, updateUser, resetPassword, listCompanies, createCompany, updateCompany,
+  UsersError, listUsers, createUser, updateUser, resetPassword, listCompanies, createCompany, updateCompany, updateOwnEmail,
 } from '../users/usersService';
 
 /** Users and companies are managed only from a signed-in session (an integration token is refused before this, too). */
@@ -38,6 +38,16 @@ meRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
       company: { id: a.companyId, name: a.companyName, isPlatform: a.companyIsPlatform }, mustChangePassword: a.mustChangePassword,
     });
   } catch (e) { next(e); }
+});
+
+// The own e-mail (it also signs in): confirmed with the current password; only from a signed-in session
+const OwnEmail = z.object({ email: Email, currentPassword: z.string().min(1).max(72) }).strict();
+
+meRouter.patch('/', requireSession, async (req: Request, res: Response, next: NextFunction) => {
+  if (req.user!.mustChangePassword) { res.status(403).json({ error: 'Password change required' }); return; }
+  const p = OwnEmail.safeParse(req.body);
+  if (!p.success) { bad(res, p.error); return; }
+  try { res.json(await updateOwnEmail(req.user!.userId, p.data.email, p.data.currentPassword)); } catch (e) { fail(e, res, next); }
 });
 
 // ---------- users ----------

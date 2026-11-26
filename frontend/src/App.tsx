@@ -16,6 +16,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useDesignsStore } from './store/useDesignsStore';
 import { useWarnBeforeUnload } from './hooks/useUnsavedChanges';
 import { LoginPage } from './pages/LoginPage';
+import { SignUpPage } from './pages/SignUpPage';
 import { MyDesignsPage } from './pages/MyDesignsPage';
 import { TemplatesPage } from './pages/TemplatesPage';
 import { TokensPage } from './pages/TokensPage';
@@ -44,6 +45,11 @@ export default function App() {
   useWarnBeforeUnload();
   const openTutorial = useTutorialStore(s => s.openFirstTime);
 
+  // The sign-up page is only for who has no session: signed in there, the editor (or the console) takes its place
+  useEffect(() => {
+    if (token && currentView === 'signup') redirect(platform ? 'platform' : 'designer');
+  }, [token, currentView, platform]);
+
   // Screens someone may not stay on send them where they belong (without a history entry)
   useEffect(() => {
     if (!token || !me) return;
@@ -70,7 +76,7 @@ export default function App() {
 
   let content: React.ReactNode;
   if (!token) {
-    content = <LoginPage />;
+    content = currentView === 'signup' ? <SignUpPage /> : <LoginPage />;
   } else if (mustChangePassword) {
     content = <ChangePasswordPage />;
   } else if (platform && (currentView === 'platform' || currentView === 'admin' || currentView === 'templates')) {

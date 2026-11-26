@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { ChangePasswordForm } from '../components/ChangePasswordForm';
@@ -6,6 +6,52 @@ import { useAccountStore } from '../store/useAccountStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { roleKey } from '../utils/admin';
 import { toast } from '../store/useToastStore';
+import { updateMyEmail } from '../utils/accountClient';
+import { validEmail } from '../utils/signup';
+
+/** The own e-mail: it also signs in, so the current password confirms the change */
+function EmailForm({ current, onDone }: { current: string | null; onDone: () => void }) {
+  const t = useT();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    const next = email.trim().toLowerCase();
+    if (!validEmail(next)) { setError(t('signup.problem.email')); return; }
+    if (next === (current ?? '')) { setError(t('account.emailSame')); return; }
+    if (!password) { setError(t('password.problem.current')); return; }
+    setBusy(true);
+    try {
+      await updateMyEmail(next, password);
+      setEmail(''); setPassword('');
+      toast.success(t('account.emailChanged'));
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('error.title'));
+    } finally { setBusy(false); }
+  };
+  const label: React.CSSProperties = { display: 'block', fontSize: 11, color: 'var(--chrome-text-faint)', marginBottom: 4 };
+  return (
+    <form onSubmit={submit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 10 }} data-testid="email-form">
+      <p style={{ fontSize: 12, color: 'var(--chrome-text-muted)', lineHeight: 1.5, margin: 0 }}>{t(current ? 'account.emailHelp' : 'account.emailMissing')}</p>
+      <div>
+        <label htmlFor="account-email" style={label}>{t('account.newEmail')}</label>
+        <input id="account-email" className="chrome-input" type="email" autoComplete="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} />
+      </div>
+      <div>
+        <label htmlFor="account-email-password" style={label}>{t('password.current')}</label>
+        <input id="account-email-password" className="chrome-input" type="password" autoComplete="current-password" maxLength={72} value={password} onChange={e => setPassword(e.target.value)} />
+      </div>
+      {error && <div role="alert" style={{ fontSize: 11, color: 'var(--status-error)' }}>{error}</div>}
+      <button type="submit" disabled={busy} className="chrome-btn chrome-btn-primary" style={{ alignSelf: 'flex-start' }}>
+        {busy ? t('login.wait') : t('account.saveEmail')}
+      </button>
+    </form>
+  );
+}
 
 const card: React.CSSProperties = { background: 'var(--chrome-surface)', border: '1px solid var(--chrome-border)', borderRadius: 8, padding: 16 };
 
@@ -56,6 +102,12 @@ export function AccountPage({ onBack }: { onBack: () => void }) {
               </>
             ) : <span style={{ fontSize: 13, color: 'var(--chrome-text-faint)' }}>{t('login.wait')}</span>}
           </div>
+          {me && (
+            <div style={card}>
+              <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', marginBottom: 12 }}>{t('account.emailTitle')}</h2>
+              <EmailForm current={me.email} onDone={() => void load()} />
+            </div>
+          )}
           <div style={card}>
             <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--chrome-text)', marginBottom: 12 }}>{t('password.title')}</h2>
             <ChangePasswordForm onDone={() => toast.success(t('password.changed'))} />

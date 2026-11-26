@@ -170,3 +170,34 @@ describe('the company that signed itself up', () => {
     expect((await request(app).get('/api/designs').set(bearer(token)).expect(200)).body.items).toEqual([]);
   });
 });
+
+describe('the own e-mail (Minha conta)', () => {
+  const patchMe = (t: string, body: Record<string, unknown>) => request(app).patch('/api/me').set(bearer(t)).send(body);
+
+  test('changes with the current password, kept in small letters, and signs in by the new one only', async () => {
+    const t = (await signUp().expect(201)).body.token;
+    expect((await patchMe(t, { email: ' Novo@Alfa.com ', currentPassword: 'senha-forte-1' }).expect(200)).body).toEqual({ email: 'novo@alfa.com' });
+    expect((await request(app).get('/api/me').set(bearer(t)).expect(200)).body.email).toBe('novo@alfa.com');
+    await login('novo@alfa.com').expect(200);
+    await login('ti@alfa.com').expect(401);
+  });
+
+  test('wrong password, bad e-mail, extra fields or an e-mail in use are refused and nothing changes', async () => {
+    const t = (await signUp().expect(201)).body.token;
+    await signUp({ companyName: 'Beta', username: 'admin.beta', email: 'ti@beta.com' }).expect(201);
+    expect((await patchMe(t, { email: 'x@alfa.com', currentPassword: 'errada-123' }).expect(400)).body.error).toBe('Current password is wrong');
+    await patchMe(t, { email: 'nao-e-email', currentPassword: 'senha-forte-1' }).expect(400);
+    await patchMe(t, { email: 'x@alfa.com', currentPassword: 'senha-forte-1', role: 'platform_admin' }).expect(400);
+    expect((await patchMe(t, { email: 'TI@BETA.COM', currentPassword: 'senha-forte-1' }).expect(409)).body.error).toBe('E-mail already in use');
+    expect((await rows(sql`SELECT email, role FROM users WHERE username = 'admin.alfa'`))[0]).toEqual({ email: 'ti@alfa.com', role: 'company_admin' });
+  });
+
+  test('not with a temporary password still to change, and not with an integration token', async () => {
+    const t = (await signUp().expect(201)).body.token;
+    const token = (await request(app).post('/api/tokens').set(bearer(t)).send({ name: 'SAP' }).expect(201)).body.token;
+    await patchMe(token, { email: 'x@alfa.com', currentPassword: 'senha-forte-1' }).expect(403);
+    await run(sql`UPDATE users SET must_change_password = true`);
+    expect((await patchMe(t, { email: 'x@alfa.com', currentPassword: 'senha-forte-1' }).expect(403)).body.error).toBe('Password change required');
+    expect((await rows(sql`SELECT email FROM users`))[0].email).toBe('ti@alfa.com');
+  });
+});

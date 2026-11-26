@@ -334,3 +334,18 @@ export async function updateCompany(actor: RequestUser, id: number, changes: Com
   });
 }
 
+
+// ---------- the own e-mail (Minha conta) ----------
+
+/** Anyone changes their own e-mail, confirming with the current password (the e-mail also signs in, so it is a credential). */
+export async function updateOwnEmail(userId: number, email: string, currentPassword: string): Promise<{ email: string }> {
+  const db = getDb();
+  const [row] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!row || !(await bcrypt.compare(currentPassword, row.passwordHash))) throw new UsersError(400, 'Current password is wrong');
+  try {
+    await db.update(usersTable).set({ email }).where(eq(usersTable.id, userId));
+  } catch (e) {
+    rethrowUnique(e);
+  }
+  return { email };
+}
