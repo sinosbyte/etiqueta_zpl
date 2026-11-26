@@ -211,15 +211,14 @@ describe('the protections', () => {
   });
 
   test('the platform keeps an active Sinosbyte administrator', async () => {
-    await run(sql`UPDATE users SET username = 'plat1' WHERE username = 'sinosbyte'`);   // out of the protected name
     const actor = { userId: -1, username: 'x', role: 'platform_admin' as const, companyId: 0, mustChangePassword: false };
-    await expect(updateUser(actor, await idOf('plat1'), { active: false })).rejects.toThrow('At least one active Sinosbyte administrator is needed');
+    await expect(updateUser(actor, await idOf('sinosbyte'), { active: false })).rejects.toThrow('At least one active Sinosbyte administrator is needed');
   });
 
-  test('the account the SAP integration uses cannot be disabled', async () => {
+  test('no account is special any more: the SAP uses the company token (Fase 06), so a Sinosbyte admin may be deactivated by another', async () => {
     await user('outro_admin', 'platform_admin', 'sinosbyte');
-    const r = await request(app).patch(`/api/users/${await idOf('sinosbyte')}`).set(bearer(await jwtOf('outro_admin'))).send({ active: false }).expect(409);
-    expect(r.body.error).toBe('This account is used by the SAP integration and cannot be disabled');
+    const r = await request(app).patch(`/api/users/${await idOf('sinosbyte')}`).set(bearer(await jwtOf('outro_admin'))).send({ active: false }).expect(200);
+    expect(r.body.active).toBe(false);
   });
 
   test('a password reset gives a new temporary password and ends the sessions; not for oneself', async () => {

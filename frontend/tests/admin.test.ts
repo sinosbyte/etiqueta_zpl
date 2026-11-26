@@ -17,7 +17,7 @@ jest.mock('../src/utils/accountClient', () => ({
 }));
 
 import {
-  isAdmin, canManageCompanies, assignableRoles, lockReason, newUserProblem, companyNameProblem, passwordProblem, roleKey, PROTECTED_USERNAMES,
+  isAdmin, canManageCompanies, assignableRoles, lockReason, newUserProblem, companyNameProblem, passwordProblem, roleKey, 
   hasDesigns, managesTokens,
 } from '../src/utils/admin';
 import { useAccountStore } from '../src/store/useAccountStore';
@@ -52,8 +52,7 @@ describe('who is offered what', () => {
     expect(lockReason(me('company_admin'), target('member'))).toBeNull();
   });
 
-  test('the account of the SAP integration is protected, and every role has a name', () => {
-    expect(PROTECTED_USERNAMES).toContain('sinosbyte');
+  test('every role has a name', () => {
     expect(['platform_admin', 'company_admin', 'member'].map(r => roleKey(r as any))).toEqual(['admin.role.platform_admin', 'admin.role.company_admin', 'admin.role.member']);
   });
 });

@@ -9,7 +9,7 @@ import {
   CompanySummary, Role, UserSummary, createCompany, createUser, listCompanies, listUsers, resetPassword, updateCompany, updateUser,
 } from '../utils/accountClient';
 import {
-  PROTECTED_USERNAMES, assignableRoles, canManageCompanies, companyNameProblem, isAdmin, lockReason, newUserProblem, roleKey,
+  assignableRoles, canManageCompanies, companyNameProblem, isAdmin, lockReason, newUserProblem, roleKey,
 } from '../utils/admin';
 
 const card: React.CSSProperties = { background: 'var(--chrome-surface)', border: '1px solid var(--chrome-border)', borderRadius: 8, padding: 16 };
@@ -172,7 +172,6 @@ export function UsersPanel({ companyId, setCompanyId }: { companyId?: number; se
             <tbody>
               {users.map(u => {
                 const lock = lockReason(me, u);
-                const protectedAccount = PROTECTED_USERNAMES.includes(u.username);
                 return (
                   <tr key={u.id} data-testid={`user-row-${u.username}`} style={{ opacity: u.active ? 1 : 0.6 }}>
                     <td style={td}>
@@ -198,8 +197,7 @@ export function UsersPanel({ companyId, setCompanyId }: { companyId?: number; se
                         <>
                           <button type="button" className="chrome-btn chrome-btn-ghost" style={{ fontSize: 12 }} onClick={() => void reset(u)}>{t('admin.reset')}</button>
                           {u.active
-                            ? <button type="button" className="chrome-btn chrome-btn-danger" style={{ fontSize: 12, marginLeft: 6 }} disabled={protectedAccount}
-                                title={protectedAccount ? t('admin.lock.protected') : undefined} onClick={() => void change(u, { active: false })}>{t('admin.deactivate')}</button>
+                            ? <button type="button" className="chrome-btn chrome-btn-danger" style={{ fontSize: 12, marginLeft: 6 }} onClick={() => void change(u, { active: false })}>{t('admin.deactivate')}</button>
                             : <button type="button" className="chrome-btn chrome-btn-ghost" style={{ fontSize: 12, marginLeft: 6 }} onClick={() => void change(u, { active: true })}>{t('admin.activate')}</button>}
                         </>
                       )}

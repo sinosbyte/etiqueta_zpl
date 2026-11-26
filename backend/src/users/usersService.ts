@@ -37,14 +37,11 @@ const err = {
   selfReset: () => new UsersError(409, 'Use the change of your own password instead'),
   lastAdmin: () => new UsersError(409, 'A company needs at least one active administrator'),
   lastPlatformAdmin: () => new UsersError(409, 'At least one active Sinosbyte administrator is needed'),
-  protectedAccount: () => new UsersError(409, 'This account is used by the SAP integration and cannot be disabled'),
   companyNameTaken: () => new UsersError(409, 'Company name already taken'),
   ownCompany: () => new UsersError(409, 'You cannot disable your own company'),
   platformScope: () => new UsersError(403, 'Sinosbyte administrators manage only the administrators of a company'),
 };
 
-/** The account the SAP capture logs in with while the legacy mode exists (see CLAUDE.md §8.2) */
-export const PROTECTED_USERNAMES: readonly string[] = ['sinosbyte'];
 
 export interface UserSummary {
   id: number;
@@ -198,7 +195,6 @@ export async function updateUser(actor: RequestUser, id: number, changes: UserCh
       // Nobody moves a user in or out of the Sinosbyte role, and a Sinosbyte administrator changes no client's role
       if (roleChanges && (actor.role === 'platform_admin' || target.role === 'platform_admin' || changes.role === 'platform_admin'
         || !mayGive(actor, changes.role!, await isPlatformCompany(tx, target.companyId)))) throw err.roleNotAllowed();
-      if (changes.active === false && target.active && PROTECTED_USERNAMES.includes(target.username)) throw err.protectedAccount();
 
       const nextRole = changes.role ?? target.role;
       const nextActive = changes.active ?? target.active;

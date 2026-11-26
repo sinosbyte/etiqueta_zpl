@@ -122,6 +122,8 @@ const ptBR: HelpContent = {
     { q: 'O elemento está com uma caixa tracejada. É erro?', a: 'É um aviso. Tracejado âmbar quer dizer que o elemento passa da borda da etiqueta. Tracejado vermelho em um código de barras quer dizer que ele pode ficar por cima de outro elemento. Você decide se ajusta.' },
     { q: 'Como meu design chega ao SAP?', a: 'Depois de salvar, o design pode ser capturado pelo SAP. Quem cuida do SAP faz essa captura, e depois a etiqueta já pode ser escolhida pelo nome na impressão.' },
     { q: 'Posso usar acentos nos textos?', a: 'Pode. Acentos e caracteres como ç funcionam normalmente.' },
+    { q: 'Os meus designs são só meus?', a: 'Não: os designs são da sua empresa. Os colegas veem e podem editar todos. Só quem criou o design ou um administrador da empresa pode excluí-lo.' },
+    { q: 'Esqueci a minha senha. O que faço?', a: 'Peça ao administrador da sua empresa. Ele gera uma senha provisória, e no próximo acesso você cria a sua.' },
   ],
   tutorial: [
     { icon: 'template', title: 'Comece por um modelo ou do zero', text: 'Em Templates você encontra modelos prontos para usar. Se preferir, comece com a etiqueta em branco e defina a largura e a altura no alto da tela.' },
@@ -233,6 +235,8 @@ const en: HelpContent = {
     { q: 'An element has a dashed box. Is that an error?', a: 'It is a warning. Amber dashes mean the element goes past the edge of the label. Red dashes on a barcode mean it may end up over another element. You decide whether to adjust it.' },
     { q: 'How does my design get to SAP?', a: 'After saving, the design can be captured by SAP. Whoever looks after SAP does the capture, and then the label can be picked by name when printing.' },
     { q: 'Can I use accents in the texts?', a: 'Yes. Accents and characters like ç work normally.' },
+    { q: 'Are my designs only mine?', a: 'No: the designs belong to your company. Your colleagues see and can edit all of them. Only whoever created a design or an administrator of the company can delete it.' },
+    { q: 'I forgot my password. What do I do?', a: 'Ask the administrator of your company. They generate a temporary password, and at the next sign-in you create your own.' },
   ],
   tutorial: [
     { icon: 'template', title: 'Start from a template or from scratch', text: 'In Templates you will find ready-made models. If you prefer, start with a blank label and set the width and height at the top of the screen.' },
