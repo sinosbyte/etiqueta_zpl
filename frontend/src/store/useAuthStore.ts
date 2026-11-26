@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import {
   getToken, saveToken, clearToken, isTokenExpired, registerOn401Handler,
-  apiLogin, apiLogout, refreshAccessToken,
+  apiLogin, apiLogout, refreshAccessToken, apiSignUp,
 } from '../utils/authClient';
 
 interface AuthStore {
   token: string | null;
   login(username: string, password: string): Promise<void>;
+  signUp(payload: Record<string, string>): Promise<void>;
   logout(): void;
 }
 
@@ -25,6 +26,12 @@ export const useAuthStore = create<AuthStore>((set) => {
 
     async login(username: string, password: string) {
       const token = await apiLogin(username, password);
+      saveToken(token);
+      set({ token });
+    },
+
+    async signUp(payload: Record<string, string>) {
+      const token = await apiSignUp(payload);
       saveToken(token);
       set({ token });
     },

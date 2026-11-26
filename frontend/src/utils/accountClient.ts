@@ -49,6 +49,10 @@ export async function changePassword(currentPassword: string, newPassword: strin
   saveToken(r.token);
 }
 
+/** Changes the own e-mail (it also signs in), confirmed with the current password */
+export const updateMyEmail = (email: string, currentPassword: string) =>
+  apiFetch<{ email: string }>('/api/me', json('PATCH', { email, currentPassword }));
+
 export const listUsers = (companyId?: number) =>
   apiFetch<{ items: UserSummary[] }>(`/api/users${companyId ? `?companyId=${companyId}` : ''}`).then(r => r.items);
 

@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 // Each screen has its own address, so the browser's Back/Forward buttons and a page reload
 // land where the user was. No router library: a handful of screens, plain History API.
-export type View = 'designer' | 'my-designs' | 'templates' | 'tokens' | 'help' | 'admin' | 'account' | 'platform';
+export type View = 'designer' | 'my-designs' | 'templates' | 'tokens' | 'help' | 'admin' | 'account' | 'platform' | 'signup';
 
 const PATHS: Record<View, string> = {
   designer: '/',
@@ -13,6 +13,7 @@ const PATHS: Record<View, string> = {
   admin: '/admin',
   account: '/account',
   platform: '/plataforma',   // console of the Sinosbyte administrators (Fase 06)
+  signup: '/cadastro',       // a company signs itself up (no session needed)
 };
 
 const CHANGE_EVENT = 'zpl-navigate';

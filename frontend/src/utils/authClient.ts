@@ -61,6 +61,19 @@ export async function apiLogin(username: string, password: string): Promise<stri
   return data.token as string;
 }
 
+/** A company signs itself up with its first administrator; the answer is already a session (signed in) */
+export async function apiSignUp(payload: Record<string, string>): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(limitMessage(res, data.error, 'api.signupFailed'));
+  return data.token as string;
+}
+
 /**
  * Exchange the httpOnly refresh cookie for a new access token.
  * Returns the new token (also persisted) or null when the session can't be renewed.
