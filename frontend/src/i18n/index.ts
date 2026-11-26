@@ -73,7 +73,6 @@ const API_MESSAGES: Record<string, MessageKey> = {
   'Use the change of your own password instead': 'api.selfReset',
   'A company needs at least one active administrator': 'api.lastAdmin',
   'At least one active Sinosbyte administrator is needed': 'api.lastPlatformAdmin',
-  'This account is used by the SAP integration and cannot be disabled': 'api.protectedAccount',
   'Company name already taken': 'api.companyNameTaken',
   'You cannot disable your own company': 'api.ownCompany',
   'Current password is wrong': 'api.wrongPassword',

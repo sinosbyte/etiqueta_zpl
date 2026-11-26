@@ -158,7 +158,7 @@ export function TemplatesPage({ onBack, embedded = false }: Props) {
 
       <div className="chrome-scroll" style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
         <p style={{ fontSize: 12, color: 'var(--chrome-text-faint)', marginBottom: 16, maxWidth: 640, lineHeight: 1.6 }}>
-          {t('templates.intro')}
+          {canManage ? t('templates.introAdmin') : t('templates.intro')}
         </p>
 
         {!loading && !error && templates.length > 0 && (

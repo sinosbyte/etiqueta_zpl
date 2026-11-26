@@ -31,8 +31,6 @@ export function lockReason(actor: Me, target: UserSummary): MessageKey | null {
   return null;
 }
 
-/** The account the SAP integration logs in with while the legacy mode exists: never disabled */
-export const PROTECTED_USERNAMES: readonly string[] = ['sinosbyte'];
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
