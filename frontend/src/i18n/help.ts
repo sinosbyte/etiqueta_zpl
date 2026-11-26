@@ -124,6 +124,9 @@ const ptBR: HelpContent = {
     { q: 'Posso usar acentos nos textos?', a: 'Pode. Acentos e caracteres como ç funcionam normalmente.' },
     { q: 'Os meus designs são só meus?', a: 'Não: os designs são da sua empresa. Os colegas veem e podem editar todos. Só quem criou o design ou um administrador da empresa pode excluí-lo.' },
     { q: 'Esqueci a minha senha. O que faço?', a: 'Peça ao administrador da sua empresa. Ele gera uma senha provisória, e no próximo acesso você cria a sua.' },
+    { q: 'Entro com o e-mail ou com o nome de usuário?', a: 'Com qualquer um dos dois, sempre com a mesma senha. O e-mail não diferencia letras maiúsculas e minúsculas.' },
+    { q: 'Minha empresa ainda não usa. Como começamos?', a: 'Na tela de entrada, clique em "Cadastrar minha empresa" e informe o nome da empresa, o seu nome de usuário, o seu e-mail e uma senha. Você entra na hora e passa a ser o administrador da empresa: depois cria as contas dos colegas em "Usuários".' },
+    { q: 'Como troco o meu e-mail?', a: 'Em "Minha conta" (o seu nome, no alto da tela): informe o novo e-mail e confirme com a sua senha atual. Cada e-mail pertence a uma única pessoa e a uma única empresa.' },
   ],
   tutorial: [
     { icon: 'template', title: 'Comece por um modelo ou do zero', text: 'Em Templates você encontra modelos prontos para usar. Se preferir, comece com a etiqueta em branco e defina a largura e a altura no alto da tela.' },
@@ -237,6 +240,9 @@ const en: HelpContent = {
     { q: 'Can I use accents in the texts?', a: 'Yes. Accents and characters like ç work normally.' },
     { q: 'Are my designs only mine?', a: 'No: the designs belong to your company. Your colleagues see and can edit all of them. Only whoever created a design or an administrator of the company can delete it.' },
     { q: 'I forgot my password. What do I do?', a: 'Ask the administrator of your company. They generate a temporary password, and at the next sign-in you create your own.' },
+    { q: 'Do I sign in with the e-mail or the user name?', a: 'With either one, always with the same password. The e-mail does not care about capital letters.' },
+    { q: 'My company does not use it yet. How do we start?', a: 'On the sign-in screen, click "Sign up my company" and type the company name, your user name, your e-mail and a password. You are in at once and become the administrator of the company: then you create the accounts of your colleagues in "Users".' },
+    { q: 'How do I change my e-mail?', a: 'In "My account" (your name, at the top of the screen): type the new e-mail and confirm with your current password. Each e-mail belongs to one person and one company only.' },
   ],
   tutorial: [
     { icon: 'template', title: 'Start from a template or from scratch', text: 'In Templates you will find ready-made models. If you prefer, start with a blank label and set the width and height at the top of the screen.' },
