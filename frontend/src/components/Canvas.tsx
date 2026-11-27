@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { DndContext, DragEndEvent, DragMoveEvent, DragStartEvent, Modifier, useDraggable, useDroppable } from '@dnd-kit/core';
 import { useShallow } from 'zustand/react/shallow';
 import { snapContext, useDesignerStore } from '../store/useDesignerStore';
-import { Guide, snapMove, unionBox } from '../utils/snap';
+import { Guide, snapMove, unionBox, visibleGridStep } from '../utils/snap';
 import { ZOOM_100 } from '../utils/units';
 import { useMeasure } from '../store/useUnitStore';
 import { elementBox } from '../utils/zplText';
@@ -233,6 +233,34 @@ function DraggableElement({ element, scale, groupOffset }: { element: DesignElem
   );
 }
 
+/** Where the element being dragged is going: its top-left corner in dots, and its page. */
+interface DragPos { x: number; y: number; page: number }
+
+/**
+ * While dragging: the position the element will take, in the unit of the fields (mm or dots), and, when snapping
+ * is on, that Alt moves freely. Drawn just above the element (inside the label when it is at the top).
+ */
+function DragBadge({ pos, zoom }: { pos: DragPos; zoom: number }) {
+  const t = useT();
+  const m = useMeasure();
+  const snapping = useDesignerStore(s => s.snapToGrid || s.snapToElements);
+  const decimal = (n: number) => (t('common.decimalSeparator') === ',' ? String(n).replace('.', ',') : String(n));
+  const top = pos.y * zoom - 22;
+  return (
+    <div
+      data-testid="drag-position"
+      style={{
+        position: 'absolute', left: pos.x * zoom, top: top < 0 ? pos.y * zoom + 4 : top, zIndex: 20, pointerEvents: 'none',
+        padding: '2px 6px', borderRadius: 4, fontSize: 11, lineHeight: '16px', whiteSpace: 'nowrap',
+        background: 'rgba(17, 24, 39, 0.88)', color: '#fff', fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      X {decimal(m.show(pos.x))} · Y {decimal(m.show(pos.y))} {m.short}
+      {snapping && <span style={{ opacity: 0.7 }}> · {t('canvas.dragAltHint')}</span>}
+    </div>
+  );
+}
+
 // One label of the design on the canvas: its own drawing area, with the elements of its page. With more than
 // one page each has a header that says which it is and how it prints, and clicking it makes it the page being
 // edited. A design of one page is drawn exactly as before, without a header.
@@ -243,9 +271,10 @@ interface PageSurfaceProps {
   gridStep: number;
   groupOffset: { x: number; y: number } | null;
   showHeader: boolean;
+  dragPos: DragPos | null;       // where the dragged element is going, when it is on this page
 }
 
-function PageSurface({ index, elements, zoom, gridStep, groupOffset, showHeader }: PageSurfaceProps) {
+function PageSurface({ index, elements, zoom, gridStep, groupOffset, showHeader, dragPos }: PageSurfaceProps) {
   const t = useT();
   const { labelWidth, labelHeight } = useDesignerStore(useShallow(s => ({ labelWidth: s.labelWidth, labelHeight: s.labelHeight })));
   const active = useDesignerStore(s => s.activePage === index);
@@ -304,15 +333,16 @@ function PageSurface({ index, elements, zoom, gridStep, groupOffset, showHeader 
           <DraggableElement key={el.id} element={el} scale={zoom} groupOffset={groupOffset} />
         ))}
       </div>
-      {/* Dot grid rendered after elements via multiply — visible on white, invisible on black */}
-      <div style={{
+      {/* Dot grid rendered after elements via multiply — visible on white, invisible on black. Only drawn when shown */}
+      {gridStep > 0 && <div style={{
         position: 'absolute',
         inset: 0,
         backgroundImage: 'radial-gradient(circle, #aaa 1px, transparent 1px)',
         backgroundSize: `${gridStep}px ${gridStep}px`,
         mixBlendMode: 'multiply',
         pointerEvents: 'none',
-      }} />
+      }} />}
+      {dragPos && <DragBadge pos={dragPos} zoom={zoom} />}
       {/* Alignment guides while dragging or resizing (magnetic snapping): on the page being edited */}
       {(active || !showHeader) && guides.map((g, i) => g.gap ? <GapMarker key={i} guide={g} zoom={zoom} /> : (
         <div
@@ -445,6 +475,7 @@ export function Canvas() {
   // Live pixel offset while a multi-selection drag is in progress, so the
   // non-active members follow the pointer too.
   const [groupOffset, setGroupOffset] = useState<{ x: number; y: number } | null>(null);
+  const [dragPos, setDragPos] = useState<DragPos | null>(null);
   const gridSize = useDesignerStore(s => s.gridSize);
 
   // The move in dots of the dragged element, or of the whole selection when it is
@@ -477,15 +508,20 @@ export function Canvas() {
     const s = dragSnap(String(event.active.id), event.delta);
     setGroupOffset({ x: s.dx * zoom, y: s.dy * zoom });
     useDesignerStore.getState().setGuides(s.guides);
+    // Where the dragged element will be (the same as the move applies at the end: never left of or above 0)
+    const el = useDesignerStore.getState().elements.find(e => e.id === event.active.id);
+    setDragPos(el ? { x: Math.max(0, el.x + s.dx), y: Math.max(0, el.y + s.dy), page: pageOf(el) } : null);
   }, [dragSnap, zoom]);
 
   const handleDragCancel = useCallback(() => {
+    setDragPos(null);
     setGroupOffset(null);
     useDesignerStore.getState().setGuides([]);
   }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, delta } = event;
+    setDragPos(null);
     setGroupOffset(null);
     const { elements, updateElement, setGuides } = useDesignerStore.getState();
     setGuides([]);
@@ -501,9 +537,9 @@ export function Canvas() {
     }
   }, [dragSnap]);
 
-  // Grid dots: every grid step, or every 2, 4… steps when they would be too dense to see
-  let gridStep = gridSize * zoom;
-  while (gridStep < 6) gridStep *= 2;
+  // Grid dots: every grid step, or every 2, 4… steps when they would be too dense to see; none when the grid is hidden
+  const showGrid = useDesignerStore(s => s.showGrid);
+  const gridStep = showGrid ? visibleGridStep(gridSize, zoom).px : 0;
 
   const showHeader = pages.length > 1;
 
@@ -550,6 +586,7 @@ export function Canvas() {
             gridStep={gridStep}
             groupOffset={groupOffset}
             showHeader={showHeader}
+            dragPos={dragPos && (showHeader ? dragPos.page === index : true) ? dragPos : null}
           />
         ))}
         {/* Room below the last page, so its bottom edge can be reached when the editor scrolls */}

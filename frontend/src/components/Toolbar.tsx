@@ -10,7 +10,8 @@ import { NumberInput } from './NumberInput';
 import { extractVariables, substituteVariables } from '../utils/variables';
 import { useIsDirty } from '../hooks/useUnsavedChanges';
 import { requestLogout } from '../utils/logout';
-import { GRID_STEPS } from '../utils/snap';
+import { GRID_STEPS, visibleGridStep } from '../utils/snap';
+import { dotsToMm } from '../utils/units';
 import { useLangStore, useT } from '../i18n';
 import { LanguageSelect } from './LanguageSelect';
 import { MAX_PAGES, isStructured } from '../utils/pages';
@@ -28,7 +29,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const {
     labelWidth, labelHeight, setLabelSize,
     elements, selectedIds, selectedId,
-    snapToGrid, toggleSnapToGrid, snapToElements, toggleSnapToElements, gridSize, setGridSize,
+    snapToGrid, toggleSnapToGrid, snapToElements, toggleSnapToElements, gridSize, setGridSize, showGrid, toggleShowGrid,
     alignElements, distributeElements,
     zplCode, sampleValues,
     pages, addPage,
@@ -37,6 +38,10 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
   const me = useAccountStore(s => s.me);
   const dirty = useIsDirty();
   const t = useT();
+  // At this zoom the grid dots are drawn every N steps (snapping keeps the step itself)
+  const zoom = useDesignerStore(s => s.zoom);
+  const gridEvery = visibleGridStep(gridSize, zoom).every;
+  const mmText = (dots: number) => String(dotsToMm(dots)).replace('.', t('common.decimalSeparator'));
   const lang = useLangStore(s => s.lang);
   const m = useMeasure();
   const { undo, redo, canUndo, canRedo } = useHistory();
@@ -156,6 +161,8 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           className={`chrome-icon-btn${snapToElements ? ' active' : ''}`}
           onClick={toggleSnapToElements}
           title={t('toolbar.snapElements', { state: t(snapToElements ? 'common.on' : 'common.off') })}
+          aria-label={t('toolbar.snapElements', { state: t(snapToElements ? 'common.on' : 'common.off') })}
+          aria-pressed={snapToElements}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M3 2v5a4 4 0 008 0V2" stroke="currentColor" strokeWidth="1.5"/>
@@ -169,6 +176,8 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           className={`chrome-icon-btn${snapToGrid ? ' active' : ''}`}
           onClick={toggleSnapToGrid}
           title={t('toolbar.snapGrid', { state: t(snapToGrid ? 'common.on' : 'common.off') })}
+          aria-label={t('toolbar.snapGrid', { state: t(snapToGrid ? 'common.on' : 'common.off') })}
+          aria-pressed={snapToGrid}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <circle cx="2.5" cy="2.5" r="1" fill="currentColor"/>
@@ -187,10 +196,35 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
           value={gridSize}
           onChange={e => setGridSize(Number(e.target.value))}
           title={t('toolbar.gridStep')}
+          aria-label={t('toolbar.gridStep')}
           style={{ width: 72, padding: '2px 4px' }}
         >
           {GRID_STEPS.map(g => <option key={g.dots} value={g.dots}>{lang === 'en' ? g.label : g.label.replace('.', ',')}</option>)}
         </select>
+        {/* At this zoom the dots would be too dense: they are drawn every N steps, while snapping keeps the step */}
+        {showGrid && gridEvery > 1 && (
+          <span
+            data-testid="grid-every"
+            title={t('toolbar.gridEvery', { shown: mmText(gridSize * gridEvery), step: mmText(gridSize) })}
+            style={{ fontSize: 11, color: 'var(--chrome-text-faint)', cursor: 'help' }}
+          >
+            ×{gridEvery}
+          </span>
+        )}
+        {/* Show grid: only the drawing of the dots; snapping to the grid works with it hidden too */}
+        <button
+          className={`chrome-icon-btn${showGrid ? ' active' : ''}`}
+          onClick={toggleShowGrid}
+          title={t('toolbar.showGrid', { state: t(showGrid ? 'common.on' : 'common.off') })}
+          aria-label={t('toolbar.showGrid', { state: t(showGrid ? 'common.on' : 'common.off') })}
+          aria-pressed={showGrid}
+          data-testid="toolbar-show-grid"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="1.5" y="1.5" width="11" height="11" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M5.2 1.5v11M8.8 1.5v11M1.5 5.2h11M1.5 8.8h11" stroke="currentColor" strokeWidth="0.9"/>
+          </svg>
+        </button>
 
         {/* Align tools — only when 2+ selected */}
         {multiSelected && (

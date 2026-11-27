@@ -223,6 +223,17 @@ export const snappingSuspended = (): boolean => altHeld;
 // How close an edge must come to snap: 6 screen pixels
 export const SNAP_DISTANCE_PX = 6;
 
+/**
+ * The grid as drawn: the dots are every `every` grid steps (1, 2, 4…) so they are never closer than 6 screen pixels.
+ * Snapping keeps the grid step itself; `px` is the distance between the dots drawn, in screen pixels.
+ */
+export function visibleGridStep(gridSize: number, zoom: number): { px: number; every: number } {
+  let every = 1;
+  if (gridSize <= 0 || zoom <= 0) return { px: 0, every };
+  while (gridSize * zoom * every < 6) every *= 2;
+  return { px: gridSize * zoom * every, every };
+}
+
 // Grid steps offered in the toolbar, in dots (8 dots = 1 mm)
 export const GRID_STEPS = [
   { dots: 4, label: '0.5 mm' },
