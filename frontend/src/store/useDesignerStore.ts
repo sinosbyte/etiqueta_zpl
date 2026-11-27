@@ -92,8 +92,11 @@ interface DesignerStore {
   setRecords(records: DataRecord[]): void;
   onCodeChange(code: string): void;
   syncToCode(): Promise<void>;
-  /** The editor as it is when the app opens: what was being edited, its test data and its history are gone. */
-  resetEditor(): void;
+  /**
+   * The editor as it is when the app opens: what was being edited, its test data and its history are gone.
+   * With `size`, the blank label keeps that size (a new label on the same roll).
+   */
+  resetEditor(size?: { width: number; height: number }): void;
 }
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -630,7 +633,7 @@ export const useDesignerStore = create<DesignerStore>()(
     }, 600);
   },
 
-  resetEditor() {
+  resetEditor(size) {
     // Nothing still on its way may write what belonged to the previous content into the blank editor
     if (syncTimeout) clearTimeout(syncTimeout);
     if (parseTimeout) clearTimeout(parseTimeout);
@@ -641,7 +644,10 @@ export const useDesignerStore = create<DesignerStore>()(
     syncAbort = null;
     parseAbort = null;
     lastCanvasZpl = '';
-    startHistoryAfresh(() => set(blankEditor()));
+    startHistoryAfresh(() => set({
+      ...blankEditor(),
+      ...(size && { labelWidth: size.width, labelHeight: size.height, zplCode: `^XA\n^PW${size.width}\n^LL${size.height}\n^XZ` }),
+    }));
   },
 
   async syncToCode() {

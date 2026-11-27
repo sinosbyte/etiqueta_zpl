@@ -3,8 +3,7 @@ import { useDesignsStore } from '../store/useDesignsStore';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { checkSapCompat, SAP_MAX_LINE } from '../utils/sapCompat';
 import { useT } from '../i18n';
-
-type Mode = 'overwrite' | 'version' | 'new';
+import { SaveMode as Mode, defaultSaveMode } from '../utils/saveMode';
 
 export function SaveDesignModal() {
   const {
@@ -13,9 +12,7 @@ export function SaveDesignModal() {
   } = useDesignsStore();
 
   const t = useT();
-  const defaultMode: Mode = activeDesignId
-    ? (activeVersionNumber !== null ? 'overwrite' : 'version')
-    : 'new';
+  const defaultMode: Mode = defaultSaveMode(activeDesignId);
 
   const [mode, setMode] = useState<Mode>(defaultMode);
   const [name, setName] = useState('');

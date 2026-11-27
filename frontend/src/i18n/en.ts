@@ -61,7 +61,9 @@ export const en = {
   'sidebar.clearTitle': 'Remove all elements',
   'sidebar.clearDialogTitle': 'Clear the label',
   'sidebar.clearAction': 'Remove all',
-  'sidebar.clearConfirm': 'Remove all elements from the canvas?',
+  'sidebar.clearConfirm': 'Remove all elements from the label? It stays linked to the open design (saving writes into it). To start another label, use "New label".',
+  'toolbar.newLabel': 'New label',
+  'toolbar.newLabelTitle': 'Start a blank label of the same size. The open design stays saved as it is; the next Save creates a new design.',
   'sidebar.myDesigns': 'My Designs',
   'sidebar.pictureError': 'Could not open the picture',
 
