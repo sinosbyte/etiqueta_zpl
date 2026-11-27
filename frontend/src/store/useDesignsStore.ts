@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { useDesignerStore } from './useDesignerStore';
+import { useDesignerStore, startHistoryAfresh } from './useDesignerStore';
 import { toast } from './useToastStore';
 import { t } from '../i18n';
 import {
@@ -35,6 +35,8 @@ interface DesignsStore {
   deleteDesign(id: number): Promise<void>;
   renameDesign(id: number, newName: string): Promise<void>;
   fetchVersions(designId: number): Promise<void>;
+  /** Forgets the design that was open and the list of the previous session (nothing is deleted on the server). */
+  reset(): void;
 
   openSaveModal(): void;
   closeSaveModal(): void;
@@ -129,7 +131,8 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
 
   async loadVersion(designId: number, versionNumber: number) {
     const version = await apiGetVersion(designId, versionNumber);
-    useDesignerStore.setState({
+    // Another design opens: undo must not bring back what was in the editor before it (that is another design)
+    startHistoryAfresh(() => useDesignerStore.setState({
       elements: version.elements,
       zplCode: version.zpl,
       labelWidth: version.labelWidth,
@@ -142,14 +145,14 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       activePage: 0,
       selectedId: null,
       selectedIds: [],
-    });
+    }));
     const designName = get().designs.find(d => d.id === designId)?.name ?? '';
     set({ activeDesignId: designId, activeDesignName: designName, activeVersionNumber: versionNumber, savedSignature: currentSignature() });
   },
 
   // A template opens as a new design: nothing is saved until the user saves it under their own name
   openTemplate(template: TemplateDetail) {
-    useDesignerStore.setState({
+    startHistoryAfresh(() => useDesignerStore.setState({
       elements: template.elements,
       zplCode: template.zpl,
       labelWidth: template.labelWidth,
@@ -160,8 +163,15 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
       activePage: 0,
       selectedId: null,
       selectedIds: [],
-    });
+    }));
     set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [], savedSignature: currentSignature() });
+  },
+
+  reset() {
+    set({
+      designs: [], designsTotal: 0, activeDesignId: null, activeDesignName: '', activeVersionNumber: null,
+      versions: [], showSaveModal: false, error: '', savedSignature: EMPTY_SIGNATURE,
+    });
   },
 
   markSaved() {

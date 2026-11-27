@@ -92,6 +92,8 @@ interface DesignerStore {
   setRecords(records: DataRecord[]): void;
   onCodeChange(code: string): void;
   syncToCode(): Promise<void>;
+  /** The editor as it is when the app opens: what was being edited, its test data and its history are gone. */
+  resetEditor(): void;
 }
 
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -199,6 +201,42 @@ function applyAsOwnStep(apply: () => void) {
   }));
 }
 
+/**
+ * Starts the history afresh when what the editor holds is replaced by something else (a design, a version or a
+ * template opened, or a session that ends): `apply` changes the store without becoming a step, and the step that
+ * was waiting out the delay is dropped, because it belongs to what was there before. Undo then never brings back
+ * the content of the previous design, template or user.
+ */
+export function startHistoryAfresh(apply?: () => void): void {
+  if (historyTimer) clearTimeout(historyTimer);
+  historyTimer = null;
+  historyPending = null;
+  const history = useDesignerStore.temporal;
+  const wasTracking = history.getState().isTracking;
+  history.getState().pause();
+  try { apply?.(); } finally { if (wasTracking) history.getState().resume(); }
+  history.getState().clear();
+}
+
+// What the editor holds when the app opens; the snapping preferences are the browser's and are not part of it
+const blankEditor = () => ({
+  labelWidth: 800,
+  labelHeight: 1200,
+  elements: [] as DesignElement[],
+  selectedId: null,
+  selectedIds: [] as string[],
+  activeTab: 'design' as const,
+  zplCode: '^XA\n^PW800\n^LL1200\n^XZ',
+  zplError: '',
+  zoom: ZOOM_100,
+  guides: [] as Guide[],
+  sampleValues: {} as Record<string, string>,
+  showSamples: false,
+  pages: singlePage(),
+  activePage: 0,
+  records: [] as DataRecord[],
+});
+
 /** Moves or copies the selection to the page `target` as one step; null when there is nothing to do it with. */
 function transferSelected(mode: TransferMode, target: number): TransferPlan | null {
   const { selectedId, selectedIds, elements, pages } = useDesignerStore.getState();
@@ -218,24 +256,10 @@ function transferSelected(mode: TransferMode, target: number): TransferPlan | nu
 export const useDesignerStore = create<DesignerStore>()(
   temporal(
     (set, get) => ({
-  labelWidth: 800,
-  labelHeight: 1200,
-  elements: [],
-  selectedId: null,
-  selectedIds: [],
-  activeTab: 'design',
-  zplCode: '^XA\n^PW800\n^LL1200\n^XZ',
-  zplError: '',
-  zoom: ZOOM_100,
+  ...blankEditor(),
   snapToGrid: savedSnap.snapToGrid ?? false,
   snapToElements: savedSnap.snapToElements ?? true,
   gridSize: savedSnap.gridSize ?? 8,
-  guides: [],
-  sampleValues: {},
-  showSamples: false,
-  pages: singlePage(),
-  activePage: 0,
-  records: [],
 
   setLabelSize(width, height) {
     set({ labelWidth: width, labelHeight: height });
@@ -604,6 +628,20 @@ export const useDesignerStore = create<DesignerStore>()(
         set({ zplError: e instanceof Error ? e.message : t('zpl.invalid') });
       }
     }, 600);
+  },
+
+  resetEditor() {
+    // Nothing still on its way may write what belonged to the previous content into the blank editor
+    if (syncTimeout) clearTimeout(syncTimeout);
+    if (parseTimeout) clearTimeout(parseTimeout);
+    syncTimeout = null;
+    parseTimeout = null;
+    syncAbort?.abort();
+    parseAbort?.abort();
+    syncAbort = null;
+    parseAbort = null;
+    lastCanvasZpl = '';
+    startHistoryAfresh(() => set(blankEditor()));
   },
 
   async syncToCode() {

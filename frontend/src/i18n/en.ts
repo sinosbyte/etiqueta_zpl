@@ -39,6 +39,8 @@ export const en = {
   'unsaved.dialogTitle': 'Unsaved changes',
   'unsaved.discard': 'Discard changes',
   'unsaved.confirmDiscard': 'There are unsaved changes in the editor. Continue and discard them?',
+  'unsaved.confirmLogout': 'There are unsaved changes in the editor. If you sign out now they will be lost. Sign out anyway?',
+  'unsaved.logoutDiscard': 'Sign out and discard',
   'toolbar.language': 'Language',
   'toolbar.continue': 'Continue',
 
