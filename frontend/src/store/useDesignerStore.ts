@@ -51,6 +51,7 @@ interface DesignerStore {
   snapToGrid: boolean;
   snapToElements: boolean;               // magnetic: edges and centres snap to other elements and the label
   gridSize: number;                      // grid step in dots
+  showGrid: boolean;                     // the grid dots are drawn (only the drawing; snapping to the grid is snapToGrid)
   guides: Guide[];                       // alignment lines shown while dragging or resizing
   sampleValues: Record<string, string>;  // example value per {{variable}}, for Preview/Export and the canvas
   showSamples: boolean;                  // canvas shows sample values instead of {{variable}}
@@ -79,6 +80,7 @@ interface DesignerStore {
   setActiveTab(tab: 'design' | 'code' | 'split'): void;
   setZoom(zoom: number): void;
   toggleSnapToGrid(): void;
+  toggleShowGrid(): void;
   toggleSnapToElements(): void;
   setGridSize(dots: number): void;
   setGuides(guides: Guide[]): void;
@@ -107,13 +109,13 @@ let parseAbort: AbortController | null = null;
 let lastCanvasZpl = '';
 
 // Snapping settings are remembered in this browser (storage may be unavailable)
-type SnapSettings = Partial<Pick<DesignerStore, 'snapToGrid' | 'snapToElements' | 'gridSize'>>;
+type SnapSettings = Partial<Pick<DesignerStore, 'snapToGrid' | 'snapToElements' | 'gridSize' | 'showGrid'>>;
 const SNAP_KEY = 'zpl-designer-snap';
 const savedSnap: SnapSettings = (() => {
   try { return JSON.parse(localStorage.getItem(SNAP_KEY) ?? '{}') as SnapSettings; } catch { return {}; }
 })();
-function saveSnap({ snapToGrid, snapToElements, gridSize }: SnapSettings) {
-  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ snapToGrid, snapToElements, gridSize })); } catch { /* not saved */ }
+function saveSnap({ snapToGrid, snapToElements, gridSize, showGrid }: SnapSettings) {
+  try { localStorage.setItem(SNAP_KEY, JSON.stringify({ snapToGrid, snapToElements, gridSize, showGrid })); } catch { /* not saved */ }
 }
 
 /**
@@ -263,6 +265,7 @@ export const useDesignerStore = create<DesignerStore>()(
   snapToGrid: savedSnap.snapToGrid ?? false,
   snapToElements: savedSnap.snapToElements ?? true,
   gridSize: savedSnap.gridSize ?? 8,
+  showGrid: savedSnap.showGrid ?? true,
 
   setLabelSize(width, height) {
     set({ labelWidth: width, labelHeight: height });
@@ -507,6 +510,11 @@ export const useDesignerStore = create<DesignerStore>()(
 
   toggleSnapToGrid() {
     set(s => ({ snapToGrid: !s.snapToGrid }));
+    saveSnap(get());
+  },
+
+  toggleShowGrid() {
+    set(s => ({ showGrid: !s.showGrid }));
     saveSnap(get());
   },
 
