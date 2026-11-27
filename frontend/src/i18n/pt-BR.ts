@@ -41,6 +41,8 @@ export const ptBR: Record<keyof typeof en, string> = {
   'unsaved.dialogTitle': 'Alterações não salvas',
   'unsaved.discard': 'Descartar alterações',
   'unsaved.confirmDiscard': 'Há alterações não salvas no editor. Continuar e descartá-las?',
+  'unsaved.confirmLogout': 'Há alterações não salvas no editor. Se sair agora, elas serão perdidas. Sair mesmo assim?',
+  'unsaved.logoutDiscard': 'Sair e descartar',
   'toolbar.language': 'Idioma',
   'toolbar.continue': 'Continuar',
 

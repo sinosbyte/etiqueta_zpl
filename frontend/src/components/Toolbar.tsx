@@ -1,7 +1,6 @@
 import React from 'react';
 import { useDesignerStore } from '../store/useDesignerStore';
 import { useDesignsStore } from '../store/useDesignsStore';
-import { useAuthStore } from '../store/useAuthStore';
 import { useAccountStore } from '../store/useAccountStore';
 import { navigate } from '../utils/navigation';
 import { useHistory } from '../hooks/useHistory';
@@ -10,6 +9,7 @@ import { UnitToggle } from './UnitToggle';
 import { NumberInput } from './NumberInput';
 import { extractVariables, substituteVariables } from '../utils/variables';
 import { useIsDirty } from '../hooks/useUnsavedChanges';
+import { requestLogout } from '../utils/logout';
 import { GRID_STEPS } from '../utils/snap';
 import { useLangStore, useT } from '../i18n';
 import { LanguageSelect } from './LanguageSelect';
@@ -33,7 +33,6 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
     pages, addPage,
   } = useDesignerStore();
   const { showSaveModal: _show, openSaveModal, activeDesignName } = useDesignsStore();
-  const { logout } = useAuthStore();
   const me = useAccountStore(s => s.me);
   const dirty = useIsDirty();
   const t = useT();
@@ -338,7 +337,7 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
 
         <button
           className="chrome-icon-btn"
-          onClick={logout}
+          onClick={() => void requestLogout()}
           title={t('toolbar.logout')}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { requestLogout } from '../utils/logout';
 import { useT } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { useAccountStore } from '../store/useAccountStore';
-import { useAuthStore } from '../store/useAuthStore';
 import { canManageCompanies } from '../utils/admin';
 import { navigate } from '../utils/navigation';
 import { UsersPanel, CompaniesPanel } from './AdminPage';
@@ -18,7 +18,6 @@ export type PlatformTab = 'companies' | 'users' | 'templates';
 export function PlatformPage({ initialTab = 'companies' }: { initialTab?: PlatformTab }) {
   const t = useT();
   const { me, load } = useAccountStore();
-  const logout = useAuthStore(s => s.logout);
   const [tab, setTab] = useState<PlatformTab>(initialTab);
   const [companyId, setCompanyId] = useState<number | undefined>(undefined);
   useEffect(() => { if (!me) void load(); }, [me, load]);
@@ -34,7 +33,7 @@ export function PlatformPage({ initialTab = 'companies' }: { initialTab?: Platfo
           {me.username}
         </button>
       )}
-      <button type="button" onClick={logout} className="chrome-btn chrome-btn-ghost" style={{ fontSize: 12 }}>{t('toolbar.logout')}</button>
+      <button type="button" onClick={() => void requestLogout()} className="chrome-btn chrome-btn-ghost" style={{ fontSize: 12 }}>{t('toolbar.logout')}</button>
     </div>
   );
 

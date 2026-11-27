@@ -26,6 +26,13 @@ function decodePayload(token: string): { exp?: number } | null {
   }
 }
 
+/** Whose session a token is (the user id it carries), or null when it cannot be read. */
+export function tokenUserId(token: string | null): number | null {
+  if (!token) return null;
+  const payload = decodePayload(token) as { userId?: unknown } | null;
+  return typeof payload?.userId === 'number' ? payload.userId : null;
+}
+
 export function isTokenExpired(token: string): boolean {
   const payload = decodePayload(token);
   if (!payload?.exp) return true;

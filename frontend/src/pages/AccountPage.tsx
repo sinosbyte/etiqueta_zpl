@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { requestLogout } from '../utils/logout';
 import { useT } from '../i18n';
 import { LanguageSelect } from '../components/LanguageSelect';
 import { ChangePasswordForm } from '../components/ChangePasswordForm';
 import { useAccountStore } from '../store/useAccountStore';
-import { useAuthStore } from '../store/useAuthStore';
 import { roleKey } from '../utils/admin';
 import { toast } from '../store/useToastStore';
 import { updateMyEmail } from '../utils/accountClient';
@@ -121,14 +121,13 @@ export function AccountPage({ onBack }: { onBack: () => void }) {
 /** The first login with a temporary password: nothing else is reachable until it is changed */
 export function ChangePasswordPage() {
   const t = useT();
-  const logout = useAuthStore(s => s.logout);
   return (
     <div style={{ minHeight: '100vh', background: 'var(--chrome-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} data-testid="forced-password-change">
       <div style={{ width: '100%', maxWidth: 380, ...card, padding: 24 }}>
         <h1 style={{ fontSize: 17, fontWeight: 600, color: 'var(--chrome-text)', marginBottom: 6 }}>{t('password.forcedTitle')}</h1>
         <p style={{ fontSize: 13, color: 'var(--chrome-text-muted)', lineHeight: 1.6, marginBottom: 18 }}>{t('password.forcedHelp')}</p>
         <ChangePasswordForm onDone={() => toast.success(t('password.changed'))} />
-        <button type="button" onClick={logout} className="chrome-btn chrome-btn-ghost" style={{ marginTop: 12, width: '100%', justifyContent: 'center', fontSize: 12 }}>
+        <button type="button" onClick={() => void requestLogout()} className="chrome-btn chrome-btn-ghost" style={{ marginTop: 12, width: '100%', justifyContent: 'center', fontSize: 12 }}>
           {t('toolbar.logout')}
         </button>
       </div>
