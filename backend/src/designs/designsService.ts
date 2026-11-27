@@ -25,6 +25,16 @@ export interface DesignSummary {
   versionCount: number;
 }
 
+/** A design in the list: who created it, too (Etapa 4: shown in My designs; who may delete it depends on it). */
+export interface DesignListItem extends DesignSummary {
+  createdBy: { id: number; username: string } | null;
+}
+
+/** `text` as a literal inside a LIKE pattern (its %, _ and \\ match themselves). */
+export function likeLiteral(text: string): string {
+  return text.replace(/[\\%_]/g, ch => `\\${ch}`);
+}
+
 export interface VersionSummary {
   id: number;
   versionNumber: number;
@@ -78,12 +88,17 @@ export async function createDesign(userId: number, name: string, payload: Design
   return { designId, versionId };
 }
 
-export async function listDesigns(who: Who, page: PageParams): Promise<Paginated<DesignSummary>> {
+export async function listDesigns(who: Who, page: PageParams, search?: string): Promise<Paginated<DesignListItem>> {
   const db = getDb();
+  // The search finds the name anywhere in it, whatever the case, in all the designs of the company (not just one page)
+  const term = search?.trim();
+  const where = term
+    ? and(inCompanyOf(who), sql`${designsTable.name} ILIKE ${'%' + likeLiteral(term) + '%'} ESCAPE '\\'`)
+    : inCompanyOf(who);
   const totalRows = await db
     .select({ n: count() })
     .from(designsTable)
-    .where(inCompanyOf(who));
+    .where(where);
   const total = Number(totalRows[0]?.n ?? 0);
 
   const rows = await db
@@ -93,11 +108,14 @@ export async function listDesigns(who: Who, page: PageParams): Promise<Paginated
       createdAt: designsTable.createdAt,
       updatedAt: designsTable.updatedAt,
       versionCount: count(designVersionsTable.id),
+      createdById: designsTable.userId,
+      createdByName: usersTable.username,
     })
     .from(designsTable)
     .leftJoin(designVersionsTable, eq(designVersionsTable.designId, designsTable.id))
-    .where(inCompanyOf(who))
-    .groupBy(designsTable.id)
+    .leftJoin(usersTable, eq(usersTable.id, designsTable.userId))
+    .where(where)
+    .groupBy(designsTable.id, usersTable.username)
     .orderBy(sql`${designsTable.updatedAt} DESC`)
     .limit(page.limit)
     .offset(page.offset);
@@ -108,6 +126,7 @@ export async function listDesigns(who: Who, page: PageParams): Promise<Paginated
     createdAt: toIso(r.createdAt),
     updatedAt: toIso(r.updatedAt),
     versionCount: Number(r.versionCount),
+    createdBy: r.createdByName !== null ? { id: r.createdById, username: r.createdByName } : null,
   }));
   return { items, total, limit: page.limit, offset: page.offset };
 }

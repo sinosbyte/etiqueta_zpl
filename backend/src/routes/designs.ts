@@ -75,11 +75,15 @@ designsRouter.post('/', async (req: Request, res: Response, next: NextFunction) 
   }
 });
 
+// The list takes an optional search on the name (Etapa 4); without it, the list is as before
+const ListSchema = PaginationSchema.extend({ search: z.string().max(100).optional() });
+
 designsRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
-  const page = PaginationSchema.safeParse(req.query);
+  const page = ListSchema.safeParse(req.query);
   if (!page.success) { res.status(400).json({ error: 'Invalid pagination parameters' }); return; }
   try {
-    res.json(await listDesigns(whoOf(req.user!), page.data));
+    const { search, ...paging } = page.data;
+    res.json(await listDesigns(whoOf(req.user!), paging, search));
   } catch (e) {
     next(e);
   }

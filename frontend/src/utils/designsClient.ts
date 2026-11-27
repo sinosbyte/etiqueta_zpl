@@ -7,6 +7,8 @@ export interface DesignSummary {
   createdAt: string;
   updatedAt: string;
   versionCount: number;
+  /** Who created it (in the list of designs; Etapa 4) */
+  createdBy?: { id: number; username: string } | null;
 }
 
 export interface VersionSummary {
@@ -53,8 +55,9 @@ export async function apiCreateDesign(name: string, payload: DesignPayload): Pro
   });
 }
 
-export async function apiListDesigns(limit = 50, offset = 0): Promise<Paginated<DesignSummary>> {
-  return apiFetch(`/api/designs?limit=${limit}&offset=${offset}`);
+export async function apiListDesigns(limit = 50, offset = 0, search = ''): Promise<Paginated<DesignSummary>> {
+  const q = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
+  return apiFetch(`/api/designs?limit=${limit}&offset=${offset}${q}`);
 }
 
 export async function apiGetDesign(id: number): Promise<DesignSummary> {
