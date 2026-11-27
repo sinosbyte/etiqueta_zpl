@@ -6,6 +6,9 @@ import { t, useT } from '../i18n';
 import { confirmDiscardChanges } from '../hooks/useUnsavedChanges';
 import { askConfirm } from '../store/useDialogStore';
 import { LanguageSelect } from '../components/LanguageSelect';
+import { useAccountStore } from '../store/useAccountStore';
+import { canDeleteDesign } from '../utils/designsList';
+import { toast } from '../store/useToastStore';
 
 interface Props {
   onBack: () => void;
@@ -18,10 +21,12 @@ function relativeDate(iso: string): string {
   return t('designs.daysAgo', { n: diff });
 }
 
-function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
+function DesignCard({ design, onOpen, onDelete, onDuplicate, canDelete, onLoadVersion, onRename }: {
   design: DesignSummary;
   onOpen: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
+  canDelete: boolean;
   onLoadVersion: (versionNumber: number) => void;
   onRename: (newName: string) => void;
 }) {
@@ -117,6 +122,11 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
             {relativeDate(design.updatedAt)}
           </span>
         </div>
+        {design.createdBy && (
+          <div data-testid="design-created-by" style={{ fontSize: 11, color: 'var(--chrome-text-faint)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {t('designs.createdBy', { name: design.createdBy.username })}
+          </div>
+        )}
       </div>
 
       {expanded && (
@@ -161,12 +171,25 @@ function DesignCard({ design, onOpen, onDelete, onLoadVersion, onRename }: {
           {t('designs.openLatest')}
         </button>
         <button
-          onClick={onDelete}
-          className="chrome-btn chrome-btn-danger"
+          onClick={onDuplicate}
+          className="chrome-btn chrome-btn-ghost"
+          title={t('designs.duplicateTitle')}
+          data-testid="design-duplicate"
           style={{ fontSize: 12, padding: '4px 10px' }}
         >
-          {t('panel.delete')}
+          {t('designs.duplicate')}
         </button>
+        {/* The server refuses it to the others: only who created it or an administrator sees the button */}
+        {canDelete && (
+          <button
+            onClick={onDelete}
+            className="chrome-btn chrome-btn-danger"
+            data-testid="design-delete"
+            style={{ fontSize: 12, padding: '4px 10px' }}
+          >
+            {t('panel.delete')}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -179,11 +202,27 @@ export function MyDesignsPage({ onBack }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [openingId, setOpeningId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const me = useAccountStore(s => s.me);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
+  // The search is done by the server, in all the designs of the company (300 ms after the last key)
   useEffect(() => {
-    setLoading(true);
-    fetchDesigns().finally(() => setLoading(false));
-  }, [fetchDesigns]);
+    const timer = setTimeout(() => {
+      setLoading(true);
+      fetchDesigns(search).finally(() => setLoading(false));
+    }, search ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [search, fetchDesigns]);
+
+  const handleDuplicate = async (design: DesignSummary) => {
+    setBusyId(design.id);
+    try {
+      const name = await useDesignsStore.getState().duplicateDesign(design.id, design.name);
+      toast.success(t('designs.duplicated', { name }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t('designs.copyFailed'));
+    } finally { setBusyId(null); }
+  };
 
   const handleLoadMore = async () => {
     setLoadingMore(true);
@@ -219,9 +258,8 @@ export function MyDesignsPage({ onBack }: Props) {
     await deleteDesign(design.id);
   };
 
-  const filtered = search.trim()
-    ? designs.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))
-    : designs;
+  const searching = search.trim() !== '';
+  const filtered = designs;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--chrome-bg)' }}>
@@ -294,7 +332,7 @@ export function MyDesignsPage({ onBack }: Props) {
           <p style={{ fontSize: 13, color: 'var(--status-error)', textAlign: 'center', marginTop: 60 }}>{error}</p>
         )}
 
-        {!loading && !error && designs.length === 0 && (
+        {!loading && !error && designs.length === 0 && !searching && (
           <div style={{ textAlign: 'center', marginTop: 80 }}>
             <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', lineHeight: 1.8 }}>
               {t('designs.empty1')}<br />
@@ -307,7 +345,7 @@ export function MyDesignsPage({ onBack }: Props) {
           </div>
         )}
 
-        {!loading && designs.length > 0 && filtered.length === 0 && (
+        {!loading && !error && designs.length === 0 && searching && (
           <p style={{ fontSize: 13, color: 'var(--chrome-text-faint)', textAlign: 'center', marginTop: 60 }}>
             {t('designs.noMatch', { search })}
           </p>
@@ -326,13 +364,15 @@ export function MyDesignsPage({ onBack }: Props) {
                   design={design}
                   onOpen={() => handleOpen(design)}
                   onDelete={() => handleDelete(design)}
+                  onDuplicate={() => { if (busyId === null) void handleDuplicate(design); }}
+                  canDelete={canDeleteDesign(me, design)}
                   onLoadVersion={vn => handleLoadVersion(design, vn)}
                   onRename={newName => renameDesign(design.id, newName)}
                 />
               ))}
             </div>
 
-            {!search && (
+            {(
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 24 }}>
                 <p style={{ fontSize: 11, color: 'var(--chrome-text-faint)' }}>
                   {t('designs.showing', { n: designs.length, total: designsTotal })}

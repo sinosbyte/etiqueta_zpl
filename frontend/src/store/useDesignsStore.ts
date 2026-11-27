@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { copyName } from '../utils/designsList';
 import { useDesignerStore, startHistoryAfresh } from './useDesignerStore';
 import { toast } from './useToastStore';
 import { t } from '../i18n';
@@ -23,8 +24,12 @@ interface DesignsStore {
   error: string;
   savedSignature: string;  // signatureOf the content last saved, loaded or opened: the editor differs from it = unsaved changes
 
-  fetchDesigns(): Promise<void>;
+  designsSearch: string;   // the search the list was fetched with (the server searches all the designs of the company)
+  /** The first page of the list; `search` replaces the search in use (left out = the same as now) */
+  fetchDesigns(search?: string): Promise<void>;
   loadMoreDesigns(): Promise<void>;
+  /** A copy of the latest version of a design (test data and pages too) as a new design; returns its name */
+  duplicateDesign(id: number, name: string): Promise<string>;
   saveNewDesign(name: string): Promise<void>;
   saveVersion(): Promise<void>;
   overwriteVersion(): Promise<void>;
@@ -44,6 +49,7 @@ interface DesignsStore {
 }
 
 const DESIGNS_PAGE_SIZE = 24;
+let listRequest = 0;   // the latest request of the list: answers of older ones are dropped
 
 // What the editor holds now: the payload to save and its signature
 function editorContent() {
@@ -69,6 +75,7 @@ function warnIfNotSapCompatible(zpl: string): void {
 export const useDesignsStore = create<DesignsStore>((set, get) => ({
   designs: [],
   designsTotal: 0,
+  designsSearch: '',
   activeDesignId: null,
   activeDesignName: '',
   activeVersionNumber: null,
@@ -77,10 +84,14 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
   error: '',
   savedSignature: EMPTY_SIGNATURE,
 
-  async fetchDesigns() {
+  async fetchDesigns(search) {
+    const term = search ?? get().designsSearch;
+    const id = ++listRequest;
+    set({ designsSearch: term });
     try {
-      const { items, total } = await apiListDesigns(DESIGNS_PAGE_SIZE, 0);
-      set({ designs: items, designsTotal: total });
+      const { items, total } = await apiListDesigns(DESIGNS_PAGE_SIZE, 0, term);
+      if (id !== listRequest) return;   // typing went on: an older answer arriving late is not shown
+      set({ designs: items, designsTotal: total, error: '' });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : 'Failed to load designs' });
     }
@@ -88,8 +99,8 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
 
   async loadMoreDesigns() {
     try {
-      const { designs } = get();
-      const { items, total } = await apiListDesigns(DESIGNS_PAGE_SIZE, designs.length);
+      const { designs, designsSearch } = get();
+      const { items, total } = await apiListDesigns(DESIGNS_PAGE_SIZE, designs.length, designsSearch);
       set({ designs: [...designs, ...items], designsTotal: total });
     } catch (e) {
       set({ error: e instanceof Error ? e.message : 'Failed to load more designs' });
@@ -167,8 +178,33 @@ export const useDesignsStore = create<DesignsStore>((set, get) => ({
     set({ activeDesignId: null, activeDesignName: '', activeVersionNumber: null, versions: [], savedSignature: currentSignature() });
   },
 
+  async duplicateDesign(id, name) {
+    const { items } = await apiListVersions(id, 1, 0);
+    if (items.length === 0) throw new Error(t('designs.copyFailed'));
+    const v = await apiGetVersion(id, items[0].versionNumber);
+    const payload = {
+      zpl: v.zpl, elements: v.elements, labelWidth: v.labelWidth, labelHeight: v.labelHeight,
+      sampleValues: v.sampleValues ?? {}, pagesConfig: v.pagesConfig ?? null,
+    };
+    // Names are unique in the company: "(cópia)", "(cópia 2)"… until one is free
+    for (let n = 1; n <= 20; n++) {
+      const copy = copyName(name, n, t('designs.copyWord'));
+      try {
+        await apiCreateDesign(copy, payload);
+        await get().fetchDesigns();
+        return copy;
+      } catch (e) {
+        if ((e as { status?: number })?.status === 409) continue;   // the name is taken: the next one
+        throw e;
+      }
+    }
+    throw new Error(t('designs.copyFailed'));
+  },
+
   reset() {
+    listRequest++;
     set({
+      designsSearch: '',
       designs: [], designsTotal: 0, activeDesignId: null, activeDesignName: '', activeVersionNumber: null,
       versions: [], showSaveModal: false, error: '', savedSignature: EMPTY_SIGNATURE,
     });
