@@ -63,7 +63,9 @@ export const ptBR: Record<keyof typeof en, string> = {
   'sidebar.clearTitle': 'Remover todos os elementos',
   'sidebar.clearDialogTitle': 'Limpar a etiqueta',
   'sidebar.clearAction': 'Remover tudo',
-  'sidebar.clearConfirm': 'Remover todos os elementos da etiqueta?',
+  'sidebar.clearConfirm': 'Remover todos os elementos da etiqueta? Ela continua ligada ao design aberto (salvar grava nele). Para começar outra etiqueta, use "Nova etiqueta".',
+  'toolbar.newLabel': 'Nova etiqueta',
+  'toolbar.newLabelTitle': 'Começar uma etiqueta em branco, do mesmo tamanho. O design aberto continua salvo como está; o próximo Salvar cria um design novo.',
   'sidebar.myDesigns': 'Meus designs',
   'sidebar.pictureError': 'Não foi possível abrir a imagem',
 

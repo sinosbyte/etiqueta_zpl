@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { requestNewLabel } from '../utils/editorSession';
 import { useDesignsStore } from '../store/useDesignsStore';
 import { apiListVersions, DesignSummary, VersionSummary } from '../utils/designsClient';
 import { t, useT } from '../i18n';
@@ -251,6 +252,16 @@ export function MyDesignsPage({ onBack }: Props) {
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--chrome-text)' }}>{t('sidebar.myDesigns')}</span>
 
         <div style={{ flex: 1 }} />
+
+        <button
+          className="chrome-btn chrome-btn-ghost"
+          onClick={async () => { if (await requestNewLabel()) onBack(); }}
+          title={t('toolbar.newLabelTitle')}
+          data-testid="designs-new-label"
+          style={{ fontSize: 12 }}
+        >
+          {t('toolbar.newLabel')}
+        </button>
 
         <div style={{ position: 'relative' }}>
           <svg

@@ -17,6 +17,7 @@ import { MAX_PAGES, isStructured } from '../utils/pages';
 import { usePanelStore } from '../store/usePanelStore';
 import { hasDesigns } from '../utils/admin';
 import { TemplateEditBar } from './TemplateEditBar';
+import { requestNewLabel } from '../utils/editorSession';
 import { useSimulationStore } from '../store/useSimulationStore';
 
 interface Props {
@@ -275,6 +276,20 @@ export function Toolbar({ onNavigateToMyDesigns }: Props) {
         <div style={{ flex: 1 }} />
 
         {/* Right actions. The Sinosbyte administrators have no designs to save (Fase 06): they keep templates */}
+        {hasDesigns(me?.role) && (
+        <button
+          className="chrome-btn chrome-btn-ghost"
+          onClick={() => void requestNewLabel()}
+          title={t('toolbar.newLabelTitle')}
+          data-testid="toolbar-new-label"
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+            <path d="M3 1h5l3 3v7a1 1 0 01-1 1H3a1 1 0 01-1-1V2a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3"/>
+            <path d="M6.5 5.5v4M4.5 7.5h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+          {t('toolbar.newLabel')}
+        </button>
+        )}
         {hasDesigns(me?.role) && (
         <button
           className="chrome-btn chrome-btn-ghost"
